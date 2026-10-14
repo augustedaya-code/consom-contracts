@@ -44,6 +44,14 @@ struct (0xc0150001) ClaimVoucher {
 //   - l'émetteur reconnaît un budget ou un compte membre en recalculant son adresse à partir de son code.
 // Parcours : membre -> émetteur -> [budget -> émetteur ->] compte membre -> émetteur -> wallet.
 
+// Conversion en cours (bons KIND_BANK_CONVERSION et KIND_OWN_CONVERSION) : calculée par l'émetteur au taux courant,
+// recopiée telle quelle par le compte membre, puis exécutée par la banque.
+struct BurnOrder {
+    mode: uint8              // BURN_FROM_STOCK ou BURN_FROM_ESCROW
+    burn: coins              // ConsoM à brûler (unités de base)
+    escrow: coins            // ConsoM déjà reçus par la banque pour cette conversion (propres ConsoM), 0 sinon
+}
+
 // Émetteur -> budget de paiement ou compte membre. Les champs utiles au remboursement de la réservation
 // sont en tête : un message rebondi ne rapporte que ses 256 premiers bits.
 struct (0xc0150002) CheckClaim {
@@ -52,6 +60,7 @@ struct (0xc0150002) CheckClaim {
     reserved: coins
     viaBudget: bool          // vrai si le budget de paiement a déjà accepté ce bon
     voucher: Cell<Voucher>
+    burnOrder: Cell<BurnOrder>?
 }
 
 // Budget -> émetteur : l'emplacement de récompense est libre et marqué ; l'émetteur transmet au compte membre.
@@ -71,6 +80,7 @@ struct (0xc0150003) MintApproved {
     immediate: coins
     memberId: uint256
     recipient: address
+    burnOrder: Cell<BurnOrder>?
 }
 
 // Budget ou compte membre -> émetteur : le bon est refusé ; l'émetteur libère sa réservation.
@@ -85,6 +95,7 @@ struct (0xc0150004) ClaimRejected {
     refundTo: address
     reason: uint16           // code de la raison du refus (REJECT_*)
     freeSlot: Cell<Voucher>?
+    burnOrder: Cell<BurnOrder>?
 }
 
 // Émetteur -> budget : libère l'emplacement d'un bon refusé par le compte membre, puis rend les frais.
@@ -105,6 +116,70 @@ struct (0xc0150005) ReleaseVested {
 // Membre (adresse liée) -> compte membre : réclamer les tranches de vesting échues.
 struct (0xc0150008) ClaimVesting {
     queryId: uint64
+}
+
+// ---------- Banque d'échange (sections 8 et 9) ----------
+
+// Émetteur -> banque : conversion via la banque, brûler sur le stock
+struct (0xc0150040) BankBurn {
+    queryId: uint64
+    burn: coins
+    refundTo: address
+}
+
+// Émetteur -> banque : conversion avec ses propres ConsoM acceptée ; brûler `burn`, rendre `refund` à `to`
+struct (0xc0150041) EscrowBurn {
+    queryId: uint64
+    burn: coins
+    refund: coins
+    to: address
+}
+
+// Émetteur -> banque : conversion avec ses propres ConsoM refusée ; rendre tous les jetons reçus
+struct (0xc0150042) ReturnEscrow {
+    queryId: uint64
+    amount: coins
+    to: address
+}
+
+// Banque -> émetteur : des ConsoM sont arrivés avec un bon de conversion ; l'émetteur vérifie le bon
+struct (0xc0150043) VerifyOwnConversion {
+    queryId: uint64
+    received: coins
+    from: address
+    voucher: Cell<Voucher>
+    sigA: Cell<WitnessSignature>
+    sigB: Cell<WitnessSignature>
+}
+
+// Banque -> parts d'un déposant : ajout de parts après un dépôt
+struct (0xc0150044) AddShares {
+    queryId: uint64
+    shares: coins
+    at: uint32
+}
+
+// Déposant -> ses parts : demande de retrait (shares = 0 : tout retirer)
+struct (0xc0150045) WithdrawRequest {
+    queryId: uint64
+    shares: coins
+}
+
+// Parts d'un déposant -> banque : retrait de `shares` parts. `shares` en tête pour être rétabli en cas de rebond.
+struct (0xc0150046) WithdrawShares {
+    queryId: uint64
+    shares: coins
+    owner: address
+}
+
+// Charges utiles d'un transfert de ConsoM vers la banque (forward payload)
+struct (0xc0150032) DepositTag {
+}
+
+struct (0xc0150033) OwnConversionTag {
+    voucher: Cell<Voucher>
+    sigA: Cell<WitnessSignature>
+    sigB: Cell<WitnessSignature>
 }
 
 // ---------- Gardien (section 10) ----------

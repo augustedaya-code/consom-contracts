@@ -27,6 +27,7 @@ type AllowedMessageToConsoMMinter =
     | ClaimVoucher
     | BudgetApproved
     | MintApproved
+    | VerifyOwnConversion
     | ClaimRejected
     | ReleaseVested
     | BurnNotificationForMinter
@@ -126,7 +127,14 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
     if (kind == KIND_INVESTMENT) {
         return mulDivFloor(payment.points * ONE_CONSOM, INVESTMENT_RATE_BP, BP_DENOMINATOR);
     }
+    if ((kind == KIND_BANK_CONVERSION) || (kind == KIND_OWN_CONVERSION)) {
+        return 0;     // une conversion ne crée rien : elle brûle (la récompense de 35 % est un bon séparé)
+    }
     return -1;
+}
+
+fun isConversionBurn(kind: int): bool {
+    return (kind == KIND_BANK_CONVERSION) || (kind == KIND_OWN_CONVERSION);
 }
 
 // Nombre de paliers de halving (section 8).
@@ -232,11 +240,94 @@ fun Witnesses.hasKey(self, key: uint256): bool {
     return (self.key0 == key) || (self.key1 == key) || (self.key2 == key);
 }
 
-fun checkWitnessSignature(witnesses: Witnesses, hash: uint256, sigCell: Cell<WitnessSignature>): int {
+// Index du témoin si la signature est valable, sinon un code d'erreur négatif
+fun witnessIndexOrError(witnesses: Witnesses, hash: uint256, sigCell: Cell<WitnessSignature>): int {
     val sig = sigCell.load();
-    assert (sig.index < WITNESS_COUNT) throw ERR_BAD_WITNESS_INDEX;
-    assert (isSignatureValid(hash, sig.signature as slice, witnesses.keyAt(sig.index))) throw ERR_BAD_SIGNATURE;
+    if (sig.index >= WITNESS_COUNT) {
+        return -ERR_BAD_WITNESS_INDEX;
+    }
+    if (!isSignatureValid(hash, sig.signature as slice, witnesses.keyAt(sig.index))) {
+        return -ERR_BAD_SIGNATURE;
+    }
     return sig.index;
+}
+
+// Contrôles communs à tout bon (section 5). Renvoie 0 si le bon est valable, sinon le code d'erreur.
+// Ne lève jamais d'exception : une conversion avec ses propres ConsoM doit pouvoir rendre les jetons reçus.
+fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<WitnessSignature>,
+                 sigB: Cell<WitnessSignature>, sender: address): int {
+    if (storage.isPaused()) {
+        return ERR_PAUSED;
+    }
+    val voucher = voucherCell.load();
+    val now = blockchain.now();
+    if (voucher.networkId != storage.networkId) {
+        return ERR_WRONG_NETWORK;
+    }
+    if (voucher.minter != contract.getAddress()) {
+        return ERR_WRONG_MINTER;
+    }
+    if (now > voucher.validUntil) {
+        return ERR_EXPIRED;
+    }
+    if (voucher.validUntil > now + VOUCHER_MAX_VALIDITY) {
+        return ERR_VALIDITY_TOO_LONG;
+    }
+    if (sender != voucher.recipient) {
+        return ERR_NOT_RECIPIENT;
+    }
+    if (voucher.kind > KIND_MAX) {
+        return ERR_UNKNOWN_KIND;
+    }
+
+    // 2 signatures valables de 2 témoins différents
+    val witnesses = storage.witnesses.load();
+    val hash = voucherCell.hash();
+    val indexA = witnessIndexOrError(witnesses, hash, sigA);
+    if (indexA < 0) {
+        return -indexA;
+    }
+    val indexB = witnessIndexOrError(witnesses, hash, sigB);
+    if (indexB < 0) {
+        return -indexB;
+    }
+    if (indexA == indexB) {
+        return ERR_SAME_WITNESS;
+    }
+
+    // fenêtre : prévente jusqu'à T0 + 12 mois, récompenses jusqu'à T0 + 18 mois, conversions sans limite
+    var windowEnd = storage.t0 + REWARDS_WINDOW;
+    if (voucher.kind == KIND_PRESALE) {
+        windowEnd = storage.t0 + PRESALE_WINDOW;
+    } else if (isConversionBurn(voucher.kind)) {
+        windowEnd = MAX_UINT32;
+    }
+    if ((now < storage.t0) || (now >= windowEnd)) {
+        return ERR_WINDOW_CLOSED;
+    }
+
+    // montant recalculé par le contrat
+    val payment = voucher.payment.load();
+    if (voucher.amount != expectedAmount(voucher.kind, voucher.level, voucher.amount, payment)) {
+        return ERR_WRONG_AMOUNT;
+    }
+    if ((voucher.kind == KIND_PURCHASE_RECORD) || (voucher.kind == KIND_REFERRAL)) {
+        if (payment.points * P_MAX_DENOMINATOR > payment.waveAmount) {
+            return ERR_POINTS_TOO_HIGH;
+        }
+    }
+    return 0;
+}
+
+const MAX_UINT32 = 0xFFFFFFFF
+
+fun ConsoMStorage.bankAddress(self): address {
+    val bankRef = self.extra.load().bank.load();
+    return calcBankAddress(bankRef.bankCode, bankRef.shareCode, self.config.load().walletCode, self.t0);
+}
+
+fun ConsoMStorage.currentHalvingSteps(self): int {
+    return halvingSteps(self.burnedByConversion, self.burnedInYear1);
 }
 
 // ===================================================================================================
@@ -292,6 +383,34 @@ fun sendExcesses(dest: address?, queryId: uint64) {
     excessesMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE | SEND_MODE_IGNORE_ERRORS);
 }
 
+// Instruction à la banque pour une conversion : brûler (acceptée) ou rendre les jetons reçus (refusée)
+fun sendBankInstruction(bank: address, order: BurnOrder, queryId: uint64, to: address, accepted: bool) {
+    if (!accepted) {
+        createMessage({
+            bounce: BounceMode.NoBounce,
+            dest: bank,
+            value: 0,
+            body: ReturnEscrow { queryId, amount: order.escrow, to }
+        }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+        return;
+    }
+    if (order.mode == BURN_FROM_STOCK) {
+        createMessage({
+            bounce: BounceMode.NoBounce,
+            dest: bank,
+            value: 0,
+            body: BankBurn { queryId, burn: order.burn, refundTo: to }
+        }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+        return;
+    }
+    createMessage({
+        bounce: BounceMode.NoBounce,
+        dest: bank,
+        value: 0,
+        body: EscrowBurn { queryId, burn: order.burn, refund: (order.escrow - order.burn) as coins, to }
+    }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+}
+
 // ===================================================================================================
 // Messages rebondis
 // ===================================================================================================
@@ -331,35 +450,13 @@ fun onInternalMessage(in: InMessage) {
         // ---------- Bon d'émission (section 5) ----------
         ClaimVoucher => {
             var storage = lazy ConsoMStorage.load();
-            assert (!storage.isPaused()) throw ERR_PAUSED;
             assert (in.valueCoins >= MIN_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;
-
-            val voucherHash = msg.voucher.hash();
+            val code = checkVoucher(storage, msg.voucher, msg.sigA, msg.sigB, in.senderAddress);
+            assert (code == 0) throw code;
             val voucher = msg.voucher.load();
-            val now = blockchain.now();
-            assert (voucher.networkId == storage.networkId) throw ERR_WRONG_NETWORK;
-            assert (voucher.minter == contract.getAddress()) throw ERR_WRONG_MINTER;
-            assert (now <= voucher.validUntil) throw ERR_EXPIRED;
-            assert (voucher.validUntil <= now + VOUCHER_MAX_VALIDITY) throw ERR_VALIDITY_TOO_LONG;
-            assert (in.senderAddress == voucher.recipient) throw ERR_NOT_RECIPIENT;
-            assert (voucher.kind <= KIND_MAX) throw ERR_UNKNOWN_KIND;
-
-            // 2 signatures valides de 2 témoins différents
-            val witnesses = storage.witnesses.load();
-            val indexA = checkWitnessSignature(witnesses, voucherHash, msg.sigA);
-            val indexB = checkWitnessSignature(witnesses, voucherHash, msg.sigB);
-            assert (indexA != indexB) throw ERR_SAME_WITNESS;
-
-            // fenêtre de la catégorie : prévente jusqu'à T0 + 12 mois, récompenses jusqu'à T0 + 18 mois
-            val windowEnd = (voucher.kind == KIND_PRESALE) ? storage.t0 + PRESALE_WINDOW : storage.t0 + REWARDS_WINDOW;
-            assert ((now >= storage.t0) && (now < windowEnd)) throw ERR_WINDOW_CLOSED;
-
-            // montant recalculé par le contrat
+            // une conversion avec ses propres ConsoM arrive toujours par la banque, avec les jetons
+            assert (voucher.kind != KIND_OWN_CONVERSION) throw ERR_UNKNOWN_KIND;
             val payment = voucher.payment.load();
-            assert (voucher.amount == expectedAmount(voucher.kind, voucher.level, voucher.amount, payment)) throw ERR_WRONG_AMOUNT;
-            if ((voucher.kind == KIND_PURCHASE_RECORD) || (voucher.kind == KIND_REFERRAL)) {
-                assert (payment.points * P_MAX_DENOMINATOR <= payment.waveAmount) throw ERR_POINTS_TOO_HIGH;
-            }
 
             // réservation sur le plafond de la catégorie et sur le plafond journalier global
             val category = categoryOf(voucher.kind);
@@ -390,6 +487,13 @@ fun onInternalMessage(in: InMessage) {
                     reserved: voucher.amount,
                     viaBudget: false,
                     voucher: msg.voucher,
+                    burnOrder: (voucher.kind == KIND_BANK_CONVERSION)
+                        ? (BurnOrder {
+                            mode: BURN_FROM_STOCK,
+                            burn: burnForPoints(payment.points, storage.currentHalvingSteps()) as coins,
+                            escrow: 0,
+                        }).toCell()
+                        : null,
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -411,6 +515,7 @@ fun onInternalMessage(in: InMessage) {
                     reserved: msg.reserved,
                     viaBudget: true,
                     voucher: msg.voucher,
+                    burnOrder: null,
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -421,6 +526,12 @@ fun onInternalMessage(in: InMessage) {
             val config = storage.config.load();
             assert (in.senderAddress == calcChildAddress(config.memberCode, msg.memberId)) throw ERR_NOT_CHILD;
             assert (msg.immediate <= msg.reserved) throw ERR_WRONG_AMOUNT;
+            if (msg.burnOrder != null) {
+                // conversion acceptée par le compte membre (numéro de bon jamais utilisé) : la banque brûle
+                val order = msg.burnOrder!.load();
+                sendBankInstruction(storage.bankAddress(), order, msg.queryId, msg.recipient, true);
+                return;
+            }
             if (msg.immediate == 0) {
                 sendExcesses(msg.recipient, msg.queryId);
                 return;
@@ -439,6 +550,14 @@ fun onInternalMessage(in: InMessage) {
             assert (in.senderAddress == expectedSender) throw ERR_NOT_CHILD;
             storage.releaseReservation(msg.category, msg.reserved);
             storage.save();
+            if (msg.burnOrder != null) {
+                val order = msg.burnOrder!.load();
+                if (order.mode == BURN_FROM_ESCROW) {
+                    // conversion avec ses propres ConsoM refusée : la banque rend tous les jetons reçus
+                    sendBankInstruction(storage.bankAddress(), order, msg.queryId, msg.refundTo, false);
+                    return;
+                }
+            }
             if (!msg.fromBudget && (msg.freeSlot != null)) {
                 // refus du compte membre sur un bon déjà accepté par le budget : on libère l'emplacement
                 val slotVoucher = msg.freeSlot!;
@@ -459,6 +578,43 @@ fun onInternalMessage(in: InMessage) {
             sendExcesses(msg.refundTo, msg.queryId);
         }
 
+        // Conversion avec ses propres ConsoM : la banque a reçu les jetons et le bon signé
+        VerifyOwnConversion => {
+            val storage = lazy ConsoMStorage.load();
+            val bank = storage.bankAddress();
+            assert (in.senderAddress == bank) throw ERR_NOT_BANK;
+            var code = checkVoucher(storage, msg.voucher, msg.sigA, msg.sigB, msg.from);
+            val voucher = msg.voucher.load();
+            val payment = voucher.payment.load();
+            val required = burnForPoints(payment.points, storage.currentHalvingSteps());
+            if ((code == 0) && (voucher.kind != KIND_OWN_CONVERSION)) {
+                code = ERR_UNKNOWN_KIND;
+            }
+            if ((code == 0) && (msg.received < required)) {
+                code = ERR_WRONG_AMOUNT;
+            }
+            if (code != 0) {
+                val refused: BurnOrder = { mode: BURN_FROM_ESCROW, burn: 0, escrow: msg.received };
+                sendBankInstruction(bank, refused, msg.queryId, msg.from, false);
+                return;
+            }
+            val config = storage.config.load();
+            val order: BurnOrder = { mode: BURN_FROM_ESCROW, burn: required as coins, escrow: msg.received };
+            createMessage({
+                bounce: BounceMode.Only256BitsOfBody,
+                dest: calcDeployedChild(config.memberCode, payment.memberId),
+                value: 0,
+                body: CheckClaim {
+                    queryId: msg.queryId,
+                    category: CAT_PURCHASE,
+                    reserved: 0,
+                    viaBudget: false,
+                    voucher: msg.voucher,
+                    burnOrder: order.toCell(),
+                }
+            }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+        }
+
         ReleaseVested => {
             var storage = lazy ConsoMStorage.load();
             assert (!storage.isPaused()) throw ERR_PAUSED;
@@ -474,7 +630,7 @@ fun onInternalMessage(in: InMessage) {
             var storage = lazy ConsoMStorage.load();
             val config = storage.config.load();
             assert (in.senderAddress == calcWalletAddress(msg.burnInitiator, config.walletCode)) throw ERR_NOT_WALLET;
-            val bank = calcBankAddress(storage.extra.load().bank.load().bankCode);
+            val bank = storage.bankAddress();
 
             if (msg.burnInitiator == bank) {
                 // brûlage de conversion : définitif, compte pour le halving
@@ -597,7 +753,7 @@ fun onInternalMessage(in: InMessage) {
             storage.genesisDone = true;
             storage.addSupply(FOUNDERS_BANK_DEPOSIT);
             storage.save();
-            val bank = calcBankAddress(storage.extra.load().bank.load().bankCode);
+            val bank = storage.bankAddress();
             sendMint(storage.config.load().walletCode, bank, FOUNDERS_BANK_DEPOSIT, msg.queryId, in.senderAddress,
                      BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG));
         }
@@ -682,7 +838,7 @@ get fun get_caps(): Caps {
 // ConsoM à brûler (unités de base) pour convertir `points` Points au taux courant
 get fun get_burn_for_points(points: int): int {
     val storage = lazy ConsoMStorage.load();
-    return burnForPoints(points, halvingSteps(storage.burnedByConversion, storage.burnedInYear1));
+    return burnForPoints(points, storage.currentHalvingSteps());
 }
 
 get fun get_witnesses(): Witnesses {
@@ -692,7 +848,7 @@ get fun get_witnesses(): Witnesses {
 
 get fun get_bank_address(): address {
     val storage = lazy ConsoMStorage.load();
-    return calcBankAddress(storage.extra.load().bank.load().bankCode);
+    return storage.bankAddress();
 }
 
 get fun get_child_address(isBudget: bool, key: int): address {

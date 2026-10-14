@@ -171,7 +171,7 @@ n_1 = \left\lfloor \frac{B_1}{800\,000} \right\rfloor \qquad n = \min\left( n_1 
 
 **Deux façons de payer**
 
-1. **Avec ses propres ConsoM** (ouvert à tous) : le membre envoie les ConsoM requis à la banque d'échange avec la référence de la conversion. La banque les brûle aussitôt ; ils ne deviennent pas un dépôt. L'application crédite 100 % des Points en FECA.
+1. **Avec ses propres ConsoM** (ouvert à tous) : le membre envoie à la banque au moins les ConsoM requis, accompagnés du bon de conversion signé par 2 témoins sur 3. La banque les garde en attente, l'émetteur vérifie le bon et calcule le brûlage au taux courant ; la banque brûle ce montant et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tous les jetons sont rendus. L'application crédite 100 % des Points en FECA.
 2. **Via la banque d'échange** : les témoins signent une attestation de conversion ; la banque brûle le montant requis sur son stock (section 9). L'application crédite 90 % en FECA ; les 10 % restants vont en FECA aux déposants, au prorata de leurs parts.
 
 Dans les deux cas, la conversion donne droit à la récompense de 35 % (section 6).
@@ -198,10 +198,17 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 1. De T0 à T0 + 12 mois : aucun dépôt, aucun retrait, y compris pour les Anciens Contributeurs. Seuls les brûlages de conversion sont possibles.
 2. Après T0 + 12 mois : tout détenteur peut déposer en transférant des ConsoM à la banque. Un retrait est possible 24 h après le dernier dépôt du même déposant.
-3. La banque ne brûle son propre stock que sur attestation de conversion signée par 2 témoins sur 3 ; les ConsoM qu'un membre lui envoie pour sa propre conversion sont brûlés dès réception. Chaque attestation porte un numéro qui doit suivre exactement le précédent : une attestation ne peut servir qu'une fois, sans liste qui grossit.
-4. Le montant brûlé n'est jamais pris dans l'attestation : la banque demande le nombre de paliers n à l'émetteur, qui répond par message, puis recalcule le brûlage à partir des Points attestés (section 8).
+3. La banque ne brûle que sur ordre de l'émetteur, après un bon de conversion signé par 2 témoins sur 3. Chaque bon ne sert qu'une fois : le compte du membre refuse un numéro de bon déjà utilisé ou plus ancien.
+4. Le montant brûlé n'est jamais pris dans le bon : l'émetteur le calcule à partir des Points attestés et du taux courant (section 8), puis le transmet à la banque.
 5. La banque publie le nombre de parts de chaque déposant ; l'application s'en sert pour répartir les 10 % de frais en FECA.
 6. La banque ne brûle pas plus de 5 % de son stock par période glissante de 24 h pour les conversions via la banque. Une conversion qui dépasserait ce plafond est refusée et peut être refaite dès que la période le permet ; le membre peut aussi convertir avec ses propres ConsoM, qui ne sont pas soumis à ce plafond.
+
+**Précisions de mise en œuvre**
+
+- Un dépôt doit être accompagné d'au moins 0,05 TON. Pendant les 12 premiers mois, les jetons d'un dépôt sont rendus.
+- Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion), ou sans assez de TON pour être traités, rejoignent le stock sans propriétaire.
+- Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur recevra les siennes par sa réclamation de genèse.
+- Chaque déposant a un petit contrat qui retient ses parts et la date de son dernier dépôt.
 
 ## 10. Sécurité et gouvernance
 

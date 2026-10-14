@@ -19,6 +19,8 @@ export const Kind = {
     MISSION_TG: 5,
     MISSION_FB: 6,
     INVESTMENT: 7,
+    BANK_CONVERSION: 8,
+    OWN_CONVERSION: 9,
 } as const;
 
 export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5 } as const;
@@ -35,6 +37,15 @@ export const Op = {
     CancelWitness: 0xc0150013,
     ExecuteWitness: 0xc0150014,
     GenesisFoundersDeposit: 0xc0150020,
+    VerifyOwnConversion: 0xc0150043,
+    BankBurn: 0xc0150040,
+    EscrowBurn: 0xc0150041,
+    ReturnEscrow: 0xc0150042,
+    WithdrawRequest: 0xc0150045,
+    WithdrawShares: 0xc0150046,
+    DepositTag: 0xc0150032,
+    OwnConversionTag: 0xc0150033,
+    JettonTransfer: 0x0f8a7ea5,
     Burn: 0x595f07bc,
     InternalTransfer: 0x178d4519,
 } as const;
@@ -67,6 +78,7 @@ export type MinterConfig = {
     budgetCode: Cell;
     memberCode: Cell;
     bankCode: Cell;
+    shareCode: Cell;
     content: Cell;
     // TESTS UNIQUEMENT : état de départ différent (plafonds, offre, brûlages) pour tester les limites
     testCaps?: Partial<typeof INITIAL_CAPS>;
@@ -104,7 +116,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .endCell();
     const extra = beginCell()
         .storeRef(c.content)
-        .storeRef(beginCell().storeRef(c.bankCode).endCell())
+        .storeRef(beginCell().storeRef(c.bankCode).storeRef(c.shareCode).endCell())
         .endCell();
     return beginCell()
         .storeCoins(st.totalSupply ?? 0n)
@@ -309,3 +321,39 @@ export class ConsoMMinter implements Contract {
         };
     }
 }
+
+// ---------- Banque d'échange ----------
+
+// Données initiales de la banque (BankInit) : l'émetteur calcule l'adresse de la banque à partir d'elles
+export function bankInitData(minter: Address, t0: number, walletCode: Cell, shareCode: Cell): Cell {
+    return beginCell()
+        .storeAddress(minter)
+        .storeUint(t0, 32)
+        .storeRef(walletCode)
+        .storeRef(shareCode)
+        .storeMaybeRef(null)
+        .endCell();
+}
+
+// Corps d'un transfert de ConsoM (TEP-74) depuis le wallet de `owner` vers `to`, avec une charge utile
+export function jettonTransferBody(o: { amount: bigint; to: Address; responseTo: Address; forwardTon: bigint; payload?: Cell }): Cell {
+    const b = beginCell()
+        .storeUint(Op.JettonTransfer, 32)
+        .storeUint(0, 64)
+        .storeCoins(o.amount)
+        .storeAddress(o.to)
+        .storeAddress(o.responseTo)
+        .storeMaybeRef(null)
+        .storeCoins(o.forwardTon);
+    if (o.payload) b.storeBit(true).storeRef(o.payload);
+    else b.storeBit(false);
+    return b.endCell();
+}
+
+export const depositPayload = () => beginCell().storeUint(Op.DepositTag, 32).endCell();
+
+export const ownConversionPayload = (voucher: Cell, sigA: Cell, sigB: Cell) =>
+    beginCell().storeUint(Op.OwnConversionTag, 32).storeRef(voucher).storeRef(sigA).storeRef(sigB).endCell();
+
+export const withdrawRequestBody = (shares: bigint) =>
+    beginCell().storeUint(Op.WithdrawRequest, 32).storeUint(0, 64).storeCoins(shares).endCell();

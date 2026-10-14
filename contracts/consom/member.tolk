@@ -67,8 +67,8 @@ fun MemberState.addVesting(mutate self, unlockDay: int, amount: int) {
     self.vesting.set(unlockDay, (previous + amount) as coins);
 }
 
-fun reject(minter: address, memberId: uint256, msg: CheckClaim, refundTo: address, reason: int, freeSlot: bool) {
-    keepChildReserve();
+fun reject(inValue: coins, minter: address, memberId: uint256, msg: CheckClaim, refundTo: address, reason: int, freeSlot: bool) {
+    keepReserve(inValue, CHILD_STORAGE_RESERVE);
     createMessage({
         bounce: BounceMode.NoBounce,
         dest: minter,
@@ -82,6 +82,7 @@ fun reject(minter: address, memberId: uint256, msg: CheckClaim, refundTo: addres
             refundTo,
             reason,
             freeSlot: (freeSlot && msg.viaBudget) ? msg.voucher : null,
+            burnOrder: msg.burnOrder,
         }
     }).send(SEND_MODE_CARRY_ALL_BALANCE);
 }
@@ -126,7 +127,7 @@ fun onInternalMessage(in: InMessage) {
                 : previous!;
 
             if (voucher.recipient != state.owner) {
-                reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_WRONG_OWNER, true);
+                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_WRONG_OWNER, true);
                 return;
             }
 
@@ -143,12 +144,12 @@ fun onInternalMessage(in: InMessage) {
             } else if (kind == KIND_REFERRAL) {
                 if (!state.referralEligible) {
                     // parrain non éligible : l'emplacement est perdu (section 6), il n'est pas libéré
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_NOT_ELIGIBLE, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_NOT_ELIGIBLE, false);
                     return;
                 }
             } else if (kind == KIND_FIRST_PURCHASE) {
                 if ((state.flags & FLAG_FIRST_PURCHASE) != 0) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_ALREADY_DONE, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_ALREADY_DONE, false);
                     return;
                 }
                 state.flags = state.flags | FLAG_FIRST_PURCHASE;
@@ -156,33 +157,41 @@ fun onInternalMessage(in: InMessage) {
             } else if ((kind == KIND_MISSION_TG) || (kind == KIND_MISSION_FB)) {
                 val flag = (kind == KIND_MISSION_TG) ? FLAG_MISSION_TG : FLAG_MISSION_FB;
                 if (!state.hasPayment) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_NO_PAYMENT, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_NO_PAYMENT, false);
                     return;
                 }
                 if ((state.flags & flag) != 0) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_ALREADY_DONE, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_ALREADY_DONE, false);
                     return;
                 }
                 state.flags = state.flags | flag;
             } else if (kind == KIND_CONVERSION) {
                 if (voucher.voucherId <= state.lastDirectVoucherId) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_STALE_VOUCHER, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_STALE_VOUCHER, false);
                     return;
                 }
                 if (state.convertedPoints + payment.points > state.rewardablePoints) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_NOT_ENOUGH_POINTS, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_NOT_ENOUGH_POINTS, false);
                     return;
                 }
                 state.lastDirectVoucherId = voucher.voucherId;
                 state.convertedPoints += payment.points;
+            } else if ((kind == KIND_BANK_CONVERSION) || (kind == KIND_OWN_CONVERSION)) {
+                // conversion (brûlage) : seul contrôle ici, un bon ne sert qu'une fois
+                if (voucher.voucherId <= state.lastDirectVoucherId) {
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_STALE_VOUCHER, false);
+                    return;
+                }
+                state.lastDirectVoucherId = voucher.voucherId;
+                withVesting = false;
             } else if (kind == KIND_INVESTMENT) {
                 if (voucher.voucherId <= state.lastDirectVoucherId) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_STALE_VOUCHER, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_STALE_VOUCHER, false);
                     return;
                 }
                 val limit = mulDivFloor(state.rewardablePoints * ONE_CONSOM, INVESTMENT_RATE_BP, BP_DENOMINATOR);
                 if (state.investmentBonus + msg.reserved > limit) {
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_NOT_ENOUGH_POINTS, false);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_NOT_ENOUGH_POINTS, false);
                     return;
                 }
                 state.lastDirectVoucherId = voucher.voucherId;
@@ -196,7 +205,7 @@ fun onInternalMessage(in: InMessage) {
                 state.rollDay();
                 if (state.dayReceived + immediate > MEMBER_DAILY_CAP) {
                     // passager : le bon pourra être réclamé de nouveau s'il n'a pas expiré
-                    reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_DAILY_CAP, true);
+                    reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_DAILY_CAP, true);
                     return;
                 }
                 state.dayReceived += immediate;
@@ -215,7 +224,7 @@ fun onInternalMessage(in: InMessage) {
             storage.state = state.toCell();
             contract.setData(storage.toCell());
 
-            keepChildReserve();
+            keepReserve(in.valueCoins, CHILD_STORAGE_RESERVE);
     createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: storage.minter,
@@ -227,6 +236,7 @@ fun onInternalMessage(in: InMessage) {
                     immediate: immediate as coins,
                     memberId: storage.key,
                     recipient: state.owner,
+                    burnOrder: msg.burnOrder,
                 }
             }).send(SEND_MODE_CARRY_ALL_BALANCE);
         }
@@ -255,7 +265,7 @@ fun onInternalMessage(in: InMessage) {
             storage.state = state.toCell();
             contract.setData(storage.toCell());
 
-            keepChildReserve();
+            keepReserve(in.valueCoins, CHILD_STORAGE_RESERVE);
     createMessage({
                 bounce: BounceMode.Only256BitsOfBody,
                 dest: storage.minter,

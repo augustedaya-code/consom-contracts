@@ -8,7 +8,8 @@ import { keyPairFromSeed } from '@ton/crypto';
 import type { KeyPair } from '@ton/crypto';
 import { compileTolk } from '../scripts/compile.ts';
 import {
-    ConsoMMinter, NETWORK_TESTNET, Kind, voucherToCell, signVoucher, claimBody, consom,
+    ConsoMMinter, NETWORK_TESTNET, Kind, voucherToCell, signVoucher, claimBody, consom, bankInitData,
+    jettonTransferBody, ownConversionPayload, depositPayload, withdrawRequestBody,
 } from '../wrappers/ConsoMMinter.ts';
 import type { MinterConfig, VoucherData } from '../wrappers/ConsoMMinter.ts';
 
@@ -21,12 +22,13 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     const blockchain = await Blockchain.create();
     blockchain.now = T0;
 
-    const [minterCode, walletCode, budgetCode, memberCode, bankCode] = await Promise.all([
+    const [minterCode, walletCode, budgetCode, memberCode, bankCode, shareCode] = await Promise.all([
         compileTolk('contracts/consom/minter.tolk'),
         compileTolk('contracts/jetton/JettonWallet.tolk'),
         compileTolk('contracts/consom/budget.tolk'),
         compileTolk('contracts/consom/member.tolk'),
-        compileTolk('tests/stubs/bank_stub.tolk'),
+        compileTolk('contracts/consom/bank.tolk'),
+        compileTolk('contracts/consom/bank_share.tolk'),
     ]);
 
     const witnesses: KeyPair[] = [1, 2, 3].map((i) => keyPairFromSeed(Buffer.alloc(32, i)));
@@ -44,19 +46,20 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         budgetCode,
         memberCode,
         bankCode,
+        shareCode,
         content: beginCell().storeUint(0x01, 8).storeStringTail('https://tonmarche.example/consom.json').endCell(),
         ...overrides,
     };
     const minter = blockchain.openContract(ConsoMMinter.createFromConfig(config, minterCode));
     const deploy = await minter.sendDeploy(deployer.getSender(), toNano('1'));
 
-    // banque de test, déployée avec les données initiales que l'émetteur attend (BankInit)
-    const bankInit = { code: bankCode, data: beginCell().storeAddress(minter.address).storeMaybeRef(null).endCell() };
+    // banque d'échange, déployée avec les données initiales que l'émetteur attend (BankInit)
+    const bankInit = { code: bankCode, data: bankInitData(minter.address, config.t0, walletCode, shareCode) };
     const bankAddress = await minter.getBankAddress();
-    await deployer.send({ to: bankAddress, value: toNano('0.5'), init: bankInit, body: beginCell().storeUint(0x7362d09c, 32).storeUint(0, 64).storeCoins(0).storeAddress(null).storeBit(false).endCell() });
+    await deployer.send({ to: bankAddress, value: toNano('0.5'), init: bankInit, body: beginCell().endCell() });
     const bankDeployed = await blockchain.getContract(bankAddress);
     if (bankDeployed.accountState?.type !== 'active') {
-        throw new Error('la banque de test n\'a pas été déployée à l\'adresse calculée par l\'émetteur');
+        throw new Error('la banque n\'a pas été déployée à l\'adresse calculée par l\'émetteur');
     }
 
     let nextVoucherId = 1n;
@@ -125,7 +128,40 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         body: beginCell().storeUint(0xc0150008, 32).storeUint(0, 64).endCell(),
     });
 
-    return { blockchain, minter, deploy, memberState, budgetState, claimVesting, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
+    // ---------- Banque ----------
+    const bankState = async () => {
+        const s = (await (await blockchain.getContract(bankAddress)).get('get_bank_state')).stackReader;
+        return {
+            depositorStock: s.readBigNumber(), ownerlessStock: s.readBigNumber(), totalShares: s.readBigNumber(),
+            unassignedShares: s.readBigNumber(), escrow: s.readBigNumber(), dayCap: s.readBigNumber(),
+            dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
+        };
+    };
+    const shareState = async (owner: Address) => {
+        const r = await (await blockchain.getContract(bankAddress)).get('get_share_address', [{ type: 'slice', cell: beginCell().storeAddress(owner).endCell() }]);
+        const c = await blockchain.getContract(r.stackReader.readAddress());
+        if (c.accountState?.type !== 'active') return null;
+        const s = (await c.get('get_share_state')).stackReader;
+        return { address: c.address, shares: s.readBigNumber(), lastDepositAt: s.readNumber() };
+    };
+    // Transfert de ConsoM depuis le wallet de `from` vers la banque, avec une charge utile
+    const sendToBank = async (from: SandboxContract<TreasuryContract>, amount: bigint, payload?: Cell, forwardTon = toNano('0.3')) => {
+        const wallet = await minter.getWalletAddress(from.address);
+        return from.send({ to: wallet, value: forwardTon + toNano('0.2'), body: jettonTransferBody({ amount, to: bankAddress, responseTo: from.address, forwardTon, payload }) });
+    };
+    // Conversion avec ses propres ConsoM : bon signé joint au transfert
+    const ownConversion = async (v: VoucherData, sent: bigint, signers: [number, number] = [0, 1]) => {
+        const cell = voucherToCell(v);
+        const payload = ownConversionPayload(cell, signVoucher(cell, signers[0], witnesses[signers[0]].secretKey), signVoucher(cell, signers[1], witnesses[signers[1]].secretKey));
+        return sendToBank(member, sent, payload);
+    };
+    const deposit = (from: SandboxContract<TreasuryContract>, amount: bigint) => sendToBank(from, amount, depositPayload(), toNano('0.1'));
+    const withdraw = async (from: SandboxContract<TreasuryContract>, shares = 0n) => {
+        const st = await shareState(from.address);
+        return from.send({ to: st!.address, value: toNano('0.3'), body: withdrawRequestBody(shares) });
+    };
+
+    return { blockchain, minter, deploy, memberState, budgetState, claimVesting, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
 }
 
 // ---------- Transactions ----------

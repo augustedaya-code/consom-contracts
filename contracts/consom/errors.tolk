@@ -26,5 +26,6 @@ const ERR_TIMELOCK            = 425   // délai de 7 jours non écoulé
 const ERR_DUPLICATE_KEY       = 426   // la nouvelle clé est déjà celle d'un témoin
 const ERR_NOT_CHILD           = 430   // message qui ne vient pas d'un budget ou d'un compte membre de cet émetteur
 const ERR_NOT_WALLET          = 431   // notification de brûlage qui ne vient pas d'un wallet ConsoM
+const ERR_NOT_BANK            = 432   // message réservé à la banque d'échange
 const ERR_GENESIS_DONE        = 440   // genèse déjà faite
 const ERR_UNKNOWN_OP          = 0xFFFF

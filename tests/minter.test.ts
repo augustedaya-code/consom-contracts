@@ -1,6 +1,5 @@
 // Tests de l'émetteur ConsoM (lancer : npm test). Chaque bloc correspond à une section de la spécification.
-// Le budget de paiement et le compte membre sont les vrais contrats ; seule la banque d'échange est
-// encore remplacée par un contrat de test (tests/stubs/bank_stub.tolk).
+// Tous les contrats sont les vrais : émetteur, budget de paiement, compte membre, banque d'échange.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { beginCell, toNano } from '@ton/core';
@@ -190,7 +189,9 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse un type de bon inconnu', async () => {
         const env = await setup();
-        expectRejected(await env.claim(env.voucher({ kind: 8 })), env.minter.address, Err.UNKNOWN_KIND);
+        expectRejected(await env.claim(env.voucher({ kind: 10 })), env.minter.address, Err.UNKNOWN_KIND);
+        // une conversion avec ses propres ConsoM n'est jamais acceptée directement (elle arrive par la banque)
+        expectRejected(await env.claim(env.voucher({ kind: Kind.OWN_CONVERSION, points: 100n, waveAmount: 0n, amount: 0n })), env.minter.address, Err.UNKNOWN_KIND);
     });
 
     it('refuse un bon avec trop peu de TON pour traverser les contrats', async () => {
@@ -201,7 +202,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
     it('refuse un message d\'approbation qui ne vient pas d\'un compte membre', async () => {
         const env = await setup();
         const fake = beginCell().storeUint(Op.MintApproved, 32).storeUint(0, 64).storeUint(0, 8)
-            .storeCoins(consom(1000)).storeCoins(consom(1000)).storeUint(1n, 256).storeAddress(env.stranger.address).endCell();
+            .storeCoins(consom(1000)).storeCoins(consom(1000)).storeUint(1n, 256).storeAddress(env.stranger.address).storeMaybeRef(null).endCell();
         expectRejected(await env.minter.sendRaw(env.stranger.getSender(), toNano('0.2'), fake), env.minter.address, Err.NOT_CHILD);
         const fakeRelease = beginCell().storeUint(Op.ReleaseVested, 32).storeUint(0, 64).storeCoins(consom(1000))
             .storeUint(1n, 256).storeAddress(env.stranger.address).endCell();
@@ -374,14 +375,9 @@ async function burnFrom(env: any, who: any, amount: bigint, value: bigint) {
     });
 }
 
-// Brûlage de conversion : la banque (contrat de test) brûle sur son propre stock
-async function bankBurn(env: any, amount: bigint) {
-    const bank = await env.minter.getBankAddress();
-    const bankWallet = await env.minter.getWalletAddress(bank);
-    return env.stranger.send({
-        to: bank, value: toNano('0.3'),
-        body: beginCell().storeUint(0x7e570002, 32).storeUint(0, 64).storeAddress(bankWallet).storeCoins(amount).endCell(),
-    });
+// Conversion via la banque : bon signé, la banque brûle sur son stock (au départ, 1 Point = 10^8 unités de base)
+async function bankBurn(env: any, points: bigint) {
+    return env.claim(env.voucher({ kind: Kind.BANK_CONVERSION, points, waveAmount: 0n, amount: 0n }));
 }
 
 describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
@@ -398,12 +394,16 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
     it('un brûlage de conversion (par la banque) est définitif et compte pour le halving', async () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
-        const r = await bankBurn(env, consom(800_000));
-        assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: true }), describeTxs(r));
+        // 6 jours de conversions de 1 400 000 Points = 140 000 ConsoM par jour (sous le plafond de 5 %)
+        for (let day = 0; day < 6; day++) {
+            env.blockchain.now = T0 + day * DAY;
+            const r = await bankBurn(env, 1_400_000n);
+            assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: true }), `jour ${day}\n${describeTxs(r)}`);
+        }
         const st = await env.minter.getState();
-        assert.equal(st.totalSupply, consom(2_700_000));
-        assert.equal(st.burnedByConversion, consom(800_000));
-        assert.equal(st.burnedInYear1, consom(800_000));
+        assert.equal(st.totalSupply, consom(3_500_000 - 840_000));
+        assert.equal(st.burnedByConversion, consom(840_000));
+        assert.equal(st.burnedInYear1, consom(840_000));
         assert.equal(st.halvingSteps, 1);
         assert.equal(await env.minter.getBurnForPoints(100n), consom(5), 'V = 50 : 100 Points demandent 5 ConsoM');
     });
@@ -416,6 +416,7 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
         assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: true }), describeTxs(r));
         assert.equal(await env.balanceOf(env.member.address), consom(2000));
         assert.equal(await env.balanceOf(bank), consom(1000));
+        assert.equal((await env.bankState()).ownerlessStock, consom(1000), 'stock sans propriétaire');
         const st = await env.minter.getState();
         assert.equal(st.totalSupply, consom(3000), 'l\'offre ne baisse pas');
         assert.equal(st.recycled, consom(1000));
@@ -467,12 +468,12 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
     it('après la 1re année, les brûlages ne comptent plus dans B1', async () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
-        await bankBurn(env, consom(500_000));
+        await bankBurn(env, 1_000_000n);   // 100 000 ConsoM
         env.blockchain.now = T0 + 365 * DAY;
-        await bankBurn(env, consom(500_000));
+        await bankBurn(env, 1_000_000n);
         const st = await env.minter.getState();
-        assert.equal(st.burnedInYear1, consom(500_000));
-        assert.equal(st.burnedByConversion, consom(1_000_000));
-        assert.equal(st.halvingSteps, 0, 'pas de palier : 500 000 < 800 000, puis 1 000 000 < 12 000 000');
+        assert.equal(st.burnedInYear1, consom(100_000));
+        assert.equal(st.burnedByConversion, consom(200_000));
+        assert.equal(st.halvingSteps, 0);
     });
 });

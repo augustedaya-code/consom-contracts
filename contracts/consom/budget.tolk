@@ -49,8 +49,8 @@ fun ChildInit.loadBudgetState(self): BudgetState? {
     return BudgetState.fromCell(self.state!);
 }
 
-fun reject(minter: address, key: uint256, msg: CheckClaim, refundTo: address, reason: int) {
-    keepChildReserve();
+fun reject(inValue: coins, minter: address, key: uint256, msg: CheckClaim, refundTo: address, reason: int) {
+    keepReserve(inValue, CHILD_STORAGE_RESERVE);
     createMessage({
         bounce: BounceMode.NoBounce,
         dest: minter,
@@ -64,6 +64,7 @@ fun reject(minter: address, key: uint256, msg: CheckClaim, refundTo: address, re
             refundTo,
             reason,
             freeSlot: null,
+            burnOrder: null,
         }
     }).send(SEND_MODE_CARRY_ALL_BALANCE);
 }
@@ -85,17 +86,17 @@ fun onInternalMessage(in: InMessage) {
 
             // tous les bons d'un même paiement doivent porter les mêmes données attestées
             if ((state.waveAmount != payment.waveAmount) || (state.points != payment.points)) {
-                reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_PAYMENT_MISMATCH);
+                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_PAYMENT_MISMATCH);
                 return;
             }
             // un paiement de prévente ne donne que son pack ; un achat ne peut pas devenir une prévente
             val isPresale = voucher.kind == KIND_PRESALE;
             if ((isPresale && (state.slots != 0)) || (!isPresale && ((state.slots & SLOT_PRESALE) != 0))) {
-                reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_PRESALE_EXCLUSIVE);
+                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_PRESALE_EXCLUSIVE);
                 return;
             }
             if ((state.slots & slot) != 0) {
-                reject(storage.minter, storage.key, msg, voucher.recipient, REJECT_SLOT_USED);
+                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_SLOT_USED);
                 return;
             }
 
@@ -103,7 +104,7 @@ fun onInternalMessage(in: InMessage) {
             storage.state = state.toCell();
             contract.setData(storage.toCell());
 
-            keepChildReserve();
+            keepReserve(in.valueCoins, CHILD_STORAGE_RESERVE);
     createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: storage.minter,
@@ -127,7 +128,7 @@ fun onInternalMessage(in: InMessage) {
                 storage.state = state.toCell();
                 contract.setData(storage.toCell());
             }
-            keepChildReserve();
+            keepReserve(in.valueCoins, CHILD_STORAGE_RESERVE);
     createMessage({
                 bounce: BounceMode.NoBounce,
                 dest: msg.refundTo,

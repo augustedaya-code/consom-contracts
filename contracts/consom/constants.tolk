@@ -32,7 +32,9 @@ const KIND_CONVERSION      = 4   // 35 % des Points convertis          -> compte
 const KIND_MISSION_TG      = 5   // mission Telegram                   -> compte membre
 const KIND_MISSION_FB      = 6   // mission Facebook                   -> compte membre
 const KIND_INVESTMENT      = 7   // 30 % des FECA investis             -> compte membre
-const KIND_MAX             = 7
+const KIND_BANK_CONVERSION = 8   // conversion via la banque : la banque brûle sur son stock (aucune création)
+const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive par la banque, jamais par ClaimVoucher
+const KIND_MAX             = 9
 
 // ---------- Section 6 : montants des récompenses ----------
 const FIRST_PURCHASE_REWARD = 500 * ONE_CONSOM
@@ -113,3 +115,14 @@ const SLOT_FIRST_PURCHASE = 4          // bit 2
 // TON conservé par chaque budget de paiement et compte membre pour payer ses frais de stockage
 // (versé une seule fois, à la création du contrat, par le membre qui envoie le bon)
 const CHILD_STORAGE_RESERVE = ton("0.01")
+
+// ---------- Banque d'échange (section 9) ----------
+const BANK_CLOSED_PERIOD    = ONE_YEAR    // aucun dépôt ni retrait des membres pendant 12 mois
+const BANK_WITHDRAW_DELAY   = ONE_DAY     // retrait possible 24 h après le dernier dépôt
+const BANK_DAILY_BURN_BP    = 500         // 5 % du stock par période de 24 h (conversions via la banque)
+const BANK_OP_MIN_VALUE     = ton("0.05") // TON minimum joint à une opération qui doit renvoyer des jetons
+const BANK_JETTON_FWD_VALUE = ton("0.05") // TON joint à un transfert ou un brûlage depuis le wallet de la banque
+
+// Modes d'une conversion (BurnOrder.mode)
+const BURN_FROM_STOCK  = 1   // via la banque
+const BURN_FROM_ESCROW = 2   // avec ses propres ConsoM, déjà reçus par la banque

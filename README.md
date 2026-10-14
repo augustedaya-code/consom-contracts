@@ -3,18 +3,18 @@
 Contrats de ConsoM, la couche crypto de TonMarché, écrits en [Tolk](https://docs.ton.org/tolk/overview).
 La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque règle du code renvoie à une de ses sections.
 
-> **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement et le compte membre sont écrits et
-> testés ensemble. La banque d'échange, les réclamations de genèse et le vesting de l'équipe restent à écrire : en attendant,
-> la banque est remplacée par un contrat de test (`tests/stubs/bank_stub.tolk`) qui ne doit jamais être déployé.
+> **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement, le compte membre et la banque
+> d'échange sont écrits et testés ensemble. Restent à écrire : les réclamations de genèse, le vesting de l'équipe,
+> le changement d'adresse liée et l'enregistrement du parrain.
 
 ## Contenu
 
 | Dossier | Rôle |
 | --- | --- |
-| `contracts/consom/` | Émetteur (`minter.tolk`), budget de paiement (`budget.tolk`), compte membre (`member.tolk`), messages, constantes, stockage, codes d'erreur |
+| `contracts/consom/` | Émetteur (`minter.tolk`), budget de paiement (`budget.tolk`), compte membre (`member.tolk`), banque d'échange (`bank.tolk`), parts d'un déposant (`bank_share.tolk`), messages, constantes, stockage, codes d'erreur |
 | `contracts/jetton/` | Wallet Jetton shardé (principe Jetton 2.0), repris sans modification — voir `NOTICE.md` |
 | `wrappers/` | Interface TypeScript : stockage initial, bons, messages, lectures |
-| `tests/` | Tests automatiques ; `tests/stubs/` contient des contrats de remplacement, **pour les tests uniquement** |
+| `tests/` | Tests automatiques de bout en bout, avec tous les vrais contrats |
 | `scripts/compile.ts` | Compilation avec le compilateur Tolk officiel |
 | `docs/` | Spécification |
 
@@ -22,7 +22,7 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 
 ```bash
 npm install
-npm test          # 62 tests
+npm test          # 80 tests
 npm run build     # écrit build/<Contrat>.json (code compilé et son empreinte)
 ```
 
@@ -69,6 +69,21 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   immédiat puis 10 % à J+30, J+60, J+90, J+120 et J+150, réclamé par l'adresse liée.
 - Chacun garde 0,01 TON pour ses frais de stockage.
 
+## Ce que fait la banque d'échange
+
+- **Trois stocks** dans son wallet : celui des déposants (en parts), le stock sans propriétaire (brûlages volontaires
+  recréés, envois sans objet) et les jetons en attente d'une conversion avec ses propres ConsoM.
+- **Conversion via la banque** : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
+  déjà utilisé, la banque brûle au prorata des deux stocks (les parts ne changent pas). Au plus 5 % du stock par 24 h ;
+  au-delà, rien n'est brûlé.
+- **Conversion avec ses propres ConsoM** : le membre envoie ses ConsoM à la banque avec le bon signé ; l'émetteur vérifie,
+  la banque brûle le montant requis et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tout est rendu.
+  Pas de plafond de 5 %.
+- **Dépôts et retraits** : fermés 12 mois (un dépôt est rendu) ; ensuite, dépôt contre des parts, retrait 24 h après
+  le dernier dépôt, à la valeur actuelle des parts. Un contrat « parts » par déposant.
+- **Genèse** : les 3 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer.
+- Seuls ses brûlages comptent pour le halving, et elle ne brûle que sur ordre de l'émetteur.
+
 ## Choix d'implémentation à connaître
 
 1. Le montant de chaque récompense est recalculé par l'émetteur (et non par le budget, comme l'indiquait la spécification) :
@@ -85,24 +100,33 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
    repasser tant qu'il n'a pas expiré.
 7. Si la création de jetons échoue à l'émetteur après l'acceptation du compte membre (cas qui ne devrait pas arriver :
    plafond absolu de 230 M), l'emplacement et les compteurs du compte membre restent consommés.
+8. Une conversion via la banque refusée faute de stock ou à cause du plafond de 5 % consomme quand même le numéro du bon :
+   l'application doit émettre un nouveau bon.
+9. Des ConsoM envoyés à la banque sans objet reconnu, ou un dépôt joint de moins de 0,05 TON, rejoignent le stock sans
+   propriétaire.
+10. Chaque contrat ne renvoie que les TON qu'il vient de recevoir et garde son propre solde (0,01 TON pour un budget,
+    un compte membre ou des parts ; 0,05 TON pour la banque).
 
 ## Coût mesuré (simulateur)
 
 | Opération | Coût pour le membre |
 | --- | --- |
 | Première réclamation (crée le compte membre, le budget et le wallet) | environ 0,028 TON |
-| Bon lié à un nouveau paiement (crée son budget) | environ 0,016 à 0,018 TON |
-| Récompense de conversion | environ 0,007 TON |
+| Bon lié à un nouveau paiement (crée son budget) | environ 0,016 à 0,019 TON |
+| Récompense de conversion (35 %) | environ 0,007 TON |
+| Conversion via la banque | environ 0,007 TON |
+| Conversion avec ses propres ConsoM | environ 0,011 TON |
 | Réclamation de vesting | environ 0,003 TON |
+| Premier dépôt dans la banque (crée les parts) | environ 0,015 TON |
+| Retrait | environ 0,004 TON |
 | Brûlage volontaire recréé dans la banque | environ 0,024 TON |
 
-Les créations de contrats incluent la réserve de stockage de 0,01 TON. À remesurer sur le testnet.
+Les créations de contrats incluent leur réserve de stockage. À remesurer sur le testnet.
 
 ## Prochaines étapes
 
-1. Banque d'échange : parts, stock sans propriétaire, conversions, plafond de 5 % par 24 h, fermeture 12 mois.
-2. Réclamations de genèse (racines de Merkle) : Anciens Contributeurs (et leur droit au parrainage), préventes payées avant T0.
-3. Vesting de l'équipe (5 M : 12 mois de blocage puis 24 mois linéaires).
-4. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
+1. Réclamations de genèse (racines de Merkle) : Anciens Contributeurs (part de 30 %, attribution de leurs parts dans la banque, droit au parrainage), préventes payées avant T0.
+2. Vesting de l'équipe (5 M : 12 mois de blocage puis 24 mois linéaires).
+3. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
    (décisions 5 et 6 de la spécification) — pas encore écrits.
-5. Scripts de déploiement testnet, puis audits.
+4. Scripts de déploiement testnet, puis audits.

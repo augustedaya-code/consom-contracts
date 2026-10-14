@@ -13,9 +13,19 @@ struct ChildInit {
     state: cell?
 }
 
-// Données initiales de la banque d'échange
+// Données initiales de la banque d'échange (tout ce qu'elle doit connaître est fixé à sa création)
 struct BankInit {
     minter: address
+    t0: uint32
+    walletCode: cell         // pour calculer l'adresse de son propre wallet ConsoM
+    shareCode: cell          // code des contrats « parts d'un déposant »
+    state: cell?
+}
+
+// Données initiales des parts d'un déposant
+struct ShareInit {
+    bank: address
+    owner: address
     state: cell?
 }
 
@@ -37,9 +47,12 @@ fun calcChildAddress(code: cell, key: uint256): address {
     return calcDeployedChild(code, key).calculateAddress()
 }
 
-fun calcBankAddress(bankCode: cell): address {
+fun calcBankAddress(bankCode: cell, shareCode: cell, walletCode: cell, t0: int): address {
     val init: BankInit = {
         minter: contract.getAddress(),
+        t0,
+        walletCode,
+        shareCode,
         state: null,
     };
     val deployed: AutoDeployAddress = {
@@ -51,12 +64,28 @@ fun calcBankAddress(bankCode: cell): address {
     return deployed.calculateAddress()
 }
 
+// Appelé par la banque : adresse des parts d'un déposant
+fun calcDeployedShare(shareCode: cell, owner: address): AutoDeployAddress {
+    val init: ShareInit = {
+        bank: contract.getAddress(),
+        owner,
+        state: null,
+    };
+    return {
+        stateInit: {
+            code: shareCode,
+            data: init.toCell()
+        }
+    }
+}
+
 fun calcWalletAddress(owner: address, walletCode: cell): address {
     return calcAddressOfJettonWallet(owner, contract.getAddress(), walletCode)
 }
 
-// Les contrats enfants gardent une petite réserve pour leurs frais de stockage,
-// puis renvoient tout le reste de leur solde avec le message suivant (SEND_MODE_CARRY_ALL_BALANCE).
-fun keepChildReserve() {
-    reserveToncoinsOnBalance(CHILD_STORAGE_RESERVE, RESERVE_MODE_AT_MOST);
+// Avant de renvoyer « tout le solde » (SEND_MODE_CARRY_ALL_BALANCE), un contrat garde ce qu'il avait avant ce
+// message, et au moins `minimum` pour ses frais de stockage : il ne renvoie que ce qu'il vient de recevoir.
+fun keepReserve(inValue: coins, minimum: coins) {
+    val before = contract.getOriginalBalance() - inValue;
+    reserveToncoinsOnBalance(max(before, minimum), RESERVE_MODE_AT_MOST);
 }
