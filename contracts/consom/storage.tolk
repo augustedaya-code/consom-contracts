@@ -41,6 +41,7 @@ struct Config {
 
 struct BankRef {
     bankCode: cell
+    shareCode: cell          // contrats « parts d'un déposant » de la banque
 }
 
 struct ConsoMStorage {

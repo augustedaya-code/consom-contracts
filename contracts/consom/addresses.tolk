@@ -13,9 +13,19 @@ struct ChildInit {
     state: cell?
 }
 
-// Données initiales de la banque d'échange
+// Données initiales de la banque d'échange (tout ce qu'elle doit connaître est fixé à sa création)
 struct BankInit {
     minter: address
+    t0: uint32
+    walletCode: cell         // pour calculer l'adresse de son propre wallet ConsoM
+    shareCode: cell          // code des contrats « parts d'un déposant »
+    state: cell?
+}
+
+// Données initiales des parts d'un déposant
+struct ShareInit {
+    bank: address
+    owner: address
     state: cell?
 }
 
@@ -37,9 +47,27 @@ fun calcChildAddress(code: cell, key: uint256): address {
     return calcDeployedChild(code, key).calculateAddress()
 }
 
-fun calcBankAddress(bankCode: cell): address {
+fun calcDeployedBank(bankCode: cell, shareCode: cell, walletCode: cell): AutoDeployAddress {
     val init: BankInit = {
         minter: contract.getAddress(),
+        walletCode,
+        shareCode,
+        state: null,
+    };
+    return {
+        stateInit: {
+            code: bankCode,
+            data: init.toCell()
+        }
+    }
+}
+
+fun calcBankAddress(bankCode: cell, shareCode: cell, walletCode: cell, t0: int): address {
+    val init: BankInit = {
+        minter: contract.getAddress(),
+        t0,
+        walletCode,
+        shareCode,
         state: null,
     };
     val deployed: AutoDeployAddress = {
@@ -49,6 +77,21 @@ fun calcBankAddress(bankCode: cell): address {
         }
     };
     return deployed.calculateAddress()
+}
+
+// Appelé par la banque : adresse des parts d'un déposant
+fun calcDeployedShare(shareCode: cell, owner: address): AutoDeployAddress {
+    val init: ShareInit = {
+        bank: contract.getAddress(),
+        owner,
+        state: null,
+    };
+    return {
+        stateInit: {
+            code: shareCode,
+            data: init.toCell()
+        }
+    }
 }
 
 fun calcWalletAddress(owner: address, walletCode: cell): address {
