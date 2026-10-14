@@ -7,5 +7,5 @@
     "0b93744a37e250d2977d81d67ce846d04765921f53146fb35ab1b927d37fbc24",
     "9fd6e71b40a751b56d0e255c2bf8d649dfffaba7245904ca995037d93228c66a"
   ],
-  "metadataUri": "https://tonmarche.example/consom-testnet.json"
+  "metadataUri": "https://raw.githubusercontent.com/augustedaya-code/consom-contracts/main/metadata/consom-testnet.json"
 }
