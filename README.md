@@ -3,15 +3,15 @@
 Contrats de ConsoM, la couche crypto de TonMarché, écrits en [Tolk](https://docs.ton.org/tolk/overview).
 La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque règle du code renvoie à une de ses sections.
 
-> **État : en développement, testnet uniquement.** L'émetteur est écrit et testé seul. Les contrats « budget de paiement »,
-> « compte membre » et « banque d'échange » ne sont pas encore écrits : ce sont eux qui empêchent qu'un même bon ou un même
-> paiement serve deux fois. **L'émetteur ne doit donc jamais être déployé sans eux.**
+> **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement et le compte membre sont écrits et
+> testés ensemble. La banque d'échange, les réclamations de genèse et le vesting de l'équipe restent à écrire : en attendant,
+> la banque est remplacée par un contrat de test (`tests/stubs/bank_stub.tolk`) qui ne doit jamais être déployé.
 
 ## Contenu
 
 | Dossier | Rôle |
 | --- | --- |
-| `contracts/consom/` | Émetteur ConsoM (`minter.tolk`) et ses messages, constantes, stockage, codes d'erreur |
+| `contracts/consom/` | Émetteur (`minter.tolk`), budget de paiement (`budget.tolk`), compte membre (`member.tolk`), messages, constantes, stockage, codes d'erreur |
 | `contracts/jetton/` | Wallet Jetton shardé (principe Jetton 2.0), repris sans modification — voir `NOTICE.md` |
 | `wrappers/` | Interface TypeScript : stockage initial, bons, messages, lectures |
 | `tests/` | Tests automatiques ; `tests/stubs/` contient des contrats de remplacement, **pour les tests uniquement** |
@@ -22,11 +22,23 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 
 ```bash
 npm install
-npm test          # 45 tests
+npm test          # 62 tests
 npm run build     # écrit build/<Contrat>.json (code compilé et son empreinte)
 ```
 
 Node.js 22.18 ou plus récent (les tests TypeScript tournent directement avec `node --test`).
+
+## Parcours d'un bon
+
+L'émetteur est le seul intermédiaire : le budget et le compte membre n'acceptent que ses messages, et lui-même ne reconnaît
+un budget ou un compte membre qu'en recalculant son adresse à partir de son code.
+
+1. Le wallet du membre envoie le bon et deux signatures à l'émetteur, qui vérifie tout et réserve les plafonds.
+2. Bons liés à un paiement Wave (prévente, enregistrement d'achat, parrainage, 1er achat) : le budget du paiement vérifie
+   que la récompense n'a pas déjà été versée et que les données attestées sont les mêmes, puis renvoie le bon à l'émetteur.
+3. L'émetteur transmet au compte du membre, qui applique ses règles et répond toujours : accepté ou refusé (avec la raison).
+4. Accepté : l'émetteur crée la part immédiate. Refusé : il libère sa réservation et, si le refus est passager,
+   demande au budget de libérer l'emplacement.
 
 ## Ce que fait l'émetteur
 
@@ -45,6 +57,18 @@ Node.js 22.18 ou plus récent (les tests TypeScript tournent directement avec `n
   après 7 jours (un par 30 jours), annulable. Aucun autre pouvoir.
 - **Genèse** : dépôt unique de 3 500 000 ConsoM des Anciens Contributeurs dans la banque.
 
+## Ce que font le budget de paiement et le compte membre
+
+- **Budget de paiement** (un par paiement Wave) : un emplacement par récompense (prévente, enregistrement d'achat, 1er achat,
+  parrainage niveaux 1 à 5), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
+  un paiement de prévente ne donne que son pack.
+- **Compte membre** (un par membre) : adresse liée à la première réclamation ; droit au parrainage ouvert par une prévente ;
+  Points attestés, qui bornent la récompense de 35 % à la conversion et le bonus d'investissement de 30 % ; bonus de
+  1er achat et missions une seule fois, missions réservées aux membres ayant un paiement ; numéros de bon croissants pour
+  les conversions et investissements ; plafond de 50 000 par 24 h (hors prévente, tranches comprises) ; vesting 50 %
+  immédiat puis 10 % à J+30, J+60, J+90, J+120 et J+150, réclamé par l'adresse liée.
+- Chacun garde 0,01 TON pour ses frais de stockage.
+
 ## Choix d'implémentation à connaître
 
 1. Le montant de chaque récompense est recalculé par l'émetteur (et non par le budget, comme l'indiquait la spécification) :
@@ -56,21 +80,29 @@ Node.js 22.18 ou plus récent (les tests TypeScript tournent directement avec `n
    solde du wallet est rétabli.
 5. Conséquence de la règle « une pause par 30 jours » : après une pause, le gardien ne peut plus en déclencher pendant le
    reste des 30 jours.
+6. Si un parrain n'est pas éligible, ou si un bonus a déjà été reçu, l'emplacement du budget reste marqué (règle de la
+   section 6). Si le refus est passager (plafond du jour, mauvaise adresse), l'emplacement est libéré et le bon pourra
+   repasser tant qu'il n'a pas expiré.
+7. Si la création de jetons échoue à l'émetteur après l'acceptation du compte membre (cas qui ne devrait pas arriver :
+   plafond absolu de 230 M), l'emplacement et les compteurs du compte membre restent consommés.
 
-## Coût mesuré (simulateur, avec les contrats de remplacement)
+## Coût mesuré (simulateur)
 
 | Opération | Coût pour le membre |
 | --- | --- |
-| Réclamation d'un pack de prévente | environ 0,006 TON |
-| Réclamation d'une récompense de conversion | environ 0,004 TON |
+| Première réclamation (crée le compte membre, le budget et le wallet) | environ 0,028 TON |
+| Bon lié à un nouveau paiement (crée son budget) | environ 0,016 à 0,018 TON |
+| Récompense de conversion | environ 0,007 TON |
+| Réclamation de vesting | environ 0,003 TON |
 | Brûlage volontaire recréé dans la banque | environ 0,024 TON |
 
-Ces chiffres seront remesurés avec les vrais contrats enfants, puis sur le testnet.
+Les créations de contrats incluent la réserve de stockage de 0,01 TON. À remesurer sur le testnet.
 
 ## Prochaines étapes
 
-1. Budget de paiement : un par paiement Wave, emplacements de récompense, refus des doublons.
-2. Compte membre : adresse liée, parrain, éligibilité, 50 000 par jour, vesting 50/50 sur 5 mois, numéros de bon croissants.
-3. Banque d'échange : parts, stock sans propriétaire, conversions, plafond de 5 % par 24 h, fermeture 12 mois.
-4. Réclamations de genèse (racines de Merkle) et vesting de l'équipe.
+1. Banque d'échange : parts, stock sans propriétaire, conversions, plafond de 5 % par 24 h, fermeture 12 mois.
+2. Réclamations de genèse (racines de Merkle) : Anciens Contributeurs (et leur droit au parrainage), préventes payées avant T0.
+3. Vesting de l'équipe (5 M : 12 mois de blocage puis 24 mois linéaires).
+4. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
+   (décisions 5 et 6 de la spécification) — pas encore écrits.
 5. Scripts de déploiement testnet, puis audits.

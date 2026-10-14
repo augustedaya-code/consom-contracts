@@ -3,6 +3,7 @@
 // avec exactement ces données initiales ; c'est ce qui permet à l'émetteur de reconnaître leurs messages.
 
 import "../jetton/jetton-utils"
+import "constants"
 
 // Données initiales d'un budget de paiement (clé = waveRef) ou d'un compte membre (clé = memberId).
 // `state` est vide au déploiement ; le contrat enfant le remplit à son premier message.
@@ -52,4 +53,10 @@ fun calcBankAddress(bankCode: cell): address {
 
 fun calcWalletAddress(owner: address, walletCode: cell): address {
     return calcAddressOfJettonWallet(owner, contract.getAddress(), walletCode)
+}
+
+// Les contrats enfants gardent une petite réserve pour leurs frais de stockage,
+// puis renvoient tout le reste de leur solde avec le message suivant (SEND_MODE_CARRY_ALL_BALANCE).
+fun keepChildReserve() {
+    reserveToncoinsOnBalance(CHILD_STORAGE_RESERVE, RESERVE_MODE_AT_MOST);
 }

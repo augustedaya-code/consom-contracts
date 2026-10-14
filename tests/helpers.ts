@@ -24,8 +24,8 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     const [minterCode, walletCode, budgetCode, memberCode, bankCode] = await Promise.all([
         compileTolk('contracts/consom/minter.tolk'),
         compileTolk('contracts/jetton/JettonWallet.tolk'),
-        compileTolk('tests/stubs/budget_stub.tolk'),
-        compileTolk('tests/stubs/member_stub.tolk'),
+        compileTolk('contracts/consom/budget.tolk'),
+        compileTolk('contracts/consom/member.tolk'),
         compileTolk('tests/stubs/bank_stub.tolk'),
     ]);
 
@@ -101,10 +101,45 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         return (await contract.get('get_wallet_data')).stackReader.readBigNumber();
     };
 
-    return { blockchain, minter, deploy, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
+    // État d'un compte membre ou d'un budget de paiement (null s'il n'est pas encore déployé)
+    const memberState = async (memberId: bigint) => {
+        const c = await blockchain.getContract(await minter.getChildAddress(false, memberId));
+        if (c.accountState?.type !== 'active') return null;
+        const s = (await c.get('get_member_state')).stackReader;
+        return {
+            initialized: s.readBoolean(), owner: s.readAddressOpt(), referralEligible: s.readBoolean(),
+            hasPayment: s.readBoolean(), flags: s.readNumber(), lastDirectVoucherId: s.readBigNumber(),
+            rewardablePoints: s.readBigNumber(), convertedPoints: s.readBigNumber(), investmentBonus: s.readBigNumber(),
+            dayReceived: s.readBigNumber(), vestingLocked: s.readBigNumber(), vestingDue: s.readBigNumber(),
+        };
+    };
+    const budgetState = async (waveRef: bigint) => {
+        const c = await blockchain.getContract(await minter.getChildAddress(true, waveRef));
+        if (c.accountState?.type !== 'active') return null;
+        const s = (await c.get('get_budget_state')).stackReader;
+        return { initialized: s.readBoolean(), waveAmount: s.readBigNumber(), points: s.readBigNumber(), slots: s.readNumber() };
+    };
+    // Réclamer les tranches de vesting échues depuis l'adresse liée
+    const claimVesting = async (memberId: bigint, from = member) => from.send({
+        to: await minter.getChildAddress(false, memberId), value: toNano('0.3'),
+        body: beginCell().storeUint(0xc0150008, 32).storeUint(0, 64).endCell(),
+    });
+
+    return { blockchain, minter, deploy, memberState, budgetState, claimVesting, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
 }
 
 // ---------- Transactions ----------
+
+// Raison du refus (REJECT_*) portée par le message ClaimRejected reçu par l'émetteur, ou null
+export function rejectReason(r: { transactions: Transaction[] }): number | null {
+    for (const tx of r.transactions) {
+        const body = tx.inMessage?.body.beginParse();
+        if (!body || body.remainingBits < 32 || body.loadUint(32) !== 0xc0150004) continue;
+        body.loadUint(64); body.loadUint(8); body.loadCoins(); body.loadBit(); body.loadUintBig(256); body.loadAddress();
+        return body.loadUint(16);
+    }
+    return null;
+}
 
 type TxFilter = { from?: Address; to?: Address; op?: number; success?: boolean; exitCode?: number };
 

@@ -25,6 +25,7 @@ contract ConsoMMinter {
 
 type AllowedMessageToConsoMMinter =
     | ClaimVoucher
+    | BudgetApproved
     | MintApproved
     | ClaimRejected
     | ReleaseVested
@@ -302,7 +303,9 @@ fun onBouncedMessage(in: InMessageBounced) {
     val msg = lazy BouncedToMinter.fromSlice(in.bouncedBody);
     match (msg) {
         CheckClaim => {
-            // le budget ou le compte membre a échoué : la réservation est libérée
+            // le budget ou le compte membre a échoué sans répondre : la réservation est libérée.
+            // (Si le bon avait déjà été accepté par le budget, son emplacement y reste marqué : le compte membre
+            // est écrit pour toujours répondre par ClaimRejected plutôt que d'échouer.)
             var storage = lazy ConsoMStorage.load();
             storage.releaseReservation(msg.category, msg.reserved);
             storage.save();
@@ -385,8 +388,29 @@ fun onInternalMessage(in: InMessage) {
                     queryId: msg.queryId,
                     category,
                     reserved: voucher.amount,
+                    viaBudget: false,
                     voucher: msg.voucher,
-                    memberCode: config.memberCode,
+                }
+            });
+            checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+        }
+
+        // Le budget du paiement a accepté le bon : il passe au compte du membre
+        BudgetApproved => {
+            val storage = lazy ConsoMStorage.load();
+            val config = storage.config.load();
+            val payment = msg.voucher.load().payment.load();
+            assert (in.senderAddress == calcChildAddress(config.budgetCode, payment.waveRef)) throw ERR_NOT_CHILD;
+            val checkMsg = createMessage({
+                bounce: BounceMode.Only256BitsOfBody,
+                dest: calcDeployedChild(config.memberCode, payment.memberId),
+                value: 0,
+                body: CheckClaim {
+                    queryId: msg.queryId,
+                    category: msg.category,
+                    reserved: msg.reserved,
+                    viaBudget: true,
+                    voucher: msg.voucher,
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -415,6 +439,23 @@ fun onInternalMessage(in: InMessage) {
             assert (in.senderAddress == expectedSender) throw ERR_NOT_CHILD;
             storage.releaseReservation(msg.category, msg.reserved);
             storage.save();
+            if (!msg.fromBudget && (msg.freeSlot != null)) {
+                // refus du compte membre sur un bon déjà accepté par le budget : on libère l'emplacement
+                val slotVoucher = msg.freeSlot!;
+                val waveRef = slotVoucher.load().payment.load().waveRef;
+                val releaseMsg = createMessage({
+                    bounce: BounceMode.NoBounce,
+                    dest: calcChildAddress(config.budgetCode, waveRef),
+                    value: 0,
+                    body: ReleaseSlot {
+                        queryId: msg.queryId,
+                        voucher: slotVoucher,
+                        refundTo: msg.refundTo,
+                    }
+                });
+                releaseMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+                return;
+            }
             sendExcesses(msg.refundTo, msg.queryId);
         }
 

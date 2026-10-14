@@ -37,6 +37,12 @@ struct (0xc0150001) ClaimVoucher {
 }
 
 // ---------- Échanges avec les contrats enfants (budget de paiement, compte membre) ----------
+//
+// L'émetteur est le seul intermédiaire : le budget et le compte membre ne se parlent jamais directement.
+// Chaque contrat n'accepte ainsi que des messages dont il peut vérifier l'expéditeur :
+//   - le budget et le compte membre n'acceptent que l'émetteur (adresse gravée dans leurs données initiales) ;
+//   - l'émetteur reconnaît un budget ou un compte membre en recalculant son adresse à partir de son code.
+// Parcours : membre -> émetteur -> [budget -> émetteur ->] compte membre -> émetteur -> wallet.
 
 // Émetteur -> budget de paiement ou compte membre. Les champs utiles au remboursement de la réservation
 // sont en tête : un message rebondi ne rapporte que ses 256 premiers bits.
@@ -44,8 +50,16 @@ struct (0xc0150002) CheckClaim {
     queryId: uint64
     category: uint8
     reserved: coins
+    viaBudget: bool          // vrai si le budget de paiement a déjà accepté ce bon
     voucher: Cell<Voucher>
-    memberCode: cell         // le budget de paiement en a besoin pour transmettre le bon au compte membre
+}
+
+// Budget -> émetteur : l'emplacement de récompense est libre et marqué ; l'émetteur transmet au compte membre.
+struct (0xc0150006) BudgetApproved {
+    queryId: uint64
+    category: uint8
+    reserved: coins
+    voucher: Cell<Voucher>
 }
 
 // Compte membre -> émetteur : le bon est accepté ; l'émetteur crée la part immédiate.
@@ -60,6 +74,8 @@ struct (0xc0150003) MintApproved {
 }
 
 // Budget ou compte membre -> émetteur : le bon est refusé ; l'émetteur libère sa réservation.
+// Si le compte membre refuse un bon déjà accepté par le budget et que l'emplacement doit rester disponible
+// (par exemple plafond du jour atteint), `freeSlot` contient le bon : l'émetteur demande au budget de le libérer.
 struct (0xc0150004) ClaimRejected {
     queryId: uint64
     category: uint8
@@ -67,14 +83,28 @@ struct (0xc0150004) ClaimRejected {
     fromBudget: bool
     key: uint256             // waveRef si fromBudget, memberId sinon
     refundTo: address
+    reason: uint16           // code de la raison du refus (REJECT_*)
+    freeSlot: Cell<Voucher>?
 }
 
-// Compte membre -> émetteur : une tranche de vesting est échue (déjà réservée lors du bon).
+// Émetteur -> budget : libère l'emplacement d'un bon refusé par le compte membre, puis rend les frais.
+struct (0xc0150007) ReleaseSlot {
+    queryId: uint64
+    voucher: Cell<Voucher>
+    refundTo: address
+}
+
+// Compte membre -> émetteur : des tranches de vesting sont échues (déjà réservées lors des bons).
 struct (0xc0150005) ReleaseVested {
     queryId: uint64
+    amount: coins            // en tête : un message rebondi ne rapporte que ses 256 premiers bits
     memberId: uint256
     recipient: address
-    amount: coins
+}
+
+// Membre (adresse liée) -> compte membre : réclamer les tranches de vesting échues.
+struct (0xc0150008) ClaimVesting {
+    queryId: uint64
 }
 
 // ---------- Gardien (section 10) ----------
