@@ -57,12 +57,12 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         assert.equal(await env.balanceOf(env.member.address), consom(6000));
     });
 
-    it('parrainage niveau 1 : 15 % des Points, réservés en entier, moitié créée tout de suite', async () => {
+    it('parrainage niveau 1 : 15 % des Points, versés en entier', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // la prévente rend le membre éligible au parrainage
         const amount = consom(150);   // 15 % de 1 000 Points
         await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount }));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000) + amount / 2n);
+        assert.equal(await env.balanceOf(env.member.address), consom(3000) + amount);
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - amount);
     });
 
@@ -106,14 +106,13 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         assert.equal((await env.minter.getCaps()).dayMinted, 0n);
     });
 
-    it('libération d\'une tranche de vesting par le compte membre', async () => {
+    it('les récompenses sont versées en entier tout de suite (pas d\'étalement)', async () => {
         const env = await setup();
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
         await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(350) }));
-        env.blockchain.now = T0 + 30 * DAY;
-        const r = await env.claimVesting(1n);
-        assert.ok(hasTx(r, { to: env.minter.address, op: Op.ReleaseVested, success: true }), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(175 + 35));
+        await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 0n, amount: consom(500) }));
+        assert.equal(await env.balanceOf(env.member.address), consom(850));
+        assert.equal((await env.minter.getState()).totalSupply, consom(850));
     });
 });
 
@@ -202,11 +201,8 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
     it('refuse un message d\'approbation qui ne vient pas d\'un compte membre', async () => {
         const env = await setup();
         const fake = beginCell().storeUint(Op.MintApproved, 32).storeUint(0, 64).storeUint(0, 8)
-            .storeCoins(consom(1000)).storeCoins(consom(1000)).storeUint(1n, 256).storeAddress(env.stranger.address).storeMaybeRef(null).endCell();
+            .storeCoins(consom(1000)).storeUint(1n, 256).storeAddress(env.stranger.address).storeMaybeRef(null).endCell();
         expectRejected(await env.minter.sendRaw(env.stranger.getSender(), toNano('0.2'), fake), env.minter.address, Err.NOT_CHILD);
-        const fakeRelease = beginCell().storeUint(Op.ReleaseVested, 32).storeUint(0, 64).storeCoins(consom(1000))
-            .storeUint(1n, 256).storeAddress(env.stranger.address).endCell();
-        expectRejected(await env.minter.sendRaw(env.stranger.getSender(), toNano('0.2'), fakeRelease), env.minter.address, Err.NOT_CHILD);
         assert.equal((await env.minter.getState()).totalSupply, 0n);
     });
 
@@ -218,7 +214,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
         const again = await env.claim({ ...v, voucherId: v.voucherId + 1000n });   // même paiement, même niveau
         assert.ok(hasTx(again, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(again));
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(150));
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000 + 75));
+        assert.equal((await env.minter.getState()).totalSupply, consom(3000 + 150));
     });
 
     it('libère la réservation quand le compte membre refuse', async () => {
@@ -316,18 +312,12 @@ describe('Gardien : pause et remplacement de témoin (section 10)', () => {
         assert.ok(hasTx(again, { to: env.minter.address, success: true }));
     });
 
-    it('la pause bloque les libérations de vesting (rendues au compte membre) mais pas les brûlages volontaires', async () => {
+    it('la pause bloque les nouveaux bons mais pas les brûlages volontaires', async () => {
         const env = await setup();
         await env.claim(env.voucher());
-        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
-        await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(350) }));
-        env.blockchain.now = T0 + 30 * DAY;
         await env.minter.sendPause(env.guardian.getSender());
-        const r = await env.claimVesting(1n);
-        expectRejected(r, env.minter.address, Err.PAUSED);
-        const st = await env.memberState(1n);
-        assert.equal(st!.vestingDue, consom(35), 'la tranche rebondie redevient réclamable');
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 175));
+        expectRejected(await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 0n, amount: consom(500) })), env.minter.address, Err.PAUSED);
+        assert.equal(await env.balanceOf(env.member.address), consom(3000));
         const burn = await burnFrom(env, env.member, consom(100), toNano('0.2'));
         assert.ok(hasTx(burn, { to: env.minter.address, op: 0x7bdd97de, success: true }), describeTxs(burn));
     });

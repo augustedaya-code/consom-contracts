@@ -101,7 +101,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
   <div class="grid">
     <div class="panel">
       <h3>Prévente</h3>
-      <p class="note">Le pack arrive en entier tout de suite (pas de vesting) et ouvre le droit au parrainage. Chaque clic simule un nouveau paiement.</p>
+      <p class="note">Le pack arrive en entier tout de suite et ouvre le droit au parrainage. Chaque clic simule un nouveau paiement.</p>
       <div class="row">
         <label>Pack<select id="pack">
           <option value="essentiel">Essentiel — 3 000 ConsoM (3 500 F)</option>
@@ -117,7 +117,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
     </div>
     <div class="panel">
       <h3>Enregistrement d'achat</h3>
-      <p class="note">Ne crée aucun ConsoM : inscrit les Points gagnés dans ton compte membre. Nécessaire avant une récompense de conversion.</p>
+      <p class="note">Ne crée aucun ConsoM : inscrit les Points gagnés dans ton compte membre. Ils restent convertibles 7 jours, puis ils sont perdus.</p>
       <div class="row">
         <label>Points<input id="recPoints" type="number" min="1" value="1000"></label>
         <button data-act="purchaseRecord">Préparer</button>
@@ -131,7 +131,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
   <div class="grid">
     <div class="panel">
       <h3>Bonus de conversion (35 %)</h3>
-      <p class="note">Ce n'est pas la conversion elle-même : c'est le bonus en ConsoM neufs versé quand tu convertis. Ex. 1 000 Points → 350 ConsoM (175 tout de suite). Refusé si tu dépasses les Points enregistrés.</p>
+      <p class="note">Ce n'est pas la conversion elle-même : c'est le bonus en ConsoM neufs versé quand tu convertis. Ex. 1 000 Points → 350 ConsoM. Refusé si tu dépasses les Points enregistrés il y a moins de 7 jours.</p>
       <div class="row">
         <label>Points convertis<input id="convPoints" type="number" min="1" value="1000"></label>
         <button data-act="conversionReward">Préparer</button>
@@ -184,11 +184,6 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
 <section>
   <h2>Mon compte</h2>
   <div class="grid">
-    <div class="panel">
-      <h3>Réclamer mes tranches</h3>
-      <p class="note">Libère les tranches de vesting arrivées à échéance (la 1re à J+30). Avant, rien n'est versé.</p>
-      <div class="row"><button data-act="claimVesting">Préparer</button></div>
-    </div>
     <div class="panel">
       <h3>Brûlage volontaire</h3>
       <p class="note">Les ConsoM brûlés sont recréés dans la banque comme stock sans propriétaire. Ne fait pas avancer le halving.</p>
@@ -274,15 +269,14 @@ const CFG = /*CFG*/;
   const num = (id) => Number($(id).value);
   const DEFS = {
     presale: () => ({ t: 'Prévente — pack ' + $('pack').selectedOptions[0].text.split(' — ')[0], d: 'Crée ton compte membre et ton wallet ConsoM au 1er passage. Le pack arrive en entier.', m: lib.actions.presale(owner, $('pack').value) }),
-    firstPurchase: () => ({ t: 'Bonus de 1er achat', d: '250 ConsoM tout de suite (50 %), le reste en tranches.', m: lib.actions.firstPurchase(owner) }),
+    firstPurchase: () => ({ t: 'Bonus de 1er achat', d: '500 ConsoM, une seule fois.', m: lib.actions.firstPurchase(owner) }),
     purchaseRecord: () => ({ t: 'Enregistrement de ' + num('recPoints') + ' Points', d: 'Aucun ConsoM créé : seul ton compte membre change.', m: lib.actions.purchaseRecord(owner, num('recPoints')) }),
-    conversionReward: () => ({ t: 'Bonus de conversion (35 %) — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.35).toLocaleString('fr-FR') + ' ConsoM au total (50 % tout de suite).', m: lib.actions.conversionReward(owner, num('convPoints')) }),
+    conversionReward: () => ({ t: 'Bonus de conversion (35 %) — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.35).toLocaleString('fr-FR') + ' ConsoM.', m: lib.actions.conversionReward(owner, num('convPoints')) }),
     referral: () => ({ t: 'Parrainage niveau ' + $('refLevel').value, d: 'Refusé (raison visible sur l\'explorateur) si tu n\'as pas fait de prévente.', m: lib.actions.referral(owner, num('refPoints'), Number($('refLevel').value)) }),
     missionTelegram: () => ({ t: 'Mission Telegram', d: '150 ConsoM, une seule fois.', m: lib.actions.missionTelegram(owner) }),
     missionFacebook: () => ({ t: 'Mission Facebook', d: '150 ConsoM, une seule fois.', m: lib.actions.missionFacebook(owner) }),
     bankConversion: () => ({ t: 'Conversion via la banque — ' + num('bankPoints') + ' Points', d: 'La banque brûle environ ' + (num('bankPoints') * 0.1).toLocaleString('fr-FR') + ' ConsoM de son stock. Tes ConsoM ne bougent pas.', m: lib.actions.bankConversion(owner, num('bankPoints')) }),
     ownConversion: () => ({ t: 'Conversion avec mes ConsoM — ' + num('ownPoints') + ' Points', d: 'Brûlage attendu : ' + (num('ownPoints') * 0.1).toLocaleString('fr-FR') + ' ConsoM ; l\'excédent te revient.', m: lib.actions.ownConversion(owner, num('ownPoints'), num('ownSend')) }),
-    claimVesting: () => ({ t: 'Réclamer mes tranches', d: 'Envoyé à ton compte membre. Rien n\'est versé avant J+30.', m: lib.actions.claimVesting(owner) }),
     voluntaryBurn: () => ({ t: 'Brûlage volontaire de ' + num('burnAmount') + ' ConsoM', d: 'Ils réapparaissent dans la banque d\'échange.', m: lib.actions.voluntaryBurn(owner, num('burnAmount')) }),
     pause: () => ({ t: 'Pause (gardien)', d: 'Bloque les nouveaux bons pendant 14 jours au plus.', m: lib.actions.pause() }),
     unpause: () => ({ t: 'Lever la pause (gardien)', d: 'Les bons fonctionnent de nouveau.', m: lib.actions.unpause() }),

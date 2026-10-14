@@ -29,7 +29,6 @@ type AllowedMessageToConsoMMinter =
     | MintApproved
     | VerifyOwnConversion
     | ClaimRejected
-    | ReleaseVested
     | BurnNotificationForMinter
     | RequestWalletAddress
     | GuardianPause
@@ -525,20 +524,19 @@ fun onInternalMessage(in: InMessage) {
             var storage = lazy ConsoMStorage.load();
             val config = storage.config.load();
             assert (in.senderAddress == calcChildAddress(config.memberCode, msg.memberId)) throw ERR_NOT_CHILD;
-            assert (msg.immediate <= msg.reserved) throw ERR_WRONG_AMOUNT;
             if (msg.burnOrder != null) {
                 // conversion acceptée par le compte membre (numéro de bon jamais utilisé) : la banque brûle
                 val order = msg.burnOrder!.load();
                 sendBankInstruction(storage.bankAddress(), order, msg.queryId, msg.recipient, true);
                 return;
             }
-            if (msg.immediate == 0) {
+            if (msg.reserved == 0) {
                 sendExcesses(msg.recipient, msg.queryId);
                 return;
             }
-            storage.addSupply(msg.immediate);
+            storage.addSupply(msg.reserved);
             storage.save();
-            sendMint(config.walletCode, msg.recipient, msg.immediate, msg.queryId, msg.recipient, 0, emptyForwardPayload());
+            sendMint(config.walletCode, msg.recipient, msg.reserved, msg.queryId, msg.recipient, 0, emptyForwardPayload());
         }
 
         ClaimRejected => {
@@ -613,16 +611,6 @@ fun onInternalMessage(in: InMessage) {
                     burnOrder: order.toCell(),
                 }
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
-        }
-
-        ReleaseVested => {
-            var storage = lazy ConsoMStorage.load();
-            assert (!storage.isPaused()) throw ERR_PAUSED;
-            val config = storage.config.load();
-            assert (in.senderAddress == calcChildAddress(config.memberCode, msg.memberId)) throw ERR_NOT_CHILD;
-            storage.addSupply(msg.amount);
-            storage.save();
-            sendMint(config.walletCode, msg.recipient, msg.amount, msg.queryId, msg.recipient, 0, emptyForwardPayload());
         }
 
         // ---------- Brûlages (section 8) ----------

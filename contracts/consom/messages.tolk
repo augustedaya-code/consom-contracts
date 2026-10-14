@@ -71,13 +71,11 @@ struct (0xc0150006) BudgetApproved {
     voucher: Cell<Voucher>
 }
 
-// Compte membre -> émetteur : le bon est accepté ; l'émetteur crée la part immédiate.
-// La part en vesting (reserved - immediate) reste réservée et sera libérée par ReleaseVested.
+// Compte membre -> émetteur : le bon est accepté ; l'émetteur crée tout le montant réservé.
 struct (0xc0150003) MintApproved {
     queryId: uint64
     category: uint8
     reserved: coins
-    immediate: coins
     memberId: uint256
     recipient: address
     burnOrder: Cell<BurnOrder>?
@@ -105,18 +103,6 @@ struct (0xc0150007) ReleaseSlot {
     refundTo: address
 }
 
-// Compte membre -> émetteur : des tranches de vesting sont échues (déjà réservées lors des bons).
-struct (0xc0150005) ReleaseVested {
-    queryId: uint64
-    amount: coins            // en tête : un message rebondi ne rapporte que ses 256 premiers bits
-    memberId: uint256
-    recipient: address
-}
-
-// Membre (adresse liée) -> compte membre : réclamer les tranches de vesting échues.
-struct (0xc0150008) ClaimVesting {
-    queryId: uint64
-}
 
 // ---------- Banque d'échange (sections 8 et 9) ----------
 

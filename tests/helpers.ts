@@ -113,7 +113,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
             initialized: s.readBoolean(), owner: s.readAddressOpt(), referralEligible: s.readBoolean(),
             hasPayment: s.readBoolean(), flags: s.readNumber(), lastDirectVoucherId: s.readBigNumber(),
             rewardablePoints: s.readBigNumber(), convertedPoints: s.readBigNumber(), investmentBonus: s.readBigNumber(),
-            dayReceived: s.readBigNumber(), vestingLocked: s.readBigNumber(), vestingDue: s.readBigNumber(),
+            dayReceived: s.readBigNumber(), availablePoints: s.readBigNumber(),
         };
     };
     const budgetState = async (waveRef: bigint) => {
@@ -122,11 +122,6 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         const s = (await c.get('get_budget_state')).stackReader;
         return { initialized: s.readBoolean(), waveAmount: s.readBigNumber(), points: s.readBigNumber(), slots: s.readNumber() };
     };
-    // Réclamer les tranches de vesting échues depuis l'adresse liée
-    const claimVesting = async (memberId: bigint, from = member) => from.send({
-        to: await minter.getChildAddress(false, memberId), value: toNano('0.3'),
-        body: beginCell().storeUint(0xc0150008, 32).storeUint(0, 64).endCell(),
-    });
 
     // ---------- Banque ----------
     const bankState = async () => {
@@ -161,7 +156,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         return from.send({ to: st!.address, value: toNano('0.3'), body: withdrawRequestBody(shares) });
     };
 
-    return { blockchain, minter, deploy, memberState, budgetState, claimVesting, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
+    return { blockchain, minter, deploy, memberState, budgetState, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
 }
 
 // ---------- Transactions ----------

@@ -4,7 +4,7 @@ Contrats de ConsoM, la couche crypto de TonMarché, écrits en [Tolk](https://do
 La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque règle du code renvoie à une de ses sections.
 
 > **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement, le compte membre et la banque
-> d'échange sont écrits et testés ensemble. Restent à écrire : les réclamations de genèse, le vesting de l'équipe,
+> d'échange sont écrits et testés ensemble. Restent à écrire : les réclamations de genèse, le blocage des ConsoM de l'équipe,
 > le changement d'adresse liée et l'enregistrement du parrain.
 
 ## Contenu
@@ -22,7 +22,7 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 
 ```bash
 npm install
-npm test          # 80 tests
+npm test
 npm run build     # écrit build/<Contrat>.json (code compilé et son empreinte)
 ```
 
@@ -63,10 +63,11 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   parrainage niveaux 1 à 5), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
   un paiement de prévente ne donne que son pack.
 - **Compte membre** (un par membre) : adresse liée à la première réclamation ; droit au parrainage ouvert par une prévente ;
-  Points attestés, qui bornent la récompense de 35 % à la conversion et le bonus d'investissement de 30 % ; bonus de
+  Points attestés, convertibles 7 jours (au-delà, perdus), qui bornent la récompense de 35 % à la conversion ; total des
+  Points, qui borne le bonus d'investissement de 30 % ; bonus de
   1er achat et missions une seule fois, missions réservées aux membres ayant un paiement ; numéros de bon croissants pour
-  les conversions et investissements ; plafond de 50 000 par 24 h (hors prévente, tranches comprises) ; vesting 50 %
-  immédiat puis 10 % à J+30, J+60, J+90, J+120 et J+150, réclamé par l'adresse liée.
+  les conversions et investissements ; plafond de 50 000 par 24 h (hors prévente). Toutes les récompenses sont versées
+  en entier, tout de suite.
 - Chacun garde 0,01 TON pour ses frais de stockage.
 
 ## Ce que fait la banque d'échange
@@ -88,9 +89,9 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 
 1. Le montant de chaque récompense est recalculé par l'émetteur (et non par le budget, comme l'indiquait la spécification) :
    c'est plus simple et plus sûr. Le budget et le compte membre gardent le contrôle des emplacements déjà versés,
-   des doublons, de l'éligibilité, du plafond de 50 000 par membre et du vesting.
+   des doublons, de l'éligibilité, du plafond de 50 000 par membre et de l'expiration des Points.
 2. Un bon refusé plus loin dans la chaîne libère sa réservation de catégorie, mais reste compté dans le plafond du jour.
-3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons et les libérations de vesting sont bloqués.
+3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons sont bloqués.
 4. Un brûlage volontaire doit être accompagné d'au moins 0,1 TON pour financer sa recréation ; sinon il est annulé et le
    solde du wallet est rétabli.
 5. Conséquence de la règle « une pause par 30 jours » : après une pause, le gardien ne peut plus en déclencher pendant le
@@ -116,7 +117,6 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 | Récompense de conversion (35 %) | environ 0,007 TON |
 | Conversion via la banque | environ 0,007 TON |
 | Conversion avec ses propres ConsoM | environ 0,011 TON |
-| Réclamation de vesting | environ 0,003 TON |
 | Premier dépôt dans la banque (crée les parts) | environ 0,015 TON |
 | Retrait | environ 0,004 TON |
 | Brûlage volontaire recréé dans la banque | environ 0,024 TON |
@@ -126,7 +126,7 @@ Les créations de contrats incluent leur réserve de stockage. À remesurer sur 
 ## Prochaines étapes
 
 1. Réclamations de genèse (racines de Merkle) : Anciens Contributeurs (part de 30 %, attribution de leurs parts dans la banque, droit au parrainage), préventes payées avant T0.
-2. Vesting de l'équipe (5 M : 12 mois de blocage puis 24 mois linéaires).
+2. Blocage des ConsoM de l'équipe (5 M : 12 mois de blocage puis 24 mois linéaires).
 3. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
    (décisions 5 et 6 de la spécification) — pas encore écrits.
 4. Scripts de déploiement testnet, puis audits.

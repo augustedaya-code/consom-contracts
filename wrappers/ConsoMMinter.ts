@@ -30,7 +30,6 @@ export const Op = {
     CheckClaim: 0xc0150002,
     MintApproved: 0xc0150003,
     ClaimRejected: 0xc0150004,
-    ReleaseVested: 0xc0150005,
     GuardianPause: 0xc0150010,
     GuardianUnpause: 0xc0150011,
     ProposeWitness: 0xc0150012,

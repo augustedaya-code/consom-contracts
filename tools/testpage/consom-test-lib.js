@@ -1,4 +1,4 @@
-// Fabrique les messages de test de ConsoM (testnet) : bons signés, transferts, brûlages, vesting, gardien.
+// Fabrique les messages de test de ConsoM (testnet) : bons signés, transferts, brûlages, gardien.
 // Utilisé par la page de test (navigateur) et vérifié par tests/testpage.test.ts dans le simulateur.
 // `TON` fournit : Address, beginCell, Cell, contractAddress, toNano, sign, keyPairFromSeed, sha256Sync.
 // AUCUNE clé de ce fichier ne doit servir hors du testnet.
@@ -109,10 +109,6 @@ export function createConsoMTestLib(TON, cfg) {
                 .endCell();
             return { to: walletAddressOf(owner), value: toNano('0.5'), body };
         },
-        claimVesting: (owner) => ({
-            to: memberAccountOf(memberIdOf(owner)), value: toNano('0.2'),
-            body: beginCell().storeUint(0xc0150008, 32).storeUint(0, 64).endCell(),
-        }),
         voluntaryBurn: (owner, amountConsom) => ({
             to: walletAddressOf(owner), value: toNano('0.2'),
             body: beginCell().storeUint(0x595f07bc, 32).storeUint(0, 64).storeCoins(consom(amountConsom)).storeAddress(owner).storeMaybeRef(null).endCell(),

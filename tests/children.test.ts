@@ -62,13 +62,13 @@ describe('Budget de paiement', () => {
     it('un refus passager du compte membre (plafond du jour) libère l\'emplacement : le bon repasse le lendemain', async () => {
         const env = await setup();
         await env.claim(env.voucher());
-        // 400 000 Points au niveau 1 = 60 000 ConsoM, dont 30 000 immédiats
-        await env.claim(env.voucher(referral(400_000n)));
-        const second = env.voucher({ ...referral(400_000n), validUntil: T0 + 3 * DAY });
+        // 300 000 Points au niveau 1 = 45 000 ConsoM ; un 2e parrainage identique dépasserait 50 000
+        await env.claim(env.voucher(referral(300_000n)));
+        const second = env.voucher({ ...referral(300_000n), validUntil: T0 + 3 * DAY });
         const r = await env.claim(second);
         assert.equal(rejectReason(r), Reject.DAILY_CAP, describeTxs(r));
         assert.equal((await env.budgetState(second.waveRef))!.slots, 0, 'emplacement libéré');
-        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(60_000), 'réservation libérée');
+        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(45_000), 'réservation libérée');
         env.blockchain.now = T0 + DAY;
         const again = await env.claim(second);
         assert.ok(hasTx(again, { op: Op.MintApproved, success: true }), describeTxs(again));
@@ -100,7 +100,7 @@ describe('Compte membre', () => {
         await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n }));
         const r = await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n }));
         assert.equal(rejectReason(r), Reject.ALREADY_DONE, describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(250));
+        assert.equal(await env.balanceOf(env.member.address), consom(500));
     });
 
     it('les missions exigent un paiement attesté et ne se reçoivent qu\'une fois', async () => {
@@ -145,51 +145,47 @@ describe('Compte membre', () => {
         assert.ok(hasTx(ok, { op: Op.MintApproved, success: true }), describeTxs(ok));
     });
 
-    it('vesting : 50 % tout de suite, puis 10 % à J+30, J+60, J+90, J+120 et J+150', async () => {
+    it('les Points d\'un achat se convertissent dans les 7 jours, sinon ils sont perdus', async () => {
         const env = await setup();
-        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
-        await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(350) }));
-        assert.equal(await env.balanceOf(env.member.address), consom(175));
-        assert.equal((await env.memberState(1n))!.vestingLocked, consom(175));
-
-        env.blockchain.now = T0 + 29 * DAY;
-        const early = await env.claimVesting(1n);
-        assert.ok(hasTx(early, { success: false, exitCode: 452 }), 'rien d\'échu avant J+30');
-
-        env.blockchain.now = T0 + 30 * DAY;
-        await env.claimVesting(1n);
+        const record = (points: bigint) => env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points, waveAmount: points * 2n, amount: 0n }));
+        const convert = (points: bigint) => env.claim(env.voucher({ kind: Kind.CONVERSION, points, waveAmount: 0n, amount: points * consom(35) / 100n }));
+        await record(1000n);
+        env.blockchain.now = T0 + 6 * DAY;
+        assert.ok(hasTx(await convert(600n), { op: Op.MintApproved, success: true }), 'J+6 : accepté');
+        assert.equal((await env.memberState(1n))!.availablePoints, 400n);
+        env.blockchain.now = T0 + 7 * DAY;
+        assert.equal(rejectReason(await convert(400n)), Reject.NOT_ENOUGH_POINTS, 'J+7 : les 400 Points restants ont expiré');
+        assert.equal((await env.memberState(1n))!.availablePoints, 0n);
         assert.equal(await env.balanceOf(env.member.address), consom(210));
-
-        env.blockchain.now = T0 + 150 * DAY;
-        await env.claimVesting(1n);
-        assert.equal(await env.balanceOf(env.member.address), consom(350));
-        const st = await env.memberState(1n);
-        assert.equal(st!.vestingLocked + st!.vestingDue, 0n);
-        assert.equal((await env.minter.getState()).totalSupply, consom(350));
     });
 
-    it('seule l\'adresse liée peut réclamer le vesting', async () => {
+    it('une conversion utilise d\'abord les Points les plus proches de l\'expiration', async () => {
         const env = await setup();
-        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
-        await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(350) }));
-        env.blockchain.now = T0 + 30 * DAY;
-        const r = await env.claimVesting(1n, env.stranger);
-        assert.ok(hasTx(r, { success: false, exitCode: 451 }), describeTxs(r));
+        const record = (points: bigint) => env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points, waveAmount: points * 2n, amount: 0n }));
+        const convert = (points: bigint) => env.claim(env.voucher({ kind: Kind.CONVERSION, points, waveAmount: 0n, amount: points * consom(35) / 100n }));
+        await record(500n);                       // expire à J+7
+        env.blockchain.now = T0 + 3 * DAY;
+        await record(500n);                       // expire à J+10
+        env.blockchain.now = T0 + 6 * DAY;
+        assert.ok(hasTx(await convert(700n), { op: Op.MintApproved, success: true }), '500 anciens + 200 récents');
+        env.blockchain.now = T0 + 8 * DAY;        // les anciens auraient expiré : il reste 300 récents
+        assert.equal((await env.memberState(1n))!.availablePoints, 300n);
+        assert.ok(hasTx(await convert(300n), { op: Op.MintApproved, success: true }));
+        assert.equal(rejectReason(await convert(1n)), Reject.NOT_ENOUGH_POINTS);
+        assert.equal((await env.memberState(1n))!.convertedPoints, 1000n);
     });
 
-    it('les tranches de vesting comptent dans le plafond de 50 000 par 24 h', async () => {
+    it('plafond de 50 000 ConsoM par membre et par 24 h (hors prévente)', async () => {
         const env = await setup();
-        await env.claim(env.voucher());   // éligibilité
-        await env.claim(env.voucher(referral(300_000n)));   // 45 000 : 22 500 immédiats, 4 500 par tranche
-        env.blockchain.now = T0 + 30 * DAY;
-        await env.claim(env.voucher(referral(310_000n)));   // 46 500 : 23 250 immédiats
-        const before = await env.balanceOf(env.member.address);
-        await env.claimVesting(1n);
-        // 50 000 - 23 250 = 26 750 autorisés, la tranche de 4 500 passe en entier
-        assert.equal((await env.balanceOf(env.member.address)) - before, consom(4500));
-        const over = await env.claim(env.voucher(referral(300_000n)));   // 22 500 immédiats > 50 000 - 27 750
+        await env.claim(env.voucher());   // éligibilité (prévente, hors plafond)
+        await env.claim(env.voucher(referral(300_000n)));   // 45 000
+        const over = await env.claim(env.voucher(referral(40_000n)));   // 6 000 : 51 000 > 50 000
         assert.equal(rejectReason(over), Reject.DAILY_CAP, describeTxs(over));
-        assert.equal((await env.memberState(1n))!.dayReceived, consom(27_750));
+        assert.equal((await env.memberState(1n))!.dayReceived, consom(45_000));
+        env.blockchain.now = T0 + DAY + 1;
+        const next = await env.claim(env.voucher(referral(40_000n)));
+        assert.ok(hasTx(next, { op: Op.MintApproved, success: true }), 'le lendemain : accepté');
+        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 45_000 + 6_000));
     });
 
     it('le budget et le compte membre gardent 0,01 TON pour leurs frais de stockage', async () => {

@@ -90,9 +90,9 @@ const BANK_NOTIFY_VALUE   = ton("0.02")   // TON transmis à la banque avec un d
 const MIN_STORAGE_RESERVE = ton("0.05")
 
 // ---------- Compte membre (section 6) ----------
-const MEMBER_DAILY_CAP   = 50000 * ONE_CONSOM   // reçu par membre et par 24 h, hors prévente, tranches de vesting comprises
-const VESTING_TRANCHES   = 5                    // 50 % libérés en 5 tranches de 10 %
-const VESTING_INTERVAL   = ONE_MONTH            // à J+30, J+60, J+90, J+120, J+150
+const MEMBER_DAILY_CAP   = 50000 * ONE_CONSOM   // reçu par membre et par 24 h, hors prévente
+const POINTS_VALIDITY    = 7 * ONE_DAY          // les Points d'un achat se convertissent dans les 7 jours, sinon ils sont perdus
+const POINTS_BUCKET      = 3600                 // Points regroupés par heure d'expiration (arrondie vers le bas : jamais plus de 7 jours)
 
 // ---------- Raisons de refus (ClaimRejected.reason) ----------
 const REJECT_SLOT_USED          = 1   // budget : cette récompense a déjà été versée pour ce paiement
@@ -104,7 +104,7 @@ const REJECT_DAILY_CAP          = 12  // membre : plafond de 50 000 par 24 h att
 const REJECT_ALREADY_DONE       = 13  // membre : bonus ou mission déjà reçu
 const REJECT_NO_PAYMENT         = 14  // membre : mission sans aucun paiement attesté
 const REJECT_STALE_VOUCHER      = 15  // membre : numéro de bon déjà utilisé ou trop ancien
-const REJECT_NOT_ENOUGH_POINTS  = 16  // membre : conversion ou investissement au-delà des Points attestés
+const REJECT_NOT_ENOUGH_POINTS  = 16  // membre : conversion au-delà des Points encore valides, ou investissement au-delà des Points attestés
 
 // ---------- Emplacements du budget de paiement (bits) ----------
 const SLOT_PRESALE        = 1          // bit 0

@@ -20,7 +20,7 @@ Le contrat ne fait confiance à personne en particulier : il n'accepte une émis
 | --- | --- | --- | --- |
 | TonMarché | Commandes, livraisons, Points, FECA, projets, calcul des récompenses, préparation des bons | Application et base de données | Créer un ConsoM seule |
 | Témoins (3) | Vérifier chaque paiement Wave et chaque récompense, puis signer | Trois services séparés, trois clés détenues par trois personnes | Dépasser un plafond du contrat, signer pour un autre réseau ou un autre contrat |
-| Contrats TON | Émission, soldes, transferts, brûlages, banque d'échange, plafonds, vesting, pause | Blockchain TON | Vérifier Wave directement, reprendre un jeton déjà émis |
+| Contrats TON | Émission, soldes, transferts, brûlages, banque d'échange, plafonds, expiration des Points, pause | Blockchain TON | Vérifier Wave directement, reprendre un jeton déjà émis |
 
 **Ce qui reste hors chaîne, par choix** : les Points, les FECA, la répartition des 10 % de frais en FECA aux déposants de la banque, les commissions de prévente en Points. Le contrat publie les informations dont l'application a besoin pour les calculer (taux V, parts de chaque déposant).
 
@@ -35,7 +35,7 @@ Aucune liste qui grandit sans fin n'est stockée dans un seul contrat : un contr
 | Émetteur ConsoM | Réseau | Offre totale, plafonds restants par catégorie, total brûlé, T0, 3 clés de témoins, adresse du gardien, état de pause, compteur journalier global | Vérifie les signatures, réserve les plafonds, crée les jetons, compte les brûlages de conversion, recrée dans la banque les brûlages volontaires, calcule V |
 | Wallet ConsoM (Jetton 2.0, non modifié) | Détenteur | Solde | Transferts libres, brûlage |
 | Budget de paiement | Paiement Wave | Empreinte de l'identifiant Wave, membre, montant, Points, récompenses déjà versées | Empêche la réutilisation d'un paiement et tout dépassement de ses récompenses |
-| Compte membre | Membre | Adresse TON liée, parrain, droit au parrainage, gains du jour, tranches en vesting, missions faites | Plafond de 50 000 par jour, vesting, éligibilité |
+| Compte membre | Membre | Adresse TON liée, parrain, droit au parrainage, gains du jour, Points encore convertibles (7 jours), missions faites | Plafond de 50 000 par jour, expiration des Points, éligibilité |
 | Banque d'échange | Réseau | Stock des déposants, stock sans propriétaire, total des parts, date d'ouverture | Toutes les conversions (propres ConsoM ou banque), dépôts, retraits ; seul contrat dont les brûlages comptent pour le halving |
 | Part de banque | Déposant | Nombre de parts, date du dernier dépôt | Retrait après 24 h |
 | Réclamation de genèse | Ligne de genèse | Rien d'autre qu'« utilisée » | Empêche de réclamer deux fois une allocation de genèse |
@@ -63,7 +63,7 @@ L'offre ne PEUT PAS dépasser 230 000 000 ConsoM. Un ConsoM brûlé par une conv
 **Règles de fin de période**
 
 1. À T0 + 12 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date.
-2. À T0 + 18 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage et Missions est retiré définitivement. Les tranches de vesting déjà acquises continuent d'être libérées.
+2. À T0 + 18 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage et Missions est retiré définitivement.
 3. « Retiré » veut dire que le plafond est ramené au montant déjà émis ou réservé : rien n'est créé puis brûlé.
 
 **Phases de test** : aucun gain n'est repris. Le testnet n'a donné lieu à aucun achat réel ; seules les préventes réellement payées par Wave avant T0 entrent dans la genèse, dans le plafond de la prévente (section 11).
@@ -77,7 +77,7 @@ Aucun ConsoM ne peut être créé sans un paiement Wave préalable, attesté par
 - `points` : les Points de la commande, plafonnés à `montant_fcfa × P_max`, où P\_max = 0,5 Point par franc, gravé au déploiement (les Points valent 25 % ou 50 % de la marge d'un produit, et la marge est toujours inférieure au prix) ;
 - un emplacement par récompense versée à l'achat : parrainage niveaux 1 à 5, bonus de 1er achat ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 35 % à la conversion.
 
-**Ce que le budget protège, et ce qu'il ne protège pas.** Il bloque une erreur de calcul de l'application, la réutilisation d'un paiement et toute récompense hors règle. Il ne protège pas contre deux témoins compromis, qui pourraient attester un faux paiement. Contre ce cas, les protections sont le plafond journalier global, le vesting et la pause (section 10).
+**Ce que le budget protège, et ce qu'il ne protège pas.** Il bloque une erreur de calcul de l'application, la réutilisation d'un paiement et toute récompense hors règle. Il ne protège pas contre deux témoins compromis, qui pourraient attester un faux paiement. Contre ce cas, les protections sont le plafond journalier global, le plafond par membre et la pause (section 10).
 
 **Condition « livré et payé »** : un témoin ne signe une récompense d'achat qu'après la livraison et un délai de 48 h, pendant lequel l'acheteur peut signaler un problème à l'équipe ; ainsi, aucune commande remboursée ne donne de ConsoM déjà émis.
 
@@ -105,8 +105,8 @@ Un bon est une autorisation signée par au moins deux témoins, que le membre en
 1. Le wallet du membre envoie le bon et les signatures à l'émetteur.
 2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents, expéditeur = `recipient`. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
 3. Le budget de paiement vérifie l'emplacement, le recalcul du montant et le `voucher_id`, puis marque l'emplacement comme versé.
-4. Le compte membre vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis sépare la part immédiate et la part en vesting.
-5. L'émetteur crée la part immédiate dans le wallet du membre. La part en vesting reste dans le compte membre jusqu'à sa libération.
+4. Le compte membre vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis accepte ou refuse le bon.
+5. L'émetteur crée tout le montant dans le wallet du membre.
 
 Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa réservation. Les frais restants sont rendus au membre (message `excesses`). Le coût exact d'une réclamation sera mesuré sur le testnet avant d'être affiché dans l'application.
 
@@ -127,19 +127,19 @@ Une commande livrée et payée peut donner au plus 62,5 % de ses Points en Conso
 | Facebook | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
 | Investissement | 30 % des FECA investis | L'investisseur | Missions | Total ≤ 30 % des Points reçus par ce membre |
 
-**Récompense de conversion.** Le compte membre tient le total des Points de toutes les commandes attestées du membre. À chaque conversion attestée, le membre reçoit 35 % des Points convertis, dans la limite de ce total moins ce qui a déjà été récompensé. L'expiration des Points est appliquée par l'application : des Points expirés ne peuvent plus être convertis, donc ne donnent rien.
+**Récompense de conversion.** Le compte membre garde les Points de chaque commande attestée avec leur date d'expiration : 7 jours après l'attestation de l'achat. À chaque conversion attestée, le membre reçoit 35 % des Points convertis, dans la limite des Points encore valides ; les Points les plus proches de l'expiration sont utilisés d'abord. Des Points de plus de 7 jours sont perdus : le contrat refuse de les récompenser, même si l'application signait un bon par erreur.
 
 **Parrainage.** Il est versé dès que l'achat du filleul est attesté, sans attendre que le filleul convertisse.
 
 **Éligibilité au parrainage.** Seul un membre ayant acheté en prévente ou un Ancien Contributeur peut recevoir une récompense de parrainage. Le compte membre porte ce droit, activé par une attestation de prévente ou par la genèse. Le parrain d'un membre est enregistré dans son compte ; seule l'équipe peut le changer, par bon signé 2 sur 3, et le changement ne vaut que pour les achats suivants. Si le parrain d'un niveau n'est pas éligible, son emplacement est perdu : il n'est ni versé à un autre, ni reporté.
 
-**Vesting.** Toute récompense (achat, parrainage, missions) est versée pour 50 % immédiatement. Les 50 % restants sont libérés en cinq tranches de 10 %, à J+30, J+60, J+90, J+120 et J+150 après la réclamation. Une tranche échue se réclame depuis le wallet lié ; elle est créée à ce moment-là. La prévente, les Anciens Contributeurs et l'équipe ont leurs propres règles.
+**Versement.** Toute récompense (achat, parrainage, missions) est versée en entier, immédiatement. Il n'y a pas d'étalement : les ConsoM vendus restent dans le système, et le seul moyen de les retirer est la conversion de Points. Les Anciens Contributeurs et l'équipe ont leurs propres règles.
 
-**Plafond par membre.** Un membre ne peut pas recevoir plus de 50 000 ConsoM par période de 24 h, toutes catégories confondues sauf la prévente, tranches de vesting comprises. Ce qui dépasse est refusé ; le bon peut être réutilisé le lendemain s'il n'a pas expiré.
+**Plafond par membre.** Un membre ne peut pas recevoir plus de 50 000 ConsoM par période de 24 h, toutes catégories confondues sauf la prévente. Ce qui dépasse est refusé ; le bon peut être réutilisé le lendemain s'il n'a pas expiré.
 
 ## 7. Prévente
 
-Un paiement Wave de prévente donne exactement les ConsoM d'un pack, crédités immédiatement et sans vesting, et active le droit au parrainage du membre. Les packs sont gravés dans l'émetteur : le contrat refuse un bon dont le montant payé est inférieur au prix du pack ou dont la quantité diffère.
+Un paiement Wave de prévente donne exactement les ConsoM d'un pack, crédités immédiatement, et active le droit au parrainage du membre. Les packs sont gravés dans l'émetteur : le contrat refuse un bon dont le montant payé est inférieur au prix du pack ou dont la quantité diffère.
 
 | Pack | ConsoM | Prix (FCFA) | Prix unitaire (FCFA) | Commission au parrain (Points, hors chaîne) |
 | --- | --- | --- | --- | --- |
@@ -230,7 +230,7 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouverte pendant 7 jours ; elle ne fait courir aucun risque aux membres, puisqu'elle ne touche à aucun solde. Le remplacement de témoin, lui, est le vrai pouvoir sensible : remplacer deux clés donnerait le contrôle des émissions. D'où le délai, la limite d'un remplacement par mois et les plafonds globaux.
 
-**Ce que la pause arrête** : les bons d'émission, les libérations de vesting, les réclamations de genèse et les brûlages de la banque. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
+**Ce que la pause arrête** : les bons d'émission, les réclamations de genèse et les brûlages de la banque. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
 
 **Plafonds globaux** (filet de sécurité si deux témoins sont compromis)
 
@@ -251,7 +251,7 @@ Le testnet sert à prouver ce contrat exact, pas à créer des soldes : les jeto
 
 - [ ] Code final audité deux fois, corrections revues
 - [ ] Tous les invariants de la section 10 couverts par des tests automatiques
-- [ ] Testnet public : réclamations, vesting, banque, pause et remplacement de témoin exercés en conditions réelles
+- [ ] Testnet public : réclamations, expiration des Points, banque, pause et remplacement de témoin exercés en conditions réelles
 - [ ] Coût de chaque opération mesuré et affiché dans l'application
 - [ ] Instantané de genèse publié et vérifiable par chaque membre
 - [ ] Revue juridique terminée pour la prévente
@@ -295,6 +295,8 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 - Seuls les brûlages de conversion comptent pour le halving ; ce qui dépasse le dernier palier de la 1re année est reporté.
 - Brûlage volontaire : recréé dans la banque comme stock sans propriétaire, utilisé au prorata des dépôts ; les frais correspondants sont versés en plus aux déposants.
 - Commissions de prévente au parrain : 500, 5 000 et 10 000 Points.
+- Récompenses versées en entier, sans étalement (décision prise pendant le testnet).
+- Points convertibles pendant 7 jours après l'achat ; au-delà, perdus. Appliqué par le contrat.
 
 Conséquence à garder en tête : pendant les 18 mois de récompenses, une conversion crée plus de ConsoM qu'elle n'en brûle (35 reçus pour 10 brûlés au départ, pour 100 Points). L'offre en circulation augmente donc pendant cette période, et la rareté s'installe après.
 

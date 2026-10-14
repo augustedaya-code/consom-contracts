@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as core from '@ton/core';
 import { sign, keyPairFromSeed, sha256_sync } from '@ton/crypto';
-import { setup, hasTx, describeTxs, T0, DAY } from './helpers.ts';
+import { setup, hasTx, describeTxs } from './helpers.ts';
 import { consom, Op } from '../wrappers/ConsoMMinter.ts';
 // @ts-ignore — bibliothèque JavaScript partagée avec la page de test
 import { createConsoMTestLib } from '../tools/testpage/consom-test-lib.js';
@@ -55,8 +55,6 @@ describe('Page de test', () => {
         await ok('conversion avec ses ConsoM', lib.actions.ownConversion(me, 100, 20), 0x7bdd97de);
         assert.equal(await env.balanceOf(me), before - consom(10), 'brûle 10, rend 10');
         await ok('brûlage volontaire', lib.actions.voluntaryBurn(me, 5), 0x7bdd97de);
-        env.blockchain.now = T0 + 30 * DAY;
-        await ok('vesting', lib.actions.claimVesting(me), Op.ReleaseVested);
         assert.ok(lib.tonkeeperLink(lib.actions.presale(me, 'grande')).startsWith('https://app.tonkeeper.com/transfer/'));
     });
 
