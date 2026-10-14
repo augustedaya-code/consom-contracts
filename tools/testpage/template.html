@@ -1,0 +1,313 @@
+<title>ConsoM Testnet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f4f6f3;--surface:#ffffff;--surface-2:#eaefe8;--fg:#17201a;--muted:#5b6a60;--line:#d3ddd5;
+  --accent:#0f7a4f;--accent-fg:#ffffff;--accent-soft:#dcf0e5;--warn:#9a5b00;--warn-soft:#fbefd9;--err:#b3261e;--err-soft:#fbe3e1;
+  --qr-bg:#ffffff;--qr-fg:#17201a;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1512;--surface:#18201b;--surface-2:#1f2a23;--fg:#e4ece6;--muted:#93a49a;--line:#2c3a31;
+  --accent:#3fcf8e;--accent-fg:#0b130e;--accent-soft:#173326;--warn:#f0b45a;--warn-soft:#33270f;--err:#ff8a80;--err-soft:#3a1715;
+  --qr-bg:#ffffff;--qr-fg:#0f1512;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1512;--surface:#18201b;--surface-2:#1f2a23;--fg:#e4ece6;--muted:#93a49a;--line:#2c3a31;
+  --accent:#3fcf8e;--accent-fg:#0b130e;--accent-soft:#173326;--warn:#f0b45a;--warn-soft:#33270f;--err:#ff8a80;--err-soft:#3a1715;
+  --qr-bg:#ffffff;--qr-fg:#0f1512;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
+header{display:grid;gap:6px}
+.tag{font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--warn);background:var(--warn-soft);padding:5px 8px;border-radius:4px;justify-self:start}
+h1{font-size:28px;line-height:1.2;margin:4px 0 0;font-weight:600;text-wrap:balance}
+h2{font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+h3{font-size:16px;margin:0;font-weight:600}
+p{margin:0;max-width:68ch}
+.muted{color:var(--muted)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;word-break:break-all}
+section{display:grid;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+label{display:grid;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+input,select{font:inherit;font-size:14px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input.mono{font-size:13px}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.row>label{flex:1 1 120px}
+button{font:inherit;font-size:14px;font-weight:500;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-fg);padding:8px 12px;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;min-width:0}
+a{color:var(--accent)}
+.note{font-size:13px;color:var(--muted)}
+.status{font-size:13px;padding:8px 10px;border-radius:6px}
+.status.ok{background:var(--accent-soft);color:var(--fg)}
+.status.err{background:var(--err-soft);color:var(--err)}
+#result{position:sticky;bottom:0;z-index:2}
+.result{border:2px solid var(--accent);background:var(--surface);border-radius:12px;padding:16px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.qr{background:var(--qr-bg);padding:8px;border-radius:8px;line-height:0}
+.qr img,.qr canvas{width:168px;height:168px;display:block}
+.result .info{display:grid;gap:8px;min-width:0}
+.result .actions{display:flex;flex-wrap:wrap;gap:8px}
+.btnlink{display:inline-block;text-decoration:none;font-weight:500;border-radius:6px;background:var(--accent);color:var(--accent-fg);padding:8px 12px}
+.linktext{font-size:11px;max-height:3.4em;overflow:hidden;color:var(--muted)}
+ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
+@media (max-width:560px){.result{grid-template-columns:1fr}.qr{display:none}h1{font-size:23px}}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="tag">Testnet uniquement · aucun TON réel</span>
+  <h1>ConsoM — page de test</h1>
+  <p class="muted">Chaque bouton prépare un message signé par 2 témoins de test, comme le fera l'application TonMarché. Tu l'envoies avec Tonkeeper (réglé sur le testnet), puis tu regardes le résultat sur l'explorateur.</p>
+</header>
+
+<section class="panel">
+  <h2>Comment faire</h2>
+  <ol class="steps">
+    <li>Dans Tonkeeper : <em>Réglages → Mode développeur → Testnet</em> (ou ton compte testnet habituel).</li>
+    <li>Colle ton adresse testnet ci-dessous (l'émetteur et la banque sont déjà remplis après le déploiement).</li>
+    <li>Clique une action : un bouton « Ouvrir dans Tonkeeper » apparaît en bas (et un QR code sur ordinateur, à scanner avec le téléphone). Vérifie que Tonkeeper affiche bien « Testnet », puis confirme.</li>
+    <li>Attends ~10 secondes et ouvre « Mon wallet ConsoM » ou « Mon compte membre » pour voir le résultat.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Réglages</h2>
+  <div class="panel">
+    <label>Ton adresse Tonkeeper testnet (membre et gardien de test)
+      <input id="owner" class="mono" placeholder="0Q… ou kQ…" autocomplete="off" spellcheck="false"></label>
+    <div class="grid">
+      <label>Émetteur ConsoM (minter)<input id="minter" class="mono" placeholder="rempli après le déploiement" spellcheck="false"></label>
+      <label>Banque d'échange<input id="bank" class="mono" placeholder="rempli après le déploiement" spellcheck="false"></label>
+    </div>
+    <div id="cfgStatus" class="status err">Remplis les trois adresses pour activer les actions.</div>
+    <dl class="kv" id="derived" hidden>
+      <dt>Mon wallet ConsoM</dt><dd><a id="lWallet" target="_blank" rel="noopener" class="mono"></a></dd>
+      <dt>Mon compte membre</dt><dd><a id="lMember" target="_blank" rel="noopener" class="mono"></a></dd>
+      <dt>Émetteur</dt><dd><a id="lMinter" target="_blank" rel="noopener" class="mono"></a></dd>
+      <dt>Banque</dt><dd><a id="lBank" target="_blank" rel="noopener" class="mono"></a></dd>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <h2>Achats (paiements Wave simulés)</h2>
+  <div class="grid">
+    <div class="panel">
+      <h3>Prévente</h3>
+      <p class="note">Le pack arrive en entier tout de suite (pas de vesting) et ouvre le droit au parrainage. Chaque clic simule un nouveau paiement.</p>
+      <div class="row">
+        <label>Pack<select id="pack">
+          <option value="essentiel">Essentiel — 3 000 ConsoM (3 500 F)</option>
+          <option value="populaire">Populaire — 20 000 ConsoM (17 500 F)</option>
+          <option value="grande">Grande — 50 000 ConsoM (38 000 F)</option></select></label>
+        <button data-act="presale">Préparer</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Bonus de 1er achat</h3>
+      <p class="note">500 ConsoM, une seule fois par membre. Un 2e essai doit être refusé.</p>
+      <div class="row"><button data-act="firstPurchase">Préparer</button></div>
+    </div>
+    <div class="panel">
+      <h3>Enregistrement d'achat</h3>
+      <p class="note">Ne crée aucun ConsoM : inscrit les Points gagnés dans ton compte membre. Nécessaire avant une récompense de conversion.</p>
+      <div class="row">
+        <label>Points<input id="recPoints" type="number" min="1" value="1000"></label>
+        <button data-act="purchaseRecord">Préparer</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Récompenses</h2>
+  <div class="grid">
+    <div class="panel">
+      <h3>Conversion de Points (35 %)</h3>
+      <p class="note">Ex. 1 000 Points → 350 ConsoM. Refusé si tu dépasses les Points enregistrés.</p>
+      <div class="row">
+        <label>Points convertis<input id="convPoints" type="number" min="1" value="1000"></label>
+        <button data-act="conversionReward">Préparer</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Parrainage</h3>
+      <p class="note">Toi en tant que parrain (il faut avoir fait une prévente). Niveau 1 = 15 %, 2 = 7 %, 3 = 3,5 %, 4 = 1,5 %, 5 = 0,5 %.</p>
+      <div class="row">
+        <label>Points du filleul<input id="refPoints" type="number" min="1" value="1000"></label>
+        <label>Niveau<select id="refLevel"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+        <button data-act="referral">Préparer</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Missions</h3>
+      <p class="note">150 ConsoM chacune, une seule fois, réservées aux membres qui ont déjà un paiement.</p>
+      <div class="row">
+        <button data-act="missionTelegram">Telegram</button>
+        <button data-act="missionFacebook">Facebook</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Banque d'échange</h2>
+  <div class="grid">
+    <div class="panel">
+      <h3>Conversion via la banque</h3>
+      <p class="note">La banque brûle à ta place sur son stock (3,5 M des Anciens Contributeurs). Au taux actuel : 1 Point = 0,1 ConsoM brûlé. Au plus 5 % du stock par 24 h.</p>
+      <div class="row">
+        <label>Points<input id="bankPoints" type="number" min="1" value="1000"></label>
+        <button data-act="bankConversion">Préparer</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Conversion avec mes ConsoM</h3>
+      <p class="note">Tu envoies tes ConsoM à la banque ; elle brûle ce qu'il faut et te rend le reste. Montant insuffisant : tout est rendu.</p>
+      <div class="row">
+        <label>Points<input id="ownPoints" type="number" min="1" value="1000"></label>
+        <label>ConsoM envoyés<input id="ownSend" type="number" min="0" step="any" value="110"></label>
+        <button data-act="ownConversion">Préparer</button>
+      </div>
+    </div>
+  </div>
+  <p class="note">Dépôts et retraits : fermés pendant 12 mois après T0, donc impossibles à tester sur ce déploiement.</p>
+</section>
+
+<section>
+  <h2>Mon compte</h2>
+  <div class="grid">
+    <div class="panel">
+      <h3>Réclamer mes tranches</h3>
+      <p class="note">Libère les tranches de vesting arrivées à échéance (la 1re à J+30). Avant, rien n'est versé.</p>
+      <div class="row"><button data-act="claimVesting">Préparer</button></div>
+    </div>
+    <div class="panel">
+      <h3>Brûlage volontaire</h3>
+      <p class="note">Les ConsoM brûlés sont recréés dans la banque comme stock sans propriétaire. Ne fait pas avancer le halving.</p>
+      <div class="row">
+        <label>ConsoM<input id="burnAmount" type="number" min="0" step="any" value="10"></label>
+        <button data-act="voluntaryBurn">Préparer</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Gardien</h2>
+  <div class="panel">
+    <p class="note">Seule l'adresse donnée comme gardien au déploiement est acceptée. Pause : 14 jours au plus, une par 30 jours — après une pause, plus d'autre pause possible pendant le reste des 30 jours.</p>
+    <div class="row">
+      <button data-act="pause" class="ghost">Mettre en pause</button>
+      <button data-act="unpause" class="ghost">Lever la pause</button>
+    </div>
+  </div>
+</section>
+
+<div id="result" hidden>
+  <div class="result">
+    <div class="qr" id="qr"></div>
+    <div class="info">
+      <h3 id="rTitle"></h3>
+      <p class="note" id="rDesc"></p>
+      <dl class="kv"><dt>Destinataire</dt><dd class="mono" id="rTo"></dd><dt>TON joints</dt><dd id="rValue"></dd></dl>
+      <div class="actions">
+        <a class="btnlink" id="rLink" target="_blank" rel="noopener">Ouvrir dans Tonkeeper</a>
+        <button class="ghost" id="rCopy">Copier le lien</button>
+        <button class="ghost" id="rClose">Fermer</button>
+      </div>
+      <div class="mono linktext" id="rLinkText"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>/*TONLIB*/</script>
+<script>
+/*LIB*/
+const CFG = /*CFG*/;
+</script>
+<script>
+(function(){
+  globalThis.Buffer = TONLIB.Buffer;
+  const T = Object.assign({}, TONLIB, { sha256Sync: TONLIB.sha256_sync });
+  const $ = (id) => document.getElementById(id);
+  const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+  const explorer = (a) => 'https://testnet.tonviewer.com/' + a;
+  const fmt = (a) => a.toString({ testOnly: true, bounceable: true, urlSafe: true });
+
+  $('minter').value = store.get('consom.minter') || CFG.minter || '';
+  $('bank').value = store.get('consom.bank') || CFG.bank || '';
+  $('owner').value = store.get('consom.owner') || '';
+  let lib = null, owner = null;
+
+  function refresh(){
+    lib = null; owner = null;
+    const st = $('cfgStatus');
+    try {
+      const o = $('owner').value.trim(), m = $('minter').value.trim(), b = $('bank').value.trim();
+      if (!o || !m || !b) throw new Error('Remplis les trois adresses pour activer les actions.');
+      owner = T.Address.parse(o);
+      lib = createConsoMTestLib(T, { minter: m, bank: b, networkId: -3, walletCodeB64: CFG.walletCodeB64, memberCodeB64: CFG.memberCodeB64, witnessSeedsHex: CFG.witnessSeedsHex });
+      store.set('consom.owner', o); store.set('consom.minter', m); store.set('consom.bank', b);
+      const w = fmt(lib.walletAddressOf(owner)), mem = fmt(lib.memberAccountOf(lib.memberIdOf(owner)));
+      for (const [id, a] of [['lWallet', w], ['lMember', mem], ['lMinter', fmt(lib.minter)], ['lBank', fmt(lib.bank)]]) { $(id).textContent = a; $(id).href = explorer(a); }
+      $('derived').hidden = false;
+      st.className = 'status ok'; st.textContent = 'Prêt. Les actions ci-dessous préparent des messages pour cette adresse.';
+    } catch (e) {
+      $('derived').hidden = true;
+      st.className = 'status err';
+      st.textContent = /Remplis/.test(e.message) ? e.message : 'Adresse invalide : vérifie qu\'elle est complète (48 caractères).';
+    }
+    document.querySelectorAll('[data-act]').forEach((b) => { b.disabled = !lib; });
+  }
+  ['owner', 'minter', 'bank'].forEach((id) => $(id).addEventListener('input', refresh));
+
+  const num = (id) => Number($(id).value);
+  const DEFS = {
+    presale: () => ({ t: 'Prévente — pack ' + $('pack').selectedOptions[0].text.split(' — ')[0], d: 'Crée ton compte membre et ton wallet ConsoM au 1er passage. Le pack arrive en entier.', m: lib.actions.presale(owner, $('pack').value) }),
+    firstPurchase: () => ({ t: 'Bonus de 1er achat', d: '250 ConsoM tout de suite (50 %), le reste en tranches.', m: lib.actions.firstPurchase(owner) }),
+    purchaseRecord: () => ({ t: 'Enregistrement de ' + num('recPoints') + ' Points', d: 'Aucun ConsoM créé : seul ton compte membre change.', m: lib.actions.purchaseRecord(owner, num('recPoints')) }),
+    conversionReward: () => ({ t: 'Récompense de conversion — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.35).toLocaleString('fr-FR') + ' ConsoM au total (50 % tout de suite).', m: lib.actions.conversionReward(owner, num('convPoints')) }),
+    referral: () => ({ t: 'Parrainage niveau ' + $('refLevel').value, d: 'Refusé (raison visible sur l\'explorateur) si tu n\'as pas fait de prévente.', m: lib.actions.referral(owner, num('refPoints'), Number($('refLevel').value)) }),
+    missionTelegram: () => ({ t: 'Mission Telegram', d: '150 ConsoM, une seule fois.', m: lib.actions.missionTelegram(owner) }),
+    missionFacebook: () => ({ t: 'Mission Facebook', d: '150 ConsoM, une seule fois.', m: lib.actions.missionFacebook(owner) }),
+    bankConversion: () => ({ t: 'Conversion via la banque — ' + num('bankPoints') + ' Points', d: 'La banque brûle environ ' + (num('bankPoints') * 0.1).toLocaleString('fr-FR') + ' ConsoM de son stock. Tes ConsoM ne bougent pas.', m: lib.actions.bankConversion(owner, num('bankPoints')) }),
+    ownConversion: () => ({ t: 'Conversion avec mes ConsoM — ' + num('ownPoints') + ' Points', d: 'Brûlage attendu : ' + (num('ownPoints') * 0.1).toLocaleString('fr-FR') + ' ConsoM ; l\'excédent te revient.', m: lib.actions.ownConversion(owner, num('ownPoints'), num('ownSend')) }),
+    claimVesting: () => ({ t: 'Réclamer mes tranches', d: 'Envoyé à ton compte membre. Rien n\'est versé avant J+30.', m: lib.actions.claimVesting(owner) }),
+    voluntaryBurn: () => ({ t: 'Brûlage volontaire de ' + num('burnAmount') + ' ConsoM', d: 'Ils réapparaissent dans la banque d\'échange.', m: lib.actions.voluntaryBurn(owner, num('burnAmount')) }),
+    pause: () => ({ t: 'Pause (gardien)', d: 'Bloque les nouveaux bons pendant 14 jours au plus.', m: lib.actions.pause() }),
+    unpause: () => ({ t: 'Lever la pause (gardien)', d: 'Les bons fonctionnent de nouveau.', m: lib.actions.unpause() }),
+  };
+
+  let currentLink = '';
+  document.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => {
+    if (!lib) return;
+    const r = DEFS[b.dataset.act]();
+    currentLink = lib.tonkeeperLink(r.m);
+    $('rTitle').textContent = r.t; $('rDesc').textContent = r.d + ' Ce bon est valable 3 jours.';
+    $('rTo').textContent = fmt(r.m.to);
+    $('rValue').textContent = (Number(r.m.value) / 1e9).toLocaleString('fr-FR') + ' TON (l\'excédent revient)';
+    $('rLink').href = currentLink; $('rLinkText').textContent = currentLink;
+    $('qr').innerHTML = '';
+    try { new QRCode($('qr'), { text: currentLink, width: 336, height: 336, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L }); }
+    catch (e) { $('qr').textContent = 'QR indisponible : utilise le bouton.'; }
+    $('rCopy').textContent = 'Copier le lien';
+    $('result').hidden = false;
+  }));
+  $('rClose').addEventListener('click', () => { $('result').hidden = true; });
+  $('rCopy').addEventListener('click', () => {
+    const done = () => { $('rCopy').textContent = 'Copié'; };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents($('rLinkText')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('rCopy').textContent = 'Sélectionné : copie-le'; };
+    try { navigator.clipboard.writeText(currentLink).then(done, fallback); } catch (e) { fallback(); }
+  });
+  refresh();
+})();
+</script>
