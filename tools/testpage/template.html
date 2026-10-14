@@ -56,6 +56,15 @@ a{color:var(--accent)}
 .btnlink{display:inline-block;text-decoration:none;font-weight:500;border-radius:6px;background:var(--accent);color:var(--accent-fg);padding:8px 12px}
 .linktext{font-size:11px;max-height:3.4em;overflow:hidden;color:var(--muted)}
 ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
+#history{display:grid;gap:8px}
+.hrow{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.hrow .when{font:500 12px/1.4 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);grid-row:span 2}
+.hrow .what{font-weight:600}
+.hrow .why{font-size:13px;color:var(--muted)}
+.hrow.ok{border-left:4px solid var(--accent)}
+.hrow.refused{border-left:4px solid var(--err)}
+.hrow.refused .what{color:var(--err)}
+.hrow.info{border-left:4px solid var(--line)}
 @media (max-width:560px){.result{grid-template-columns:1fr}.qr{display:none}h1{font-size:23px}}
 </style>
 
@@ -72,7 +81,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
     <li>Dans Tonkeeper : <em>Réglages → Mode développeur → Testnet</em> (ou ton compte testnet habituel).</li>
     <li>Colle ton adresse testnet ci-dessous (l'émetteur et la banque sont déjà remplis après le déploiement).</li>
     <li>Clique une action : un bouton « Ouvrir dans Tonkeeper » apparaît en bas (et un QR code sur ordinateur, à scanner avec le téléphone). Vérifie que Tonkeeper affiche bien « Testnet », puis confirme.</li>
-    <li>Attends ~10 secondes et ouvre « Mon wallet ConsoM » ou « Mon compte membre » pour voir le résultat.</li>
+    <li>Attends ~10 secondes puis clique <strong>« Voir le résultat »</strong> : la page te dit si c'est accepté ou refusé, et pourquoi.</li>
   </ol>
 </section>
 
@@ -93,6 +102,17 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
       <dt>Émetteur</dt><dd><a id="lMinter" target="_blank" rel="noopener" class="mono"></a></dd>
       <dt>Banque</dt><dd><a id="lBank" target="_blank" rel="noopener" class="mono"></a></dd>
     </dl>
+  </div>
+</section>
+
+<section id="historySection">
+  <h2>Mes dernières opérations</h2>
+  <div class="panel">
+    <div class="row">
+      <button class="vr" data-vr>Voir le résultat</button>
+      <span class="note" id="hStatus">Lit les dernières opérations de ton adresse sur le testnet.</span>
+    </div>
+    <div id="history"></div>
   </div>
 </section>
 
@@ -215,6 +235,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
       <dl class="kv"><dt>Destinataire</dt><dd class="mono" id="rTo"></dd><dt>TON joints</dt><dd id="rValue"></dd></dl>
       <div class="actions">
         <a class="btnlink" id="rLink" target="_blank" rel="noopener">Ouvrir dans Tonkeeper</a>
+        <button class="ghost" data-vr>Voir le résultat</button>
         <button class="ghost" id="rCopy">Copier le lien</button>
         <button class="ghost" id="rClose">Fermer</button>
       </div>
@@ -263,7 +284,7 @@ const CFG = /*CFG*/;
       st.className = 'status err';
       st.textContent = /Remplis/.test(e.message) ? e.message : 'Adresse invalide : vérifie qu\'elle est complète (48 caractères).';
     }
-    document.querySelectorAll('[data-act]').forEach((b) => { b.disabled = !lib; });
+    document.querySelectorAll('[data-act],[data-vr]').forEach((b) => { b.disabled = !lib; });
   }
   ['owner', 'minter', 'bank'].forEach((id) => $(id).addEventListener('input', refresh));
 
@@ -304,6 +325,69 @@ const CFG = /*CFG*/;
     const fallback = () => { const r = document.createRange(); r.selectNodeContents($('rLinkText')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('rCopy').textContent = 'Sélectionné : copie-le'; };
     try { navigator.clipboard.writeText(currentLink).then(done, fallback); } catch (e) { fallback(); }
   });
+  // ---------- Résultats : lus sur le testnet via le connecteur Firecrawl de l'utilisateur ----------
+  const mcpReady = (window.claude && window.claude.use) ? window.claude.use('mcp').catch(() => null) : Promise.resolve(null);
+  function findRaw(x, depth) {
+    if (depth > 5 || x == null) return null;
+    if (typeof x === 'string') { try { return findRaw(JSON.parse(x), depth + 1); } catch (e) { return null; } }
+    if (Array.isArray(x)) { for (const v of x) { const r = findRaw(v, depth + 1); if (r) return r; } return null; }
+    if (typeof x === 'object') {
+      if (Array.isArray(x.transactions)) return x;
+      for (const k of ['rawHtml', 'data', 'payload', 'structuredContent']) { if (k in x) { const r = findRaw(x[k], depth + 1); if (r) return r; } }
+      if (Array.isArray(x.content)) { for (const c of x.content) { if (c && c.text) { const r = findRaw(c.text, depth + 1); if (r) return r; } } }
+    }
+    return null;
+  }
+  const hStatus = (text, err) => { $('hStatus').textContent = text; $('hStatus').style.color = err ? 'var(--err)' : ''; };
+  const explorerHint = () => { const w = lib ? fmt(lib.walletAddressOf(owner)) : ''; return w ? ' Tu peux aussi regarder sur l\'explorateur : ' + explorer(w) : ''; };
+  function renderHistory(rows) {
+    const box = $('history'); box.innerHTML = '';
+    if (!rows.length) { hStatus('Aucune opération trouvée pour cette adresse parmi les dernières reçues par l\'émetteur. Si tu viens d\'envoyer, attends 10 secondes et réessaie.'); return; }
+    for (const r of rows.slice(0, 12)) {
+      const d = document.createElement('div'); d.className = 'hrow ' + r.status;
+      const when = document.createElement('div'); when.className = 'when';
+      when.textContent = new Date(r.time * 1000).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const what = document.createElement('div'); what.className = 'what'; what.textContent = (r.status === 'ok' ? '✓ ' : r.status === 'refused' ? '✗ ' : '… ') + r.title;
+      const why = document.createElement('div'); why.className = 'why'; why.textContent = r.detail || '';
+      d.append(when, what, why); box.append(d);
+    }
+    hStatus('Mis à jour à ' + new Date().toLocaleTimeString('fr-FR') + '. Le plus récent en haut.');
+  }
+  let loading = false;
+  async function showResults() {
+    if (!lib || loading) return;
+    document.getElementById('historySection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const mcp = await mcpReady;
+    if (!mcp) { hStatus('La lecture automatique n\'est pas disponible ici.' + explorerHint(), true); return; }
+    loading = true; hStatus('Lecture du testnet…');
+    document.querySelectorAll('[data-vr]').forEach((b) => { b.disabled = true; });
+    try {
+      const url = 'https://testnet.tonapi.io/v2/blockchain/accounts/' + lib.minter.toRawString() + '/transactions?limit=40';
+      const res = await mcp.callTool('Firecrawl', 'firecrawl_scrape', {
+        url, formats: ['rawHtml'], maxAge: 0,
+        objective: 'Lire les dernières transactions de test de l\'émetteur ConsoM pour afficher si une opération a été acceptée ou refusée.',
+      }, { cache: false });
+      const data = findRaw(res.payload, 0) || findRaw(res.structuredContent, 0) || findRaw(res, 0);
+      if (!data) { hStatus('Réponse illisible.' + explorerHint(), true); return; }
+      renderHistory(lib.describeMinterTxs(data.transactions, owner));
+    } catch (e) {
+      const code = e && e.code;
+      const msg = {
+        server_not_connected: 'Le connecteur Firecrawl n\'est pas branché : ajoute-le dans claude.ai, Réglages → Connecteurs.',
+        needs_reauth: 'Reconnecte Firecrawl dans claude.ai, Réglages → Connecteurs.',
+        not_in_manifest: 'La lecture a été refusée pour cette page (autorisation Firecrawl).',
+        approval_required: 'Il faut autoriser Firecrawl pour cette page : clique de nouveau et accepte.',
+        selection_required: 'Choisis quel connecteur Firecrawl utiliser dans la fenêtre de claude.ai.',
+        server_unavailable: 'Le service de lecture ne répond pas : réessaie dans quelques secondes.',
+        tool_error: 'Le testnet n\'a pas répondu : réessaie dans quelques secondes.',
+      }[code] || 'Lecture impossible pour le moment.';
+      hStatus(msg + explorerHint(), true);
+    } finally {
+      loading = false;
+      document.querySelectorAll('[data-vr]').forEach((b) => { b.disabled = !lib; });
+    }
+  }
+  document.querySelectorAll('[data-vr]').forEach((b) => b.addEventListener('click', showResults));
   refresh();
 })();
 </script>

@@ -69,4 +69,37 @@ describe('Page de test', () => {
         await env.guardian.send({ to: u.to, value: u.value, body: u.body });
         assert.equal((await env.minter.getState()).pausedUntil, 0);
     });
+
+    it('lit les résultats sur l\'émetteur (format tonapi) : acceptés, refusés et pourquoi', async () => {
+        const env = await setup();
+        const lib = await libFor(env);
+        const me = env.member.address;
+        const minterTxs: any[] = [];
+        const record = (r: any) => {
+            for (const tx of r.transactions) {
+                const info = tx.inMessage?.info;
+                if (info?.type !== 'internal' || !info.dest.equals(env.minter.address)) continue;
+                const d = tx.description as any;
+                minterTxs.unshift({
+                    utime: tx.now,
+                    in_msg: { source: { address: info.src.toRawString() }, raw_body: tx.inMessage!.body.toBoc().toString('hex') },
+                    compute_phase: { exit_code: d.computePhase?.type === 'vm' ? d.computePhase.exitCode : 0 },
+                });
+            }
+        };
+        record(await send(env, lib.actions.presale(me, 'essentiel')));
+        record(await send(env, lib.actions.conversionReward(me, 1000)));      // aucun Point : refusé (16)
+        record(await send(env, lib.actions.purchaseRecord(me, 1000)));
+        record(await send(env, lib.actions.conversionReward(me, 1000)));      // accepté : +350
+        record(await env.stranger.send({ ...lib.actions.firstPurchase(me) }));  // mauvais compte : 408
+        const rows = lib.describeMinterTxs(minterTxs, me);
+        const titles = rows.map((r: any) => `${r.status} ${r.title} | ${r.detail}`);
+        assert.ok(titles.some((t: string) => t.startsWith('ok') && t.includes('Prévente — Accepté : +3')), titles.join('\n'));
+        assert.ok(titles.some((t: string) => t.startsWith('refused Bonus de conversion — Refusé') && t.includes('pas assez de Points')), titles.join('\n'));
+        assert.ok(titles.some((t: string) => t.includes('Points enregistrés')), titles.join('\n'));
+        assert.ok(titles.some((t: string) => t.startsWith('ok Bonus de conversion — Accepté : +350')), titles.join('\n'));
+        assert.ok(!titles.some((t: string) => t.includes('compte ouvert')), 'les envois d\'une autre adresse ne sont pas montrés');
+        const forStranger = lib.describeMinterTxs(minterTxs, env.stranger.address).map((r: any) => r.detail);
+        assert.ok(forStranger.some((d: string) => d.includes('compte ouvert dans Tonkeeper')), forStranger.join('\n'));
+    });
 });

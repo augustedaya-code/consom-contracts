@@ -124,5 +124,96 @@ export function createConsoMTestLib(TON, cfg) {
         return `https://app.tonkeeper.com/transfer/${to}?amount=${msg.value.toString()}&bin=${bin}`;
     }
 
-    return { actions, tonkeeperLink, walletAddressOf, memberAccountOf, memberIdOf, minter, bank, KIND };
+    // ---------- Lecture des résultats ----------
+    // `txs` : transactions de l'émetteur au format tonapi (/v2/blockchain/accounts/<émetteur>/transactions), les plus récentes d'abord.
+    // Renvoie, pour l'adresse `owner`, une ligne lisible par opération : { time, status: 'ok' | 'refused' | 'info', title, detail }.
+    const REJECT_TEXT = {
+        1: 'cette récompense a déjà été versée pour ce paiement (bon déjà utilisé)',
+        2: 'montant ou Points différents de ceux déjà attestés pour ce paiement',
+        3: 'un paiement de prévente ne donne pas d\'autre récompense',
+        10: 'ce compte membre est lié à une autre adresse',
+        11: 'parrainage refusé : il faut d\'abord une prévente',
+        12: 'plafond de 50 000 ConsoM par 24 h atteint (réessayer demain)',
+        13: 'bonus ou mission déjà reçu',
+        14: 'mission refusée : il faut d\'abord un achat enregistré',
+        15: 'bon de conversion déjà utilisé : préparer un nouveau bon',
+        16: 'pas assez de Points valides (jamais enregistrés, déjà convertis, ou plus de 7 jours)',
+    };
+    const ERROR_TEXT = {
+        400: 'l\'émetteur est en pause', 401: 'bon signé pour un autre réseau', 402: 'bon signé pour un autre contrat',
+        403: 'bon expiré : préparer un nouveau bon', 404: 'bon valable trop longtemps', 405: 'signature invalide',
+        406: 'deux signatures du même témoin', 407: 'témoin inconnu',
+        408: 'le compte ouvert dans Tonkeeper n\'est pas celui inscrit sur le bon',
+        409: 'type de bon inconnu', 410: 'hors de la période autorisée', 411: 'montant incorrect',
+        412: 'plafond de la catégorie atteint', 413: 'plafond journalier global atteint', 414: 'offre maximale atteinte',
+        415: 'trop de Points pour le montant payé', 416: 'pas assez de Gram joints',
+        420: 'réservé au gardien', 421: 'une pause a déjà eu lieu dans les 30 derniers jours',
+    };
+    const KIND_TEXT = ['Prévente', 'Enregistrement d\'achat', 'Parrainage', 'Bonus de 1er achat', 'Bonus de conversion',
+        'Mission Telegram', 'Mission Facebook', 'Bonus d\'investissement', 'Conversion via la banque', 'Conversion avec ses ConsoM'];
+    const fmtConsom = (nano) => (Number(nano) / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+
+    function describeMinterTxs(txs, owner) {
+        const me = owner.toRawString();
+        const out = [];
+        for (const tx of txs) {
+            const m = tx.in_msg;
+            if (!m || !m.raw_body) continue;
+            const src = m.source && m.source.address;
+            const exit = tx.compute_phase ? tx.compute_phase.exit_code : 0;
+            let body;
+            try { body = Cell.fromBoc(Buffer.from(m.raw_body, 'hex'))[0].beginParse(); } catch (e) { continue; }
+            if (body.remainingBits < 32) continue;
+            const op = body.loadUint(32);
+            const base = { time: tx.utime };
+            try {
+                if (op === 0xc0150001 && src === me) {
+                    let kind = null;
+                    try { const v = Cell.fromBoc(Buffer.from(m.raw_body, 'hex'))[0].refs[0].beginParse(); v.loadInt(32); v.loadAddress(); v.loadUint(64); kind = v.loadUint(8); } catch (e) { /* bon illisible */ }
+                    const what = kind !== null && KIND_TEXT[kind] ? KIND_TEXT[kind] : 'Bon';
+                    if (exit !== 0) out.push({ ...base, status: 'refused', title: what + ' : refusé par l\'émetteur', detail: ERROR_TEXT[exit] || ('code ' + exit) });
+                    else out.push({ ...base, status: 'info', kindLabel: what, title: what + ' : bon reçu par l\'émetteur', detail: 'en cours de vérification…' });
+                } else if (op === 0xc0150003) {
+                    body.loadUint(64); body.loadUint(8);
+                    const reserved = body.loadCoins(); body.loadUintBig(256);
+                    const recipient = body.loadAddress();
+                    const hasBurn = body.loadBit();
+                    if (recipient.toRawString() !== me) continue;
+                    if (hasBurn) out.push({ ...base, status: 'ok', title: 'Conversion acceptée', detail: 'la banque d\'échange brûle les ConsoM' });
+                    else if (reserved === 0n) out.push({ ...base, status: 'ok', title: 'Accepté', detail: 'Points enregistrés (aucun ConsoM créé)' });
+                    else out.push({ ...base, status: 'ok', title: 'Accepté : +' + fmtConsom(reserved) + ' ConsoM', detail: 'créés dans ton wallet ConsoM' });
+                } else if (op === 0xc0150004) {
+                    body.loadUint(64); body.loadUint(8); body.loadCoins(); body.loadBit(); body.loadUintBig(256);
+                    const refundTo = body.loadAddress();
+                    const reason = body.loadUint(16);
+                    if (refundTo.toRawString() !== me) continue;
+                    out.push({ ...base, status: 'refused', title: 'Refusé', detail: REJECT_TEXT[reason] || ('raison ' + reason) });
+                } else if (op === 0x7bdd97de) {
+                    body.loadUint(64);
+                    const amount = body.loadCoins();
+                    const initiator = body.loadAddress();
+                    const excessesTo = body.loadMaybeAddress();
+                    const fromBank = initiator.equals(bank);
+                    if (!fromBank && initiator.toRawString() !== me) continue;
+                    if (fromBank && !(excessesTo && excessesTo.toRawString() === me)) continue;
+                    if (fromBank) out.push({ ...base, status: 'ok', title: fmtConsom(amount) + ' ConsoM brûlés', detail: 'conversion terminée (compte pour le halving)' });
+                    else if (exit === 0) out.push({ ...base, status: 'ok', title: 'Brûlage volontaire de ' + fmtConsom(amount) + ' ConsoM', detail: 'recréés dans la banque d\'échange' });
+                    else out.push({ ...base, status: 'refused', title: 'Brûlage volontaire annulé', detail: (ERROR_TEXT[exit] || ('code ' + exit)) + ' ; tes ConsoM sont rendus' });
+                } else if ((op === 0xc0150010 || op === 0xc0150011) && src === me) {
+                    const what = op === 0xc0150010 ? 'Pause' : 'Levée de la pause';
+                    out.push({ ...base, status: exit === 0 ? 'ok' : 'refused', title: what + (exit === 0 ? ' : faite' : ' : refusée'), detail: exit === 0 ? '' : (ERROR_TEXT[exit] || ('code ' + exit)) });
+                }
+            } catch (e) { /* message d'un autre format : ignoré */ }
+        }
+        // chaque réponse reprend le nom du bon envoyé juste avant ; le bon « en cours » n'est alors plus utile
+        const used = new Set();
+        for (const r of out) {
+            if (r.status === 'info' || r.kindLabel) continue;
+            const sent = out.find((x) => x.status === 'info' && !used.has(x) && x.time <= r.time && r.time - x.time <= 60);
+            if (sent) { used.add(sent); r.title = sent.kindLabel + ' — ' + r.title; }
+        }
+        return out.filter((r) => !used.has(r));
+    }
+
+    return { actions, tonkeeperLink, walletAddressOf, memberAccountOf, memberIdOf, describeMinterTxs, minter, bank, KIND };
 }
