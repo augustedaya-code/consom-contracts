@@ -1,0 +1,40 @@
+# Déploie ConsoM sur le testnet TON (bouton « Run workflow » dans l'onglet Actions).
+# Pré-requis : le secret TESTNET_DEPLOYER_MNEMONIC (wallet de déploiement de test, jamais utilisé ailleurs),
+# approvisionné en TON de test (au moins 1 TON).
+name: Déployer sur le testnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      guardian_address:
+        description: "Adresse Tonkeeper (testnet) du gardien de test"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer les outils TON
+        run: npm install --no-audit --no-fund
+      - name: Tester avant de déployer
+        run: npm test
+      - name: Déployer
+        env:
+          TESTNET_DEPLOYER_MNEMONIC: ${{ secrets.TESTNET_DEPLOYER_MNEMONIC }}
+          TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
+          GUARDIAN_ADDRESS: ${{ inputs.guardian_address }}
+        run: npm run deploy:testnet
+      - name: Enregistrer les adresses dans le dépôt
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployments/testnet.json
+          git commit -m "Déploiement testnet : adresses des contrats"
+          git push
