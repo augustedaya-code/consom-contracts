@@ -239,8 +239,9 @@ const CFG = /*CFG*/;
   const explorer = (a) => 'https://testnet.tonviewer.com/' + a;
   const fmt = (a) => a.toString({ testOnly: true, bounceable: true, urlSafe: true });
 
-  $('minter').value = store.get('consom.minter') || CFG.minter || '';
-  $('bank').value = store.get('consom.bank') || CFG.bank || '';
+  // les adresses du dernier déploiement l'emportent sur celles gardées dans le navigateur
+  $('minter').value = CFG.minter || store.get('consom.minter') || '';
+  $('bank').value = CFG.bank || store.get('consom.bank') || '';
   $('owner').value = store.get('consom.owner') || '';
   let lib = null, owner = null;
 
