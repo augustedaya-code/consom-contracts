@@ -109,6 +109,28 @@ async function main() {
         endpoint: 'https://testnet.toncenter.com/api/v2/jsonRPC',
         apiKey: process.env.TONCENTER_API_KEY || undefined,
     });
+    // Le service public toncenter limite à ~1 requête/seconde sans clé : on espace les appels et on réessaie
+    const gap = process.env.TONCENTER_API_KEY ? 150 : 1200;
+    let lastCall = 0;
+    const raw = client as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
+    for (const name of ['getBalance', 'runMethod', 'runMethodWithError', 'callGetMethod', 'callGetMethodWithError', 'getContractState', 'sendMessage', 'sendFile', 'isContractDeployed', 'getMasterchainInfo']) {
+        const orig = raw[name]?.bind(client);
+        if (!orig) continue;
+        raw[name] = async (...a: unknown[]) => {
+            for (let attempt = 1; ; attempt++) {
+                const wait = lastCall + gap - Date.now();
+                if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+                lastCall = Date.now();
+                try {
+                    return await orig(...a);
+                } catch (e) {
+                    if (attempt >= 8) throw e;
+                    console.log(`  (${name} : nouvel essai ${attempt} après « ${e instanceof Error ? e.message : e} »)`);
+                    await new Promise((r) => setTimeout(r, 1500 * attempt));
+                }
+            }
+        };
+    }
     const keyPair = await mnemonicToPrivateKey(mnemonic);
     const wallet = client.open(WalletContractV5R1.create({ workchain: 0, publicKey: keyPair.publicKey, walletId: { networkGlobalId: -3 } }));
     const balance = await wallet.getBalance();
@@ -188,7 +210,11 @@ async function main() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
     main().catch((e) => {
-        console.error(e instanceof Error ? e.message : e);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(e instanceof Error ? e.stack : e);
+        // visible dans le résumé du workflow et dans les annotations GitHub
+        if (process.env.GITHUB_ACTIONS) console.log(`::error title=Déploiement arrêté::${msg.replace(/\r?\n/g, ' ')}`);
+        if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Déploiement arrêté\n\n${msg}\n`);
         process.exit(1);
     });
 }
