@@ -130,8 +130,8 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
   <h2>Récompenses</h2>
   <div class="grid">
     <div class="panel">
-      <h3>Conversion de Points (35 %)</h3>
-      <p class="note">Ex. 1 000 Points → 350 ConsoM. Refusé si tu dépasses les Points enregistrés.</p>
+      <h3>Bonus de conversion (35 %)</h3>
+      <p class="note">Ce n'est pas la conversion elle-même : c'est le bonus en ConsoM neufs versé quand tu convertis. Ex. 1 000 Points → 350 ConsoM (175 tout de suite). Refusé si tu dépasses les Points enregistrés.</p>
       <div class="row">
         <label>Points convertis<input id="convPoints" type="number" min="1" value="1000"></label>
         <button data-act="conversionReward">Préparer</button>
@@ -276,7 +276,7 @@ const CFG = /*CFG*/;
     presale: () => ({ t: 'Prévente — pack ' + $('pack').selectedOptions[0].text.split(' — ')[0], d: 'Crée ton compte membre et ton wallet ConsoM au 1er passage. Le pack arrive en entier.', m: lib.actions.presale(owner, $('pack').value) }),
     firstPurchase: () => ({ t: 'Bonus de 1er achat', d: '250 ConsoM tout de suite (50 %), le reste en tranches.', m: lib.actions.firstPurchase(owner) }),
     purchaseRecord: () => ({ t: 'Enregistrement de ' + num('recPoints') + ' Points', d: 'Aucun ConsoM créé : seul ton compte membre change.', m: lib.actions.purchaseRecord(owner, num('recPoints')) }),
-    conversionReward: () => ({ t: 'Récompense de conversion — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.35).toLocaleString('fr-FR') + ' ConsoM au total (50 % tout de suite).', m: lib.actions.conversionReward(owner, num('convPoints')) }),
+    conversionReward: () => ({ t: 'Bonus de conversion (35 %) — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.35).toLocaleString('fr-FR') + ' ConsoM au total (50 % tout de suite).', m: lib.actions.conversionReward(owner, num('convPoints')) }),
     referral: () => ({ t: 'Parrainage niveau ' + $('refLevel').value, d: 'Refusé (raison visible sur l\'explorateur) si tu n\'as pas fait de prévente.', m: lib.actions.referral(owner, num('refPoints'), Number($('refLevel').value)) }),
     missionTelegram: () => ({ t: 'Mission Telegram', d: '150 ConsoM, une seule fois.', m: lib.actions.missionTelegram(owner) }),
     missionFacebook: () => ({ t: 'Mission Facebook', d: '150 ConsoM, une seule fois.', m: lib.actions.missionFacebook(owner) }),
