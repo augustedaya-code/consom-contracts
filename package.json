@@ -1,0 +1,21 @@
+{
+  "name": "consom-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contrats TON de ConsoM (couche crypto de TonMarché), écrits en Tolk",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/compile.ts",
+    "test": "node --test --test-concurrency=1 'tests/**/*.test.ts'"
+  },
+  "devDependencies": {
+    "@ton/core": "^0.63.1",
+    "@ton/crypto": "^3.3.0",
+    "@ton/sandbox": "^0.45.0",
+    "@ton/tolk-js": "^1.4.2",
+    "typescript": "^5.6.0"
+  }
+}

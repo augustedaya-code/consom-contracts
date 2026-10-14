@@ -1,0 +1,9 @@
+node_modules
+build/
+*.log
+.env
+.env.*
+# Ne jamais versionner de phrase secrète, de clé de témoin ou de clé de gardien
+*.key
+*mnemonic*
+secrets/
