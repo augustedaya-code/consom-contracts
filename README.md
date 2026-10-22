@@ -23,14 +23,14 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 Le compilateur Tolk est figé à la version **1.4.2** (`package.json` + `package-lock.json`) : c'est celle qui reproduit à l'identique
 les empreintes du déploiement du 14 octobre 2026. Ne pas la changer sans refaire toute la vérification des empreintes.
 
-Empreintes après le lot B2 (Bonus CHIKA, type de bon 10, réserve de 20 M, plafond total de 250 M) :
+Empreintes après le lot C1 (réclamation par un tiers : le serveur de TonMarché présente les bons et paie les frais) :
 
 | Contrat | Empreinte | Changée ? |
 | --- | --- | --- |
-| Émetteur (`minterCode`) | `96c85c3d541b380e55a01e2789a92d508dbadabeb5e3676d40dd787471005f62` | oui |
-| Budget de paiement (`budgetCode`) | `af93add6a662fc47439748106236fdbd6128558cb0eccd2ad323f06b5fbf94ff` | oui |
+| Émetteur (`minterCode`) | `b8c562b1af18a5f62f2ae6afb638a47fc1342fbbe64da53678a0bb6f22637f49` | oui |
+| Budget de paiement (`budgetCode`) | `337bccdadf220f17d416342c156db31ed9cb548203867f8df45e900d102c6204` | oui |
 | Wallet (`walletCode`) | `7bfa53bce90ce26cd368ec2989eba2bd15d286104742f0e04659f485a03012ba` | non |
-| Compte membre (`memberCode`) | `c575d202b3d9309eca7c02601d365457d74f4d9e0eba819ec417223b0e920c58` | non |
+| Compte membre (`memberCode`) | `3f38c81f11872c32a92ed936271b7af909ac34c72cfafa2e41961a049bb46a62` | oui |
 | Banque (`bankCode`) | `7ca5bc4d2250b411b8e6224c5f6eceb975caeebc53eb3d69f011b4fabd9d2b02` | non |
 | Parts (`shareCode`) | `d1d858f0931c3b6782bd80507019147fd74f07b36763690643e9a7b330d07138` | non |
 
@@ -49,7 +49,7 @@ Node.js 22.18 ou plus récent (les tests TypeScript tournent directement avec `n
 L'émetteur est le seul intermédiaire : le budget et le compte membre n'acceptent que ses messages, et lui-même ne reconnaît
 un budget ou un compte membre qu'en recalculant son adresse à partir de son code.
 
-1. Le wallet du membre envoie le bon et deux signatures à l'émetteur, qui vérifie tout et réserve les plafonds.
+1. Le membre, ou le serveur de TonMarché à sa place (il paie alors les frais), envoie le bon et deux signatures à l'émetteur, qui vérifie tout et réserve les plafonds. Les jetons vont toujours au bénéficiaire du bon ; l'excédent de TON revient à l'expéditeur.
 2. Bons liés à un paiement Wave (prévente, enregistrement d'achat, parrainage, 1er achat, Bonus CHIKA) : le budget du paiement vérifie
    que la récompense n'a pas déjà été versée et que les données attestées sont les mêmes, puis renvoie le bon à l'émetteur.
 3. L'émetteur transmet au compte du membre, qui applique ses règles et répond toujours : accepté ou refusé (avec la raison).
@@ -59,7 +59,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 ## Ce que fait l'émetteur
 
 - **Bons d'émission** : vérifie 2 signatures Ed25519 de 2 témoins différents, le réseau (-239 / -3), l'adresse de l'émetteur,
-  l'expiration (7 jours au plus), que l'expéditeur est le bénéficiaire, la fenêtre de la catégorie (prévente 12 mois,
+  l'expiration (7 jours au plus), la fenêtre de la catégorie (prévente 12 mois,
   récompenses 18 mois depuis T0), et **recalcule lui-même le montant** (packs de prévente, 35 %, 15/7/3,5/1,5/0,5 %, 500, 150, 30 %).
   Il réserve le montant sur le plafond de la catégorie et sur le plafond global de 2 000 000 ConsoM par 24 h, puis transmet
   le bon au budget du paiement Wave ou au compte du membre.

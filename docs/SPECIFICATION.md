@@ -84,7 +84,7 @@ Aucun ConsoM ne peut être créé sans un paiement Wave préalable, attesté par
 
 ## 5. Bon d'émission et réclamation
 
-Un bon est une autorisation signée par au moins deux témoins, que le membre envoie lui-même à l'émetteur depuis son wallet via TON Connect, en payant les frais de réseau. Un bon volé est inutilisable : seul le wallet lié au compte du membre peut l'envoyer.
+Un bon est une autorisation signée par au moins deux témoins. N'importe qui peut le présenter à l'émetteur et payer les frais de réseau : le membre depuis son wallet (TON Connect), ou, sur le mainnet, le serveur de TonMarché à sa place (le membre n'a alors rien à valider ni besoin de TON). Un bon volé ne rapporte rien à celui qui le présente : tout ce qui est créé ou crédité va à `recipient`, jamais à l'expéditeur. Exception : une conversion avec ses propres ConsoM part forcément du wallet du membre (voir section 9).
 
 **Contenu signé** (une seule cellule, signature Ed25519 de son empreinte)
 
@@ -103,13 +103,13 @@ Un bon est une autorisation signée par au moins deux témoins, que le membre en
 
 **Parcours d'une réclamation**
 
-1. Le wallet du membre envoie le bon et les signatures à l'émetteur.
-2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents, expéditeur = `recipient`. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
+1. Le membre, ou le serveur de TonMarché à sa place, envoie le bon et les signatures à l'émetteur (l'« expéditeur »).
+2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents. L'expéditeur n'est pas contrôlé. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
 3. Le budget de paiement vérifie l'emplacement, le recalcul du montant et le `voucher_id`, puis marque l'emplacement comme versé.
 4. Le compte membre vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis accepte ou refuse le bon.
 5. L'émetteur crée tout le montant dans le wallet du membre.
 
-Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa réservation. Les frais restants sont rendus au membre (message `excesses`). Le coût exact d'une réclamation sera mesuré sur le testnet avant d'être affiché dans l'application.
+Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa réservation. Les frais restants sont rendus à l'expéditeur, celui qui a payé (message `excesses`), jamais au membre, dans tous les cas : bon accepté, bon refusé. Si un contrat enfant échoue au point de faire rebondir le message (cas exceptionnel : les contrats enfants répondent toujours), la réservation est libérée mais les TON restent dans l'émetteur. Une réclamation avec trop peu de TON (moins de 0,25) échoue dès l'arrivée chez l'émetteur et le message rebondit à l'expéditeur, sans rien marquer : le bon reste utilisable. Le coût exact d'une réclamation sera mesuré sur le testnet avant d'être affiché dans l'application.
 
 ## 6. Règles de récompense
 
@@ -173,7 +173,7 @@ n_1 = \left\lfloor \frac{B_1}{800\,000} \right\rfloor \qquad n = \min\left( n_1 
 
 **Deux façons de payer**
 
-1. **Avec ses propres ConsoM** (ouvert à tous) : le membre envoie à la banque au moins les ConsoM requis, accompagnés du bon de conversion signé par 2 témoins sur 3. La banque les garde en attente, l'émetteur vérifie le bon et calcule le brûlage au taux courant ; la banque brûle ce montant et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tous les jetons sont rendus. L'application crédite 100 % des Points en FECA.
+1. **Avec ses propres ConsoM** (ouvert à tous ; ici l'expéditeur doit être le bénéficiaire du bon, puisque les jetons partent de son wallet : sinon tous les jetons sont rendus) : le membre envoie à la banque au moins les ConsoM requis, accompagnés du bon de conversion signé par 2 témoins sur 3. La banque les garde en attente, l'émetteur vérifie le bon et calcule le brûlage au taux courant ; la banque brûle ce montant et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tous les jetons sont rendus. L'application crédite 100 % des Points en FECA.
 2. **Via la banque d'échange** : les témoins signent une attestation de conversion ; la banque brûle le montant requis sur son stock (section 9). L'application crédite 90 % en FECA ; les 10 % restants vont en FECA aux déposants, au prorata de leurs parts.
 
 Dans les deux cas, la conversion donne droit à la récompense de 35 % (section 6).

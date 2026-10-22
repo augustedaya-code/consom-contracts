@@ -18,7 +18,7 @@ struct Voucher {
     kind: uint8              // KIND_*
     level: uint8             // niveau de parrainage (1 à 5), 0 sinon
     validUntil: uint32
-    recipient: address       // adresse TON qui reçoit les jetons, et seule autorisée à envoyer le bon
+    recipient: address       // adresse TON qui reçoit les jetons ; n'importe qui peut présenter le bon (sauf conversion avec ses propres ConsoM)
     amount: coins            // montant demandé, que l'émetteur recalcule
     payment: Cell<PaymentData>
 }
@@ -28,7 +28,7 @@ struct WitnessSignature {
     signature: bits512       // signature Ed25519 de Voucher.hash()
 }
 
-// Envoyé par le wallet du membre (TON Connect)
+// Envoyé par le membre (TON Connect) ou par le serveur de TonMarché, qui paie alors les frais à sa place
 struct (0xc0150001) ClaimVoucher {
     queryId: uint64
     voucher: Cell<Voucher>
@@ -61,6 +61,7 @@ struct (0xc0150002) CheckClaim {
     viaBudget: bool          // vrai si le budget de paiement a déjà accepté ce bon
     voucher: Cell<Voucher>
     burnOrder: Cell<BurnOrder>?
+    payer: address           // celui qui a présenté le bon et payé les frais : il reçoit l'excédent de TON et les remboursements
 }
 
 // Budget -> émetteur : l'emplacement de récompense est libre et marqué ; l'émetteur transmet au compte membre.
@@ -69,6 +70,7 @@ struct (0xc0150006) BudgetApproved {
     category: uint8
     reserved: coins
     voucher: Cell<Voucher>
+    payer: address
 }
 
 // Compte membre -> émetteur : le bon est accepté ; l'émetteur crée tout le montant réservé.
@@ -77,8 +79,9 @@ struct (0xc0150003) MintApproved {
     category: uint8
     reserved: coins
     memberId: uint256
-    recipient: address
+    recipient: address       // bénéficiaire du bon : reçoit les jetons
     burnOrder: Cell<BurnOrder>?
+    payer: address
 }
 
 // Budget ou compte membre -> émetteur : le bon est refusé ; l'émetteur libère sa réservation.

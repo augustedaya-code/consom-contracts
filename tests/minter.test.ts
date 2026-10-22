@@ -161,11 +161,6 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
         expectRejected(await env.claim(env.voucher({ validUntil: T0 + 8 * DAY })), env.minter.address, Err.VALIDITY_TOO_LONG);
     });
 
-    it('refuse un bon envoyé par quelqu\'un d\'autre que son bénéficiaire (bon volé)', async () => {
-        const env = await setup();
-        expectRejected(await env.claim(env.voucher(), { from: env.stranger }), env.minter.address, Err.NOT_RECIPIENT);
-    });
-
     it('refuse un montant différent de celui que le contrat recalcule', async () => {
         const env = await setup();
         const ref = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(150) + 1n });
@@ -201,7 +196,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
     it('refuse un message d\'approbation qui ne vient pas d\'un compte membre', async () => {
         const env = await setup();
         const fake = beginCell().storeUint(Op.MintApproved, 32).storeUint(0, 64).storeUint(0, 8)
-            .storeCoins(consom(1000)).storeUint(1n, 256).storeAddress(env.stranger.address).storeMaybeRef(null).endCell();
+            .storeCoins(consom(1000)).storeUint(1n, 256).storeAddress(env.stranger.address).storeMaybeRef(null).storeAddress(env.stranger.address).endCell();
         expectRejected(await env.minter.sendRaw(env.stranger.getSender(), toNano('0.2'), fake), env.minter.address, Err.NOT_CHILD);
         assert.equal((await env.minter.getState()).totalSupply, 0n);
     });
