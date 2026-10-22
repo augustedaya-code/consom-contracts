@@ -53,13 +53,16 @@ fun categoryOf(kind: int): int {
     if (kind == KIND_REFERRAL) {
         return CAT_REFERRAL;
     }
+    if (kind == KIND_CHIKA_BONUS) {
+        return CAT_CHIKA;
+    }
     return CAT_MISSIONS;    // 1er achat, missions, investissement
 }
 
 // Les bons liés à un paiement Wave passent d'abord par le budget de ce paiement ;
 // les autres vont directement au compte du membre.
 fun usesPaymentBudget(kind: int): bool {
-    return (kind == KIND_PRESALE) || (kind == KIND_PURCHASE_RECORD) || (kind == KIND_REFERRAL) || (kind == KIND_FIRST_PURCHASE);
+    return (kind == KIND_PRESALE) || (kind == KIND_PURCHASE_RECORD) || (kind == KIND_REFERRAL) || (kind == KIND_FIRST_PURCHASE) || (kind == KIND_CHIKA_BONUS);
 }
 
 fun referralRateBp(level: int): int {
@@ -117,6 +120,10 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
     if (kind == KIND_FIRST_PURCHASE) {
         return FIRST_PURCHASE_REWARD;
     }
+    if (kind == KIND_CHIKA_BONUS) {
+        // waveAmount porte ici le montant payé en CHIKA
+        return mulDivFloor(payment.waveAmount * ONE_CONSOM, CHIKA_BONUS_BP, BP_DENOMINATOR);
+    }
     if (kind == KIND_CONVERSION) {
         return mulDivFloor(payment.points * ONE_CONSOM, CONVERSION_RATE_BP, BP_DENOMINATOR);
     }
@@ -170,6 +177,9 @@ fun Caps.remainingOf(self, category: int): int {
     if (category == CAT_FOUNDERS) {
         return self.founders;
     }
+    if (category == CAT_CHIKA) {
+        return self.chika;
+    }
     return self.team;
 }
 
@@ -184,6 +194,8 @@ fun Caps.setRemaining(mutate self, category: int, value: coins) {
         self.missions = value;
     } else if (category == CAT_FOUNDERS) {
         self.founders = value;
+    } else if (category == CAT_CHIKA) {
+        self.chika = value;
     } else {
         self.team = value;
     }
@@ -344,7 +356,7 @@ fun taggedForwardPayload(tag: int): slice {
 const OP_FOUNDERS_DEPOSIT_TAG = 0xc0150030
 const OP_RECYCLED_DEPOSIT_TAG = 0xc0150031
 
-// Garde-fou d'offre : jetons en circulation + jetons brûlés par les conversions <= 230 M.
+// Garde-fou d'offre : jetons en circulation + jetons brûlés par les conversions <= 250 M.
 // (Les brûlages volontaires sont recréés, ils ne sortent donc pas de ce total.)
 fun ConsoMStorage.addSupply(mutate self, amount: coins) {
     assert (self.totalSupply + self.burnedByConversion + amount <= MAX_SUPPLY) throw ERR_SUPPLY_CAP;

@@ -15,7 +15,7 @@ const ERR_NOT_MINTER = 450
 struct BudgetState {
     waveAmount: coins       // montant payé, en FCFA, tel qu'attesté la première fois
     points: coins           // Points de la commande, tels qu'attestés la première fois
-    slots: uint8            // emplacements déjà versés (SLOT_*)
+    slots: uint16           // emplacements déjà versés (SLOT_*)
 }
 
 contract PaymentBudget {
@@ -35,6 +35,9 @@ fun slotOf(kind: int, level: int): int {
     }
     if (kind == KIND_FIRST_PURCHASE) {
         return SLOT_FIRST_PURCHASE;
+    }
+    if (kind == KIND_CHIKA_BONUS) {
+        return SLOT_CHIKA_BONUS;
     }
     if (kind == KIND_REFERRAL) {
         return 1 << (2 + level);    // niveau 1 à 5 : bits 3 à 7 (déjà vérifié par l'émetteur)

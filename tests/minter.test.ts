@@ -19,7 +19,7 @@ describe('Déploiement et lecture', () => {
         assert.equal(jd.totalSupply, 0n);
         assert.equal(jd.admin, null, "aucun administrateur (adresse vide)");
         const caps = await env.minter.getCaps();
-        assert.equal(caps.presale + caps.purchase + caps.referral + caps.missions + caps.founders + caps.team, consom(230_000_000));
+        assert.equal(caps.presale + caps.purchase + caps.referral + caps.missions + caps.founders + caps.team + caps.chika, consom(250_000_000));
         const st = await env.minter.getState();
         assert.equal(st.t0, T0);
         assert.equal(st.halvingSteps, 0);
@@ -188,7 +188,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse un type de bon inconnu', async () => {
         const env = await setup();
-        expectRejected(await env.claim(env.voucher({ kind: 10 })), env.minter.address, Err.UNKNOWN_KIND);
+        expectRejected(await env.claim(env.voucher({ kind: 11 })), env.minter.address, Err.UNKNOWN_KIND);
         // une conversion avec ses propres ConsoM n'est jamais acceptée directement (elle arrive par la banque)
         expectRejected(await env.claim(env.voucher({ kind: Kind.OWN_CONVERSION, points: 100n, waveAmount: 0n, amount: 0n })), env.minter.address, Err.UNKNOWN_KIND);
     });
@@ -279,11 +279,11 @@ describe('Fenêtres et plafonds (sections 3 et 10)', () => {
         assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), 'nouvelle période de 24 h');
     });
 
-    it('ne crée jamais plus de 230 M (jetons en circulation + brûlés par conversion)', async () => {
-        const env = await setup({ testState: { totalSupply: consom(229_999_000), burnedByConversion: 0n } });
-        const r = await env.claim(env.voucher());   // 3 000 de plus dépasseraient 230 M
+    it('ne crée jamais plus de 250 M (jetons en circulation + brûlés par conversion)', async () => {
+        const env = await setup({ testState: { totalSupply: consom(249_999_000), burnedByConversion: 0n } });
+        const r = await env.claim(env.voucher());   // 3 000 de plus dépasseraient 250 M
         assert.ok(hasTx(r, { to: env.minter.address, op: Op.MintApproved, success: false, exitCode: Err.SUPPLY_CAP }), describeTxs(r));
-        assert.equal((await env.minter.getState()).totalSupply, consom(229_999_000));
+        assert.equal((await env.minter.getState()).totalSupply, consom(249_999_000));
         assert.equal(await env.balanceOf(env.member.address), 0n);
     });
 });
