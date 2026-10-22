@@ -18,6 +18,22 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 | `scripts/compile.ts` | Compilation avec le compilateur Tolk officiel |
 | `docs/` | Spécification |
 
+## Compilateur figé
+
+Le compilateur Tolk est figé à la version **1.4.2** (`package.json` + `package-lock.json`) : c'est celle qui reproduit à l'identique
+les empreintes du déploiement du 14 octobre 2026. Ne pas la changer sans refaire toute la vérification des empreintes.
+
+Empreintes après le lot B2 (Bonus CHIKA, type de bon 10, réserve de 20 M, plafond total de 250 M) :
+
+| Contrat | Empreinte | Changée ? |
+| --- | --- | --- |
+| Émetteur (`minterCode`) | `96c85c3d541b380e55a01e2789a92d508dbadabeb5e3676d40dd787471005f62` | oui |
+| Budget de paiement (`budgetCode`) | `af93add6a662fc47439748106236fdbd6128558cb0eccd2ad323f06b5fbf94ff` | oui |
+| Wallet (`walletCode`) | `7bfa53bce90ce26cd368ec2989eba2bd15d286104742f0e04659f485a03012ba` | non |
+| Compte membre (`memberCode`) | `c575d202b3d9309eca7c02601d365457d74f4d9e0eba819ec417223b0e920c58` | non |
+| Banque (`bankCode`) | `7ca5bc4d2250b411b8e6224c5f6eceb975caeebc53eb3d69f011b4fabd9d2b02` | non |
+| Parts (`shareCode`) | `d1d858f0931c3b6782bd80507019147fd74f07b36763690643e9a7b330d07138` | non |
+
 ## Lancer les tests
 
 ```bash
@@ -34,7 +50,7 @@ L'émetteur est le seul intermédiaire : le budget et le compte membre n'accepte
 un budget ou un compte membre qu'en recalculant son adresse à partir de son code.
 
 1. Le wallet du membre envoie le bon et deux signatures à l'émetteur, qui vérifie tout et réserve les plafonds.
-2. Bons liés à un paiement Wave (prévente, enregistrement d'achat, parrainage, 1er achat) : le budget du paiement vérifie
+2. Bons liés à un paiement Wave (prévente, enregistrement d'achat, parrainage, 1er achat, Bonus CHIKA) : le budget du paiement vérifie
    que la récompense n'a pas déjà été versée et que les données attestées sont les mêmes, puis renvoie le bon à l'émetteur.
 3. L'émetteur transmet au compte du membre, qui applique ses règles et répond toujours : accepté ou refusé (avec la raison).
 4. Accepté : l'émetteur crée la part immédiate. Refusé : il libère sa réservation et, si le refus est passager,
@@ -48,7 +64,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   Il réserve le montant sur le plafond de la catégorie et sur le plafond global de 2 000 000 ConsoM par 24 h, puis transmet
   le bon au budget du paiement Wave ou au compte du membre.
 - **Création** : seulement sur approbation d'un compte membre dont l'adresse est calculée à partir de son code ; jamais plus
-  de 230 M (jetons en circulation + brûlés par conversion).
+  de 250 M (jetons en circulation + brûlés par conversion).
 - **Brûlages** : ceux de la banque d'échange (conversions) sont définitifs et font avancer le halving ; tous les autres sont
   recréés aussitôt dans la banque comme stock sans propriétaire.
 - **Halving** : un palier par 800 000 brûlés la 1re année, puis par 12 000 000 avec report ; au plus 30 paliers.
@@ -100,7 +116,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
    section 6). Si le refus est passager (plafond du jour, mauvaise adresse), l'emplacement est libéré et le bon pourra
    repasser tant qu'il n'a pas expiré.
 7. Si la création de jetons échoue à l'émetteur après l'acceptation du compte membre (cas qui ne devrait pas arriver :
-   plafond absolu de 230 M), l'emplacement et les compteurs du compte membre restent consommés.
+   plafond absolu de 250 M), l'emplacement et les compteurs du compte membre restent consommés.
 8. Une conversion via la banque refusée faute de stock ou à cause du plafond de 5 % consomme quand même le numéro du bon :
    l'application doit émettre un nouveau bon.
 9. Des ConsoM envoyés à la banque sans objet reconnu, ou un dépôt joint de moins de 0,05 TON, rejoignent le stock sans

@@ -21,9 +21,10 @@ export const Kind = {
     INVESTMENT: 7,
     BANK_CONVERSION: 8,
     OWN_CONVERSION: 9,
+    CHIKA_BONUS: 10,
 } as const;
 
-export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5 } as const;
+export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6 } as const;
 
 export const Op = {
     ClaimVoucher: 0xc0150001,
@@ -66,6 +67,7 @@ export const INITIAL_CAPS = {
     missions: consom(20_000_000),
     founders: consom(5_000_000),
     team: consom(5_000_000),
+    chika: consom(20_000_000),
 };
 
 export type MinterConfig = {
@@ -96,6 +98,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .storeCoins(k.missions)
         .storeCoins(k.founders)
         .storeCoins(k.team)
+        .storeCoins(k.chika)
         .storeBit(false)        // presaleSettled
         .storeUint(0, 32)       // dayStart
         .storeCoins(0)          // dayMinted
@@ -299,6 +302,7 @@ export class ConsoMMinter implements Contract {
             missions: s.readBigNumber(),
             founders: s.readBigNumber(),
             team: s.readBigNumber(),
+            chika: s.readBigNumber(),
             presaleSettled: s.readBoolean(),
             dayStart: s.readNumber(),
             dayMinted: s.readBigNumber(),

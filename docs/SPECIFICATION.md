@@ -49,7 +49,7 @@ Le bon signé hors chaîne ne crée rien par lui-même : l'émetteur, le budget 
 
 ## 3. Offre totale et plafonds gravés
 
-L'offre ne PEUT PAS dépasser 230 000 000 ConsoM. Un ConsoM brûlé par une conversion n'est jamais réémis ; un ConsoM brûlé autrement est recréé dans la banque d'échange (section 9). Chaque catégorie a son propre plafond, gravé au déploiement ; une émission qui dépasserait le plafond restant de sa catégorie est refusée en entier.
+L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conversion n'est jamais réémis ; un ConsoM brûlé autrement est recréé dans la banque d'échange (section 9). Chaque catégorie a son propre plafond, gravé au déploiement ; une émission qui dépasserait le plafond restant de sa catégorie est refusée en entier.
 
 | Catégorie | Plafond (ConsoM) | Source d'émission | Fenêtre |
 | --- | --- | --- | --- |
@@ -59,11 +59,12 @@ L'offre ne PEUT PAS dépasser 230 000 000 ConsoM. Un ConsoM brûlé par une conv
 | Missions | 20 000 000 | Membre ayant au moins un paiement | T0 → T0 + 18 mois |
 | Anciens Contributeurs | 5 000 000 | Genèse (liste gravée) | Réclamable sans limite de durée |
 | Équipe | 5 000 000 | Genèse (adresses gravées) | Blocage 12 mois, puis 24 mois linéaires |
+| Bonus CHIKA | 20 000 000 | Commande payée en CHIKA, payée et livrée (réserve à part) | T0 → T0 + 18 mois |
 
 **Règles de fin de période**
 
 1. À T0 + 12 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date.
-2. À T0 + 18 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage et Missions est retiré définitivement.
+2. À T0 + 18 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage, Missions et Bonus CHIKA est retiré définitivement.
 3. « Retiré » veut dire que le plafond est ramené au montant déjà émis ou réservé : rien n'est créé puis brûlé.
 
 **Phases de test** : aucun gain n'est repris. Le testnet n'a donné lieu à aucun achat réel ; seules les préventes réellement payées par Wave avant T0 entrent dans la genèse, dans le plafond de la prévente (section 11).
@@ -75,7 +76,7 @@ Aucun ConsoM ne peut être créé sans un paiement Wave préalable, attesté par
 **Le budget de paiement.** La première émission qui cite un paiement Wave crée son contrat « Budget de paiement », dont l'adresse dépend de l'empreinte de l'identifiant Wave. Un même paiement ne peut donc exister qu'une fois. Le budget enregistre ce que les témoins ont attesté et refuse ensuite toute récompense qui ne correspond pas aux règles :
 
 - `points` : les Points de la commande, plafonnés à `montant_fcfa × P_max`, où P\_max = 0,5 Point par franc, gravé au déploiement (les Points valent 25 % ou 50 % de la marge d'un produit, et la marge est toujours inférieure au prix) ;
-- un emplacement par récompense versée à l'achat : parrainage niveaux 1 à 5, bonus de 1er achat ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 35 % à la conversion.
+- un emplacement par récompense versée à l'achat : parrainage niveaux 1 à 5, bonus de 1er achat, Bonus CHIKA ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 35 % à la conversion.
 
 **Ce que le budget protège, et ce qu'il ne protège pas.** Il bloque une erreur de calcul de l'application, la réutilisation d'un paiement et toute récompense hors règle. Il ne protège pas contre deux témoins compromis, qui pourraient attester un faux paiement. Contre ce cas, les protections sont le plafond journalier global, le plafond par membre et la pause (section 10).
 
@@ -92,9 +93,9 @@ Un bon est une autorisation signée par au moins deux témoins, que le membre en
 | `network_id` | -239 pour le réseau principal, -3 pour le testnet : un bon de testnet est refusé sur le réseau principal |
 | `minter` | Adresse de l'émetteur : un bon ne vaut que pour ce contrat |
 | `voucher_id` | Identifiant unique sur 64 bits |
-| `kind` | Prévente, conversion (35 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement |
+| `kind` | Prévente, conversion (35 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10) |
 | `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave (jamais l'identifiant en clair) |
-| `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés |
+| `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés (pour un Bonus CHIKA : montant payé en CHIKA) |
 | `member_id` | Empreinte de l'identifiant TonMarché du bénéficiaire |
 | `recipient` | Adresse TON qui recevra les jetons |
 | `amount` | Montant demandé, que le contrat recalcule et doit retrouver à l'identique |
@@ -126,6 +127,7 @@ Une commande livrée et payée peut donner au plus 62,5 % de ses Points en Conso
 | Telegram | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
 | Facebook | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
 | Investissement | 30 % des FECA investis | L'investisseur | Missions | Total ≤ 30 % des Points reçus par ce membre |
+| Bonus CHIKA | 10 % du montant payé en CHIKA (`montant_paye`, arrondi inférieur) | L'acheteur d'une commande payée en CHIKA, payée et livrée | Bonus CHIKA (réserve de 20 M, séparée des autres) | Une fois par commande ; refusé en entier quand la réserve ne suffit plus, sans toucher aux autres réserves |
 
 **Récompense de conversion.** Le compte membre garde les Points de chaque commande attestée avec leur date d'expiration : 7 jours après l'attestation de l'achat. À chaque conversion attestée, le membre reçoit 35 % des Points convertis, dans la limite des Points encore valides ; les Points les plus proches de l'expiration sont utilisés d'abord. Des Points de plus de 7 jours sont perdus : le contrat refuse de les récompenser, même si l'application signait un bon par erreur.
 
@@ -237,7 +239,7 @@ La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouve
 - Émission totale par période de 24 h, prévente comprise : 2 000 000 ConsoM, à recalibrer après le testnet.
 - Brûlage de la banque par période de 24 h : 5 % du stock de la banque au plus. Un usage normal reste bien en dessous ; si deux témoins étaient compromis, de fausses conversions ne pourraient brûler que 5 % par jour, ce qui laisse le temps de déclencher la pause. Les conversions avec ses propres ConsoM ne sont pas concernées.
 
-**Avant le réseau principal** : deux audits indépendants du code final, des tests qui prouvent les invariants (offre ≤ 230 M, aucune émission sans 2 signatures, aucun paiement utilisé deux fois), une période de testnet publique et un programme de récompense des failles.
+**Avant le réseau principal** : deux audits indépendants du code final, des tests qui prouvent les invariants (offre ≤ 250 M, aucune émission sans 2 signatures, aucun paiement utilisé deux fois), une période de testnet publique et un programme de récompense des failles.
 
 ## 11. Passage testnet → réseau principal
 
@@ -269,7 +271,7 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 | 4 | Délai entre livraison et signature d'une récompense d'achat | Tranché : 48 h ; en cas de problème, l'acheteur écrit à l'équipe |
 | 5 | Vérification du parrainage | Tranché : parrain enregistré dans le compte membre, modifiable par l'équipe seule (bon signé 2 sur 3, pour les achats suivants) ; niveau 1 vérifié par le contrat, niveaux 2 à 5 attestés |
 | 6 | Lien membre ↔ adresse TON | Tranché : fixé par la première réclamation ; changement par bon signé 2 sur 3, effectif après 7 jours |
-| 7 | Nombre maximal de paliers de halving n\_max | Tranché : 30, simple sécurité technique. Avec 230 M, environ 20 paliers sont possibles en théorie, mais chaque palier demande deux fois plus de conversions que le précédent : ce plafond ne sera jamais atteint |
+| 7 | Nombre maximal de paliers de halving n\_max | Tranché : 30, simple sécurité technique. Avec 250 M, environ 20 paliers sont possibles en théorie, mais chaque palier demande deux fois plus de conversions que le précédent : ce plafond ne sera jamais atteint |
 | 8 | Unité du bonus d'investissement | Tranché : 1 FECA investi = 0,30 ConsoM |
 | 9 | Paliers après la 1re année | Tranché : ce qui dépasse le dernier palier de la 1re année est reporté (section 8) |
 | 10 | « Pause renouvelable une fois par mois » | Tranché : une seule pause commencée par période de 30 jours |

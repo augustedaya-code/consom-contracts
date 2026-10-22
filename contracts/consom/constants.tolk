@@ -10,7 +10,8 @@ const CAP_REFERRAL = 45000000 * ONE_CONSOM
 const CAP_MISSIONS = 20000000 * ONE_CONSOM
 const CAP_FOUNDERS = 5000000 * ONE_CONSOM     // Anciens Contributeurs
 const CAP_TEAM     = 5000000 * ONE_CONSOM
-const MAX_SUPPLY   = 230000000 * ONE_CONSOM
+const CAP_CHIKA    = 20000000 * ONE_CONSOM    // réserve à part du Bonus CHIKA
+const MAX_SUPPLY   = 250000000 * ONE_CONSOM
 
 // Part des Anciens Contributeurs déposée dans la banque à la genèse : 70 % de 5 M
 const FOUNDERS_BANK_DEPOSIT = 3500000 * ONE_CONSOM
@@ -22,6 +23,7 @@ const CAT_REFERRAL = 2
 const CAT_MISSIONS = 3
 const CAT_FOUNDERS = 4
 const CAT_TEAM     = 5
+const CAT_CHIKA    = 6
 
 // ---------- Section 5 : types de bon ----------
 const KIND_PRESALE         = 0   // pack de prévente                  -> budget de paiement
@@ -34,7 +36,8 @@ const KIND_MISSION_FB      = 6   // mission Facebook                   -> compte
 const KIND_INVESTMENT      = 7   // 30 % des FECA investis             -> compte membre
 const KIND_BANK_CONVERSION = 8   // conversion via la banque : la banque brûle sur son stock (aucune création)
 const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive par la banque, jamais par ClaimVoucher
-const KIND_MAX             = 9
+const KIND_CHIKA_BONUS     = 10  // bonus de 10 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
+const KIND_MAX             = 10
 
 // ---------- Section 6 : montants des récompenses ----------
 const FIRST_PURCHASE_REWARD = 500 * ONE_CONSOM
@@ -46,6 +49,7 @@ const REFERRAL_L2_BP        = 700    // 7 %
 const REFERRAL_L3_BP        = 350    // 3,5 %
 const REFERRAL_L4_BP        = 150    // 1,5 %
 const REFERRAL_L5_BP        = 50     // 0,5 %
+const CHIKA_BONUS_BP        = 1000   // 10 % du montant payé en CHIKA
 const BP_DENOMINATOR        = 10000
 
 // Section 4 : P_max = 0,5 Point par FCFA payé, soit 2 × Points <= montant payé
@@ -110,6 +114,7 @@ const REJECT_NOT_ENOUGH_POINTS  = 16  // membre : conversion au-delà des Points
 const SLOT_PRESALE        = 1          // bit 0
 const SLOT_PURCHASE       = 2          // bit 1
 const SLOT_FIRST_PURCHASE = 4          // bit 2
+const SLOT_CHIKA_BONUS    = 256        // bit 8
 // parrainage niveau L : bit (2 + L), soit 8, 16, 32, 64, 128
 
 // TON conservé par chaque budget de paiement et compte membre pour payer ses frais de stockage
