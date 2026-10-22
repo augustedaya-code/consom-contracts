@@ -91,7 +91,6 @@ describe('Page de test', () => {
         record(await send(env, lib.actions.conversionReward(me, 1000)));      // aucun Point : refusé (16)
         record(await send(env, lib.actions.purchaseRecord(me, 1000)));
         record(await send(env, lib.actions.conversionReward(me, 1000)));      // accepté : +350
-        record(await env.stranger.send({ ...lib.actions.firstPurchase(me) }));  // mauvais compte : 408
         const rows = lib.describeMinterTxs(minterTxs, me);
         const titles = rows.map((r: any) => `${r.status} ${r.title} | ${r.detail}`);
         assert.ok(titles.some((t: string) => t.startsWith('ok') && t.includes('Prévente — Accepté : +3')), titles.join('\n'));
@@ -99,7 +98,5 @@ describe('Page de test', () => {
         assert.ok(titles.some((t: string) => t.includes('Points enregistrés')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.startsWith('ok Bonus de conversion — Accepté : +350')), titles.join('\n'));
         assert.ok(!titles.some((t: string) => t.includes('compte ouvert')), 'les envois d\'une autre adresse ne sont pas montrés');
-        const forStranger = lib.describeMinterTxs(minterTxs, env.stranger.address).map((r: any) => r.detail);
-        assert.ok(forStranger.some((d: string) => d.includes('compte ouvert dans Tonkeeper')), forStranger.join('\n'));
     });
 });

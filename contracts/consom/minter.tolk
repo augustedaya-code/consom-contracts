@@ -263,10 +263,11 @@ fun witnessIndexOrError(witnesses: Witnesses, hash: uint256, sigCell: Cell<Witne
     return sig.index;
 }
 
-// Contrôles communs à tout bon (section 5). Renvoie 0 si le bon est valable, sinon le code d'erreur.
+// Contrôles communs à tout bon (section 5). N'importe qui peut présenter un bon valable : l'expéditeur n'est pas contrôlé
+// ici, tout ce qui est créé va à voucher.recipient. Renvoie 0 si le bon est valable, sinon le code d'erreur.
 // Ne lève jamais d'exception : une conversion avec ses propres ConsoM doit pouvoir rendre les jetons reçus.
 fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<WitnessSignature>,
-                 sigB: Cell<WitnessSignature>, sender: address): int {
+                 sigB: Cell<WitnessSignature>): int {
     if (storage.isPaused()) {
         return ERR_PAUSED;
     }
@@ -283,9 +284,6 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
     }
     if (voucher.validUntil > now + VOUCHER_MAX_VALIDITY) {
         return ERR_VALIDITY_TOO_LONG;
-    }
-    if (sender != voucher.recipient) {
-        return ERR_NOT_RECIPIENT;
     }
     if (voucher.kind > KIND_MAX) {
         return ERR_UNKNOWN_KIND;
@@ -462,7 +460,7 @@ fun onInternalMessage(in: InMessage) {
         ClaimVoucher => {
             var storage = lazy ConsoMStorage.load();
             assert (in.valueCoins >= MIN_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;
-            val code = checkVoucher(storage, msg.voucher, msg.sigA, msg.sigB, in.senderAddress);
+            val code = checkVoucher(storage, msg.voucher, msg.sigA, msg.sigB);
             assert (code == 0) throw code;
             val voucher = msg.voucher.load();
             // une conversion avec ses propres ConsoM arrive toujours par la banque, avec les jetons
@@ -505,6 +503,7 @@ fun onInternalMessage(in: InMessage) {
                             escrow: 0,
                         }).toCell()
                         : null,
+                    payer: in.senderAddress,
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -527,6 +526,7 @@ fun onInternalMessage(in: InMessage) {
                     viaBudget: true,
                     voucher: msg.voucher,
                     burnOrder: null,
+                    payer: msg.payer,
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -539,16 +539,17 @@ fun onInternalMessage(in: InMessage) {
             if (msg.burnOrder != null) {
                 // conversion acceptée par le compte membre (numéro de bon jamais utilisé) : la banque brûle
                 val order = msg.burnOrder!.load();
-                sendBankInstruction(storage.bankAddress(), order, msg.queryId, msg.recipient, true);
+                sendBankInstruction(storage.bankAddress(), order, msg.queryId, msg.payer, true);
                 return;
             }
             if (msg.reserved == 0) {
-                sendExcesses(msg.recipient, msg.queryId);
+                sendExcesses(msg.payer, msg.queryId);
                 return;
             }
             storage.addSupply(msg.reserved);
             storage.save();
-            sendMint(config.walletCode, msg.recipient, msg.reserved, msg.queryId, msg.recipient, 0, emptyForwardPayload());
+            // les jetons vont au bénéficiaire du bon ; l'excédent de TON revient à celui qui a présenté le bon (et payé)
+            sendMint(config.walletCode, msg.recipient, msg.reserved, msg.queryId, msg.payer, 0, emptyForwardPayload());
         }
 
         ClaimRejected => {
@@ -593,8 +594,11 @@ fun onInternalMessage(in: InMessage) {
             val storage = lazy ConsoMStorage.load();
             val bank = storage.bankAddress();
             assert (in.senderAddress == bank) throw ERR_NOT_BANK;
-            var code = checkVoucher(storage, msg.voucher, msg.sigA, msg.sigB, msg.from);
+            var code = checkVoucher(storage, msg.voucher, msg.sigA, msg.sigB);
             val voucher = msg.voucher.load();
+            if ((code == 0) && (msg.from != voucher.recipient)) {
+                code = ERR_NOT_RECIPIENT;   // les jetons à brûler partent du wallet du membre : seul lui peut présenter ce bon
+            }
             val payment = voucher.payment.load();
             val required = burnForPoints(payment.points, storage.currentHalvingSteps());
             if ((code == 0) && (voucher.kind != KIND_OWN_CONVERSION)) {
@@ -621,6 +625,7 @@ fun onInternalMessage(in: InMessage) {
                     viaBudget: false,
                     voucher: msg.voucher,
                     burnOrder: order.toCell(),
+                    payer: msg.from,
                 }
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
         }

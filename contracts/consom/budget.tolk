@@ -89,17 +89,17 @@ fun onInternalMessage(in: InMessage) {
 
             // tous les bons d'un même paiement doivent porter les mêmes données attestées
             if ((state.waveAmount != payment.waveAmount) || (state.points != payment.points)) {
-                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_PAYMENT_MISMATCH);
+                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_PAYMENT_MISMATCH);
                 return;
             }
             // un paiement de prévente ne donne que son pack ; un achat ne peut pas devenir une prévente
             val isPresale = voucher.kind == KIND_PRESALE;
             if ((isPresale && (state.slots != 0)) || (!isPresale && ((state.slots & SLOT_PRESALE) != 0))) {
-                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_PRESALE_EXCLUSIVE);
+                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_PRESALE_EXCLUSIVE);
                 return;
             }
             if ((state.slots & slot) != 0) {
-                reject(in.valueCoins, storage.minter, storage.key, msg, voucher.recipient, REJECT_SLOT_USED);
+                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_SLOT_USED);
                 return;
             }
 
@@ -117,6 +117,7 @@ fun onInternalMessage(in: InMessage) {
                     category: msg.category,
                     reserved: msg.reserved,
                     voucher: msg.voucher,
+                    payer: msg.payer,
                 }
             }).send(SEND_MODE_CARRY_ALL_BALANCE);
         }
