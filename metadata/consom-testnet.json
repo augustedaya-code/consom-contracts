@@ -1,6 +1,7 @@
 {
   "name": "ConsoM (testnet)",
-  "symbol": "CSM",
+  "symbol": "Csm",
   "decimals": "9",
-  "description": "ConsoM, la monnaie de fidélité de TonMarché — version de test (testnet), sans valeur."
+  "description": "ConsoM, la monnaie de fidélité de TonMarché — version de test, sans valeur.",
+  "image": "https://raw.githubusercontent.com/augustedaya-code/consom-contracts/main/metadata/consom-logo.png"
 }
