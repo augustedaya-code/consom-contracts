@@ -54,7 +54,6 @@ describe('Page de test', () => {
         const before = await env.balanceOf(me);
         await ok('conversion avec ses ConsoM', lib.actions.ownConversion(me, 100, 20), 0x7bdd97de);
         assert.equal(await env.balanceOf(me), before - consom(10), 'brûle 10, rend 10');
-        await ok('brûlage volontaire', lib.actions.voluntaryBurn(me, 5), 0x7bdd97de);
         assert.ok(lib.tonkeeperLink(lib.actions.presale(me, 'grande')).startsWith('https://app.tonkeeper.com/transfer/'));
     });
 

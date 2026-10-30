@@ -1,12 +1,13 @@
 // Banque d'échange (spécification, sections 8 et 9).
 //
 // Elle détient des ConsoM pour le compte de ses déposants et les brûle pour les conversions.
-// Trois stocks, tous dans son wallet ConsoM :
+// Deux stocks, tous dans son wallet ConsoM :
 //   - le stock des déposants, divisé en parts (contrat « parts d'un déposant », un par déposant) ;
-//   - le stock sans propriétaire, recréé par l'émetteur après des brûlages volontaires ;
 //   - les jetons reçus pour une conversion avec ses propres ConsoM, en attente de la vérification du bon.
-// Un brûlage de conversion via la banque est prélevé au prorata entre le stock des déposants et le stock
-// sans propriétaire, sans toucher aux parts : chaque déposant perd la même proportion de son dépôt.
+// Le stock n'est fait QUE de ConsoM déposés (dont la genèse des Anciens Contributeurs) : un envoi sans objet
+// reconnu est refusé et rendu à l'expéditeur. Rien n'est jamais recréé.
+// Un brûlage de conversion via la banque est prélevé sur le stock des déposants, sans toucher aux parts :
+// chaque déposant perd la même proportion de son dépôt.
 // Seuls ses brûlages comptent pour le halving : elle ne brûle que sur ordre de l'émetteur, après un bon signé.
 
 import "../jetton/messages"
@@ -20,18 +21,17 @@ const ERR_NOT_MY_WALLET     = 461
 const ERR_NOT_SHARE         = 462
 const ERR_BANK_CLOSED       = 463
 const ERR_NOTHING_TO_REDEEM = 464
+const ERR_UNKNOWN_DEPOSIT  = 465
 
 const BANK_STORAGE_RESERVE   = ton("0.05")
 const OWN_CONVERSION_MIN_VALUE = ton("0.2")   // TON joint au transfert pour faire vérifier le bon et brûler
 
 const OP_FOUNDERS_TAG  = 0xc0150030
-const OP_RECYCLED_TAG  = 0xc0150031
 const OP_DEPOSIT_TAG   = 0xc0150032
 const OP_OWN_CONV_TAG  = 0xc0150033
 
 struct BankState {
     depositorStock: coins       // ConsoM des déposants
-    ownerlessStock: coins       // ConsoM sans propriétaire (brûlages volontaires recréés, envois sans objet)
     totalShares: coins          // parts émises (Anciens Contributeurs compris)
     unassignedShares: coins     // parts de la genèse pas encore attribuées à chaque Ancien Contributeur
     escrow: coins               // ConsoM reçus pour des conversions avec ses propres ConsoM en cours
@@ -51,7 +51,7 @@ type BankMessage = TransferNotificationForRecipient | BankBurn | EscrowBurn | Re
 fun BankInit.loadBankState(self): BankState {
     if (self.state == null) {
         return {
-            depositorStock: 0, ownerlessStock: 0, totalShares: 0, unassignedShares: 0,
+            depositorStock: 0, totalShares: 0, unassignedShares: 0,
             escrow: 0, dayStart: 0, dayCap: 0, dayBurned: 0,
         };
     }
@@ -144,14 +144,11 @@ fun onInternalMessage(in: InMessage) {
 
             if (msg.transferInitiator == null) {
                 // création par l'émetteur (seul l'émetteur peut créer des jetons)
-                if (tag == OP_FOUNDERS_TAG) {
-                    // genèse : 70 % de l'allocation des Anciens Contributeurs, en parts à attribuer
-                    state.depositorStock += amount;
-                    state.totalShares += amount;
-                    state.unassignedShares += amount;
-                } else {
-                    state.ownerlessStock += amount;     // brûlage volontaire recréé
-                }
+                // seule la genèse existe : 70 % de l'allocation des Anciens Contributeurs, en parts à attribuer
+                assert (tag == OP_FOUNDERS_TAG) throw ERR_UNKNOWN_DEPOSIT;
+                state.depositorStock += amount;
+                state.totalShares += amount;
+                state.unassignedShares += amount;
                 storage.saveBankState(state);
                 return;
             }
@@ -205,17 +202,17 @@ fun onInternalMessage(in: InMessage) {
                 return;
             }
 
-            // envoi sans objet reconnu, ou sans assez de TON pour être traité : les jetons rejoignent le stock
-            // sans propriétaire (ils ne sont jamais perdus pour les conversions)
-            state.ownerlessStock += amount;
-            storage.saveBankState(state);
+            // envoi sans objet reconnu, ou sans assez de TON pour être traité : refusé, les jetons retournent à
+            // l'expéditeur (rien n'entre dans le stock de la banque)
+            keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
+            sendJettons(storage.myWallet(), msg.queryId, amount, from, SEND_MODE_CARRY_ALL_BALANCE, 0);
         }
 
         // ---------- Conversion via la banque (ordre de l'émetteur, après un bon signé) ----------
         BankBurn => {
             assert (in.senderAddress == storage.minter) throw ERR_NOT_MINTER;
             val now = blockchain.now();
-            val stock = state.depositorStock + state.ownerlessStock;
+            val stock = state.depositorStock;
             if (now >= state.dayStart + ONE_DAY) {
                 state.dayStart = now;
                 state.dayBurned = 0;
@@ -232,10 +229,8 @@ fun onInternalMessage(in: InMessage) {
                 }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
                 return;
             }
-            // prélèvement au prorata des deux stocks ; les parts ne changent pas
-            val fromOwnerless = mulDivFloor(msg.burn, state.ownerlessStock, stock);
-            state.ownerlessStock -= fromOwnerless;
-            state.depositorStock -= (msg.burn - fromOwnerless);
+            // prélèvement sur le stock des déposants ; les parts ne changent pas
+            state.depositorStock -= msg.burn;
             state.dayBurned += msg.burn;
             storage.saveBankState(state);
             keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
@@ -294,7 +289,6 @@ fun onInternalMessage(in: InMessage) {
 
 struct BankStateReply {
     depositorStock: int
-    ownerlessStock: int
     totalShares: int
     unassignedShares: int
     escrow: int
@@ -308,7 +302,6 @@ get fun get_bank_state(): BankStateReply {
     val state = storage.loadBankState();
     return {
         depositorStock: state.depositorStock,
-        ownerlessStock: state.ownerlessStock,
         totalShares: state.totalShares,
         unassignedShares: state.unassignedShares,
         escrow: state.escrow,

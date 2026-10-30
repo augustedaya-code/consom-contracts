@@ -54,7 +54,7 @@ export const Err = {
     PAUSED: 400, WRONG_NETWORK: 401, WRONG_MINTER: 402, EXPIRED: 403, VALIDITY_TOO_LONG: 404,
     BAD_SIGNATURE: 405, SAME_WITNESS: 406, BAD_WITNESS_INDEX: 407, NOT_RECIPIENT: 408, UNKNOWN_KIND: 409,
     WINDOW_CLOSED: 410, WRONG_AMOUNT: 411, CATEGORY_CAP: 412, DAILY_CAP: 413, SUPPLY_CAP: 414,
-    POINTS_TOO_HIGH: 415, NOT_ENOUGH_TON: 416, NOT_GUARDIAN: 420, PAUSE_TOO_SOON: 421,
+    POINTS_TOO_HIGH: 415, NOT_ENOUGH_TON: 416, BURN_NOT_ALLOWED: 417, NOT_GUARDIAN: 420, PAUSE_TOO_SOON: 421,
     REPLACE_TOO_SOON: 422, REPLACE_PENDING: 423, NO_PENDING: 424, TIMELOCK: 425, DUPLICATE_KEY: 426,
     NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440,
 } as const;
@@ -125,7 +125,6 @@ export function minterConfigToCell(c: MinterConfig): Cell {
     return beginCell()
         .storeCoins(st.totalSupply ?? 0n)
         .storeCoins(st.burnedByConversion ?? 0n)
-        .storeCoins(0)          // recycled
         .storeUint(c.t0, 32)
         .storeInt(c.networkId, 32)
         .storeUint(0, 32)       // pausedUntil
@@ -283,7 +282,6 @@ export class ConsoMMinter implements Contract {
         return {
             totalSupply: s.readBigNumber(),
             burnedByConversion: s.readBigNumber(),
-            recycled: s.readBigNumber(),
             t0: s.readNumber(),
             networkId: s.readNumber(),
             pausedUntil: s.readNumber(),

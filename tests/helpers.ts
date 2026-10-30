@@ -127,7 +127,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     const bankState = async () => {
         const s = (await (await blockchain.getContract(bankAddress)).get('get_bank_state')).stackReader;
         return {
-            depositorStock: s.readBigNumber(), ownerlessStock: s.readBigNumber(), totalShares: s.readBigNumber(),
+            depositorStock: s.readBigNumber(), totalShares: s.readBigNumber(),
             unassignedShares: s.readBigNumber(), escrow: s.readBigNumber(), dayCap: s.readBigNumber(),
             dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
         };

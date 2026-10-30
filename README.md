@@ -65,8 +65,10 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   le bon au budget du paiement Wave ou au compte du membre.
 - **Création** : seulement sur approbation d'un compte membre dont l'adresse est calculée à partir de son code ; jamais plus
   de 250 M (jetons en circulation + brûlés par conversion).
-- **Brûlages** : ceux de la banque d'échange (conversions) sont définitifs et font avancer le halving ; tous les autres sont
-  recréés aussitôt dans la banque comme stock sans propriétaire.
+- **Brûlages** (règle A10) : seul le programme de conversion (la banque d'échange) détruit des ConsoM ; ces brûlages sont
+  définitifs, font baisser l'offre et avancer le halving. Tout autre brûlage est refusé par l'émetteur (erreur 417) : le
+  message rebondit, le wallet rétablit le solde du membre, l'offre et le compteur des paliers ne bougent pas, et rien n'est
+  recréé. Un ConsoM détruit n'est jamais recréé. Le wallet Jetton reste inchangé (il ne connaît pas l'adresse de la banque).
 - **Halving** : un palier par 15 000 000 ConsoM brûlés par les conversions ; 16 divisions au plus (17 paliers), puis le taux ne bouge plus.
   `get_burn_for_points(points)` donne le brûlage à payer, arrondi au supérieur.
 - **Gardien** (Multisig v2) : pause immédiate de 14 jours au plus (une par 30 jours), levée immédiate, remplacement d'un témoin
@@ -88,10 +90,11 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 
 ## Ce que fait la banque d'échange
 
-- **Trois stocks** dans son wallet : celui des déposants (en parts), le stock sans propriétaire (brûlages volontaires
-  recréés, envois sans objet) et les jetons en attente d'une conversion avec ses propres ConsoM.
+- **Deux stocks** dans son wallet : celui des déposants (en parts, genèse comprise) et les jetons en attente d'une conversion
+  avec ses propres ConsoM. Le stock n'est fait que de ConsoM déposés. Un envoi sans objet reconnu (ni dépôt, ni conversion,
+  ni genèse) est refusé : les jetons retournent à l'expéditeur.
 - **Conversion via la banque** : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
-  déjà utilisé, la banque brûle au prorata des deux stocks (les parts ne changent pas). Au plus 5 % du stock par 24 h ;
+  déjà utilisé, la banque brûle sur le stock des déposants (les parts ne changent pas). Au plus 5 % de ce stock par 24 h ;
   au-delà, rien n'est brûlé.
 - **Conversion avec ses propres ConsoM** : le membre envoie ses ConsoM à la banque avec le bon signé ; l'émetteur vérifie,
   la banque brûle le montant requis et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tout est rendu.
@@ -108,8 +111,10 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
    des doublons, de l'éligibilité, du plafond de 50 000 par membre et de l'expiration des Points.
 2. Un bon refusé plus loin dans la chaîne libère sa réservation de catégorie, mais reste compté dans le plafond du jour.
 3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons de création et les conversions via la banque sont bloqués, pas la conversion avec ses propres ConsoM.
-4. Un brûlage volontaire doit être accompagné d'au moins 0,1 TON pour financer sa recréation ; sinon il est annulé et le
-   solde du wallet est rétabli.
+4. Un brûlage demandé par un membre est refusé par l'émetteur, pas par son wallet : l'adresse de la banque n'est pas connue
+   du wallet, et la lui donner changerait le code (donc l'adresse) de tous les coffres. Le membre paie les petits frais du
+   rebond ; son solde est rétabli. Des jetons envoyés à la banque avec trop peu de TON pour être rendus restent dans son
+   wallet sans entrer dans aucun stock.
 5. Conséquence de la règle « une pause par 30 jours » : après une pause, le gardien ne peut plus en déclencher pendant le
    reste des 30 jours.
 6. Si un parrain n'est pas éligible, ou si un bonus a déjà été reçu, l'emplacement du budget reste marqué (règle de la
@@ -135,7 +140,6 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 | Conversion avec ses propres ConsoM | environ 0,011 TON |
 | Premier dépôt dans la banque (crée les parts) | environ 0,015 TON |
 | Retrait | environ 0,004 TON |
-| Brûlage volontaire recréé dans la banque | environ 0,024 TON |
 
 Les créations de contrats incluent leur réserve de stockage. À remesurer sur le testnet.
 

@@ -17,6 +17,7 @@ const ERR_DAILY_CAP           = 413   // plafond journalier global atteint
 const ERR_SUPPLY_CAP          = 414   // offre maximale de 250 M dépassée (ne doit jamais arriver)
 const ERR_POINTS_TOO_HIGH     = 415   // Points supérieurs à P_max × montant payé
 const ERR_NOT_ENOUGH_TON      = 416   // TON joint insuffisant
+const ERR_BURN_NOT_ALLOWED    = 417   // brûlage refusé : seul le programme de conversion (la banque) peut détruire des ConsoM
 const ERR_NOT_GUARDIAN        = 420   // réservé au gardien
 const ERR_PAUSE_TOO_SOON      = 421   // une pause a déjà commencé dans les 30 derniers jours
 const ERR_REPLACE_TOO_SOON    = 422   // un témoin a déjà été remplacé dans les 30 derniers jours

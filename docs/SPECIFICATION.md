@@ -33,10 +33,10 @@ Aucune liste qui grandit sans fin n'est stockée dans un seul contrat : un contr
 | Contrat | Un par | Ce qu'il stocke | Ce qu'il fait |
 | --- | --- | --- | --- |
 | Émetteur ConsoM | Réseau | Offre totale, plafonds restants par catégorie, total brûlé, T0, 3 clés de témoins, adresse du gardien, état de pause, compteur journalier global | Vérifie les signatures, réserve les plafonds, crée les jetons, compte les brûlages de conversion, recrée dans la banque les brûlages volontaires, calcule V |
-| Wallet ConsoM (Jetton 2.0, non modifié) | Détenteur | Solde | Transferts libres, brûlage |
+| Wallet ConsoM (Jetton 2.0, non modifié) | Détenteur | Solde | Transferts libres ; un brûlage demandé par le détenteur est refusé par l'émetteur (règle A10) |
 | Budget de paiement | Paiement Wave | Empreinte de l'identifiant Wave, membre, montant, Points, récompenses déjà versées | Empêche la réutilisation d'un paiement et tout dépassement de ses récompenses |
 | Compte membre | Membre | Adresse TON liée, parrain, droit au parrainage, gains du jour, Points encore convertibles (7 jours), missions faites | Plafond de 50 000 par jour, expiration des Points, éligibilité |
-| Banque d'échange | Réseau | Stock des déposants, stock sans propriétaire, total des parts, date d'ouverture | Toutes les conversions (propres ConsoM ou banque), dépôts, retraits ; seul contrat dont les brûlages comptent pour le halving |
+| Banque d'échange | Réseau | Stock des déposants, total des parts, date d'ouverture | Toutes les conversions (propres ConsoM ou banque), dépôts, retraits ; seul contrat dont les brûlages comptent pour le halving |
 | Part de banque | Déposant | Nombre de parts, date du dernier dépôt | Retrait après 24 h |
 | Réclamation de genèse | Ligne de genèse | Rien d'autre qu'« utilisée » | Empêche de réclamer deux fois une allocation de genèse |
 | Gardien | Réseau | Multisig v2 officiel, 2 signatures sur 3 | Pause, remplacement d'un témoin |
@@ -49,7 +49,7 @@ Le bon signé hors chaîne ne crée rien par lui-même : l'émetteur, le budget 
 
 ## 3. Offre totale et plafonds gravés
 
-L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conversion n'est jamais réémis ; un ConsoM brûlé autrement est recréé dans la banque d'échange (section 9). Chaque catégorie a son propre plafond, gravé au déploiement ; une émission qui dépasserait le plafond restant de sa catégorie est refusée en entier.
+L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conversion n'est jamais réémis . Seul le programme de conversion peut détruire des ConsoM ; tout autre brûlage est refusé (section 8). Chaque catégorie a son propre plafond, gravé au déploiement ; une émission qui dépasserait le plafond restant de sa catégorie est refusée en entier.
 
 | Catégorie | Plafond (ConsoM) | Source d'émission | Fenêtre |
 | --- | --- | --- | --- |
@@ -185,11 +185,11 @@ Si la banque ne contient pas assez de ConsoM, la conversion via la banque est re
 
 **Rythme du halving.** Chaque palier est deux fois plus long à atteindre que le précédent : comme il faut deux fois moins de ConsoM par Point, brûler 15 000 000 ConsoM demande de convertir 150 millions de Points au départ, 300 millions au palier suivant, puis 600 millions. Le halving ralentit donc de lui-même.
 
-**Brûlages volontaires.** Un détenteur peut toujours détruire ses ConsoM depuis son wallet : le standard Jetton le permet, et l'interdire casserait la compatibilité des wallets. L'émetteur, prévenu de chaque brûlage, recrée immédiatement le même montant dans la banque d'échange, comme stock sans propriétaire (section 9). Ces brûlages ne comptent pas pour le halving : l'offre en circulation ne baisse que par les conversions. La recréation fonctionne même pendant une pause.
+**Autres brûlages : refusés (règle A10).** Seul le programme de conversion, c'est-à-dire la banque d'échange, peut détruire des ConsoM. Si un détenteur demande à son wallet de brûler ses ConsoM, le wallet prévient l'émetteur, qui refuse (erreur 417) : le message rebondit et le wallet rétablit le solde, l'offre totale et le compteur des paliers ne bougent pas, et rien n'est recréé nulle part. Le refus est fait par l'émetteur et non par le wallet, qui ne connaît pas l'adresse de la banque : la lui donner changerait le code, donc l'adresse, de tous les wallets. Le refus s'applique aussi pendant une pause. Un ConsoM détruit par une conversion n'est jamais recréé.
 
 ## 9. Banque d'échange
 
-La banque d'échange est un contrat qui détient des ConsoM pour le compte de ses déposants et les brûle quand un membre convertit via la banque. Elle démarre avec les 70 % de l'allocation des Anciens Contributeurs, soit 3 500 000 ConsoM, et reste fermée aux dépôts et retraits de tous les membres pendant 12 mois.
+La banque d'échange est un contrat qui détient des ConsoM pour le compte de ses déposants et les brûle quand un membre convertit via la banque. Son stock n'est fait que de ConsoM déposés (dont les 3 500 000 de la genèse des Anciens Contributeurs) : rien n'y est jamais recréé. Elle démarre avec les 70 % de l'allocation des Anciens Contributeurs, soit 3 500 000 ConsoM, et reste fermée aux dépôts et retraits de tous les membres pendant 12 mois.
 
 **Parts.** Chaque déposant détient des parts, pas un montant fixe. Un brûlage réduit le stock sans toucher aux parts, si bien que chacun perd la même proportion de son dépôt et touche la même proportion des frais.
 
@@ -197,7 +197,7 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 \text{valeur d'un dépôt} = \text{parts du déposant} \times \frac{\text{stock des déposants}}{\text{total des parts}}
 ```
 
-**Stock sans propriétaire.** Les ConsoM recréés après un brûlage volontaire entrent dans la banque sans créer de parts. À chaque brûlage de conversion via la banque, le montant est prélevé au prorata entre ce stock et celui des déposants. Les 10 % de frais en FECA vont entièrement aux déposants, au prorata de leurs parts : la part qui correspond au stock sans propriétaire leur est versée en plus, ce qui rééquilibre leurs gains.
+**Pas de stock sans propriétaire.** Chaque brûlage de conversion via la banque est prélevé sur le stock des déposants, et sur lui seul. Les 10 % de frais en FECA vont entièrement aux déposants, au prorata de leurs parts.
 
 **Règles**
 
@@ -206,12 +206,12 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 3. La banque ne brûle que sur ordre de l'émetteur, après un bon de conversion signé par 2 témoins sur 3. Chaque bon ne sert qu'une fois : le compte du membre refuse un numéro de bon déjà utilisé ou plus ancien.
 4. Le montant brûlé n'est jamais pris dans le bon : l'émetteur le calcule à partir des Points attestés et du taux courant (section 8), puis le transmet à la banque.
 5. La banque publie le nombre de parts de chaque déposant ; l'application s'en sert pour répartir les 10 % de frais en FECA.
-6. La banque ne brûle pas plus de 5 % de son stock par période glissante de 24 h pour les conversions via la banque. Une conversion qui dépasserait ce plafond est refusée et peut être refaite dès que la période le permet ; le membre peut aussi convertir avec ses propres ConsoM, qui ne sont pas soumis à ce plafond.
+6. La banque ne brûle pas plus de 5 % du stock des déposants par période glissante de 24 h pour les conversions via la banque. Une conversion qui dépasserait ce plafond est refusée et peut être refaite dès que la période le permet ; le membre peut aussi convertir avec ses propres ConsoM, qui ne sont pas soumis à ce plafond.
 
 **Précisions de mise en œuvre**
 
 - Un dépôt doit être accompagné d'au moins 0,05 TON. Pendant les 12 premiers mois, les jetons d'un dépôt sont rendus.
-- Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion), ou sans assez de TON pour être traités, rejoignent le stock sans propriétaire.
+- Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion avec ses propres ConsoM, ni genèse), ou sans assez de TON pour être traités, sont refusés : les jetons retournent à l'expéditeur et le stock de la banque ne change pas. Si le transfert ne portait pas assez de TON pour être rendu, les jetons restent dans le wallet de la banque sans entrer dans aucun stock.
 - Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur recevra les siennes par sa réclamation de genèse.
 - Chaque déposant a un petit contrat qui retient ses parts et la date de son dernier dépôt.
 
@@ -235,7 +235,7 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouverte pendant 7 jours ; elle ne fait courir aucun risque aux membres, puisqu'elle ne touche à aucun solde. Le remplacement de témoin, lui, est le vrai pouvoir sensible : remplacer deux clés donnerait le contrôle des émissions. D'où le délai, la limite d'un remplacement par mois et les plafonds globaux.
 
-**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations de genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
+**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations de genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts ne sont jamais arrêtés ; un brûlage demandé par un membre est refusé, pause ou non.
 
 **Plafonds globaux** (filet de sécurité si deux témoins sont compromis)
 
@@ -298,7 +298,7 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 - Récompense (5 % depuis le livre blanc v5.0) versée à la conversion des Points, et non à l'achat ; des Points expirés ne donnent rien.
 - Parrainage versé dès l'achat attesté du filleul.
 - Seuls les brûlages de conversion comptent pour le halving.
-- Brûlage volontaire : recréé dans la banque comme stock sans propriétaire, utilisé au prorata des dépôts ; les frais correspondants sont versés en plus aux déposants.
+- Brûlage hors conversion : refusé, rien n'est recréé (règle A10). Plus de stock sans propriétaire dans la banque.
 - Commissions de prévente au parrain : 500, 5 000 et 10 000 Points.
 - Récompenses versées en entier, sans étalement (décision prise pendant le testnet).
 - Points convertibles pendant 7 jours après l'achat ; au-delà, perdus. Appliqué par le contrat.
