@@ -88,6 +88,8 @@ const VOUCHER_MAX_VALIDITY = 7 * ONE_DAY
 // ---------- Réserve de la Fondation (A13) : 100 000 ConsoM sous clé, jamais brûlés ----------
 const FOUNDATION_RESERVE     = CAP_FOUNDATION   // créés une seule fois, à la genèse, dans le stock « Fondation » de la banque
 const FOUNDATION_EMPTY_DELAY = ONE_MONTH        // banque vide 30 jours de suite (et au moins T0 + 24 mois) : la réserve s'ouvre
+const FOUNDATION_EMPTY_THRESHOLD = ONE_CONSOM   // « vide » = stock des déposants inférieur à 1 ConsoM (décision du 30 octobre 2026)
+const FOUNDATION_COVER_MAX   = FOUNDATION_RESERVE  // la Fondation couvre au plus 100 000 ConsoM par conversion ; pas de plafond cumulé
 
 // ---------- Part de l'équipe (A9) : 5 000 000, rien avant 12 mois, puis 1/24 par période de 30 jours ----------
 const TEAM_CLIFF   = 12 * ONE_MONTH    // rien n'est libéré avant T0 + 12 mois

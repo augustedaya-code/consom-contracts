@@ -47,6 +47,17 @@ async function emptiedBank(emptyAtDays: number) {
     return env;
 }
 
+// Banque dont il ne reste que `left` unités de base de stock des déposants : un Ancien Contributeur (le membre) réclame les
+// 5 000 000, puis retire presque tout à T0 + `atDays`.
+async function bankWithStockLeft(left: bigint, atDays: number) {
+    const env = await withGenesis();
+    await env.claim(env.voucher({ kind: Kind.FOUNDER_CLAIM, amount: consom(5_000_000), waveRef: 0n, waveAmount: 0n, points: 0n, memberId: 777n }));
+    env.blockchain.now = T0 + atDays * DAY;
+    await env.withdraw(env.member, DEPOSITORS - left);
+    assert.equal((await env.bankState()).depositorStock, left);
+    return env;
+}
+
 describe('Réserve de la Fondation : genèse', () => {
     it('100 000 ConsoM créés une fois, dans un stock à part ; offre totale +100 000 ; réserve CAT_FOUNDATION vidée', async () => {
         const env = await withGenesis();
@@ -296,5 +307,88 @@ describe('Résultat de chaque conversion via la banque', () => {
         assert.equal(res.burned, 0n);
         assert.equal(res.coveredByFoundation, 0n);
         assert.equal(res.required, consom(1));
+    });
+});
+
+describe('Réserve de la Fondation : « vide » = moins de 1 ConsoM (décision du 30 octobre 2026)', () => {
+    it('un stock de 0,9 ConsoM est vide : « vide depuis » est noté dès que le stock passe sous 1 ConsoM', async () => {
+        const env = await bankWithStockLeft(900_000_000n, 366);
+        assert.equal((await env.foundationState()).emptySince, T0 + 366 * DAY);
+    });
+
+    it('un stock d\'exactement 1 ConsoM n\'est pas vide', async () => {
+        const env = await bankWithStockLeft(1_000_000_000n, 366);
+        assert.equal((await env.foundationState()).emptySince, 0);
+    });
+
+    it('un dépôt de 0,05 ConsoM qui laisse le stock sous 1 ConsoM ne change rien : le compteur n\'est pas remis à zéro', async () => {
+        const env = await bankWithStockLeft(900_000_000n, 366);
+        const since = (await env.foundationState()).emptySince;
+        env.blockchain.now = T0 + 380 * DAY;
+        await env.deposit(env.member, 50_000_000n);
+        assert.equal((await env.bankState()).depositorStock, 950_000_000n, 'le dépôt est bien entré');
+        assert.equal((await env.foundationState()).emptySince, since, 'compteur inchangé');
+    });
+
+    it('un dépôt qui fait passer le stock à 1 ConsoM ou plus remet le compteur à zéro', async () => {
+        const env = await bankWithStockLeft(900_000_000n, 366);
+        env.blockchain.now = T0 + 380 * DAY;
+        await env.deposit(env.member, 100_000_000n);                      // 0,9 + 0,1 = exactement 1 ConsoM
+        assert.equal((await env.bankState()).depositorStock, 1_000_000_000n);
+        const f = await env.foundationState();
+        assert.equal(f.emptySince, 0);
+        assert.equal(f.openableAt, 0);
+        // et il faut repartir de zéro : un retrait qui repasse sous 1 ConsoM relance le compteur à cette date
+        env.blockchain.now = T0 + 382 * DAY;
+        await env.withdraw(env.member, 500_000_000n);
+        assert.equal((await env.foundationState()).emptySince, T0 + 382 * DAY);
+    });
+
+    it('avec 0,9 ConsoM de stock, la réserve s\'ouvre après 30 jours ; la banque brûle ce qu\'elle peut, la Fondation couvre le reste', async () => {
+        const env = await bankWithStockLeft(900_000_000n, T24 / DAY);
+        env.blockchain.now = T0 + T24 + 29 * DAY;
+        assert.equal((await env.foundationState()).isOpen, false, '29 jours : fermée');
+        env.blockchain.now = T0 + T24 + 30 * DAY;
+        assert.equal((await env.foundationState()).isOpen, true, '30 jours sous 1 ConsoM : ouverte');
+        const r = await convert(env, 1000n);                                // 100 ConsoM demandés ; plafond de 5 % de 0,9 = 0,045
+        const res = resultOf(r)!;
+        assert.deepEqual(
+            { accepted: res.accepted, burned: res.burned, covered: res.coveredByFoundation },
+            { accepted: true, burned: 45_000_000n, covered: consom(100) - 45_000_000n }, describeTxs(r));
+        assert.equal((await env.foundationState()).stock, FOUNDATION);
+    });
+});
+
+describe('Réserve de la Fondation : au plus 100 000 ConsoM couverts par conversion (pas de plafond cumulé)', () => {
+    it('la part couverte par la Fondation est limitée à 100 000 : au-delà, la conversion est refusée en entier', async () => {
+        const env = await emptiedBank(366);
+        env.blockchain.now = T0 + T24;
+        await env.deposit(env.member, consom(1_000_000));                  // plafond de 5 % : 50 000 par 24 h
+        env.blockchain.now = T0 + T24 + DAY;
+        // 160 000 demandés : la banque brûle 50 000, il resterait 110 000 à la Fondation > 100 000 : refusé, rien n'est brûlé
+        const over = await convert(env, 1_600_000n);
+        const o = resultOf(over)!;
+        assert.equal(o.accepted, false, describeTxs(over));
+        assert.equal(o.burned, 0n);
+        assert.equal(o.coveredByFoundation, 0n);
+        assert.equal((await env.minter.getState()).burnedByConversion, 0n);
+        // 150 000 demandés : la banque brûle 50 000, la Fondation couvre exactement 100 000 : accepté
+        const ok = await convert(env, 1_500_000n);
+        const k = resultOf(ok)!;
+        assert.deepEqual({ accepted: k.accepted, burned: k.burned, covered: k.coveredByFoundation },
+            { accepted: true, burned: consom(50_000), covered: consom(100_000) }, describeTxs(ok));
+    });
+
+    it('pas de plafond cumulé : plusieurs conversions de 100 000 de suite sont couvertes, le stock reste à 100 000', async () => {
+        const env = await emptiedBank(366);
+        env.blockchain.now = T0 + T24;
+        for (let i = 0; i < 3; i++) {
+            const r = await convert(env, 1_000_000n);                      // 100 000 ConsoM demandés, banque vide
+            assert.equal(resultOf(r)!.coveredByFoundation, FOUNDATION, `conversion ${i + 1}\n${describeTxs(r)}`);
+        }
+        const f = await env.foundationState();
+        assert.equal(f.coveredTotal, 3n * FOUNDATION);
+        assert.equal(f.stock, FOUNDATION, 'le stock de la Fondation ne bouge jamais');
+        assert.equal(await env.balanceOf(env.bankAddress), FOUNDATION);
     });
 });

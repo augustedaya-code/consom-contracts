@@ -108,9 +108,11 @@ fun BankState.refreshFoundation(mutate self, t0: int) {
     }
 }
 
-// À appeler APRÈS un changement du stock des déposants : note le moment où il devient vide, l'efface dès qu'il ne l'est plus
+// À appeler APRÈS un changement du stock des déposants. « Vide » = stock inférieur à 1 ConsoM : le moment est noté dès que le
+// stock passe sous ce seuil, et effacé seulement quand le stock remonte à 1 ConsoM ou plus (un dépôt qui laisse le stock
+// sous le seuil ne change rien : pas de dépôt minimum séparé).
 fun BankState.noteStockChange(mutate self) {
-    if (self.depositorStock == 0) {
+    if (self.depositorStock < FOUNDATION_EMPTY_THRESHOLD) {
         if (self.emptySince == 0) {
             self.emptySince = blockchain.now();
         }
@@ -307,7 +309,7 @@ fun onInternalMessage(in: InMessage) {
             val room: int = (state.dayCap > state.dayBurned) ? (state.dayCap - state.dayBurned) : 0;
             val burned: int = min(required, min(stock, room));
             val covered: int = required - burned;
-            val foundationCovers = (covered > 0) && (state.foundationOpenedAt != 0) && (covered <= state.foundationStock);
+            val foundationCovers = (covered > 0) && (state.foundationOpenedAt != 0) && (covered <= state.foundationStock) && (covered <= FOUNDATION_COVER_MAX);
             if ((required == 0) || ((covered > 0) && !foundationCovers)) {
                 // stock et plafond insuffisants, réserve fermée (ou trop petite) : rien n'est brûlé, les TON sont rendus
                 keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
