@@ -36,7 +36,7 @@ Aucune liste qui grandit sans fin n'est stockée dans un seul contrat : un contr
 | Wallet ConsoM (Jetton 2.0, non modifié) | Détenteur | Solde | Transferts libres ; un brûlage demandé par le détenteur est refusé par l'émetteur (règle A10) |
 | Budget de paiement | Paiement Wave | Empreinte de l'identifiant Wave, membre, montant, Points, récompenses déjà versées | Empêche la réutilisation d'un paiement et tout dépassement de ses récompenses |
 | Compte membre | Membre | Adresse TON liée, parrain, droit au parrainage, gains du jour, Points encore convertibles (7 jours), missions faites | Plafond de 50 000 par jour, expiration des Points, éligibilité |
-| Banque d'échange | Réseau | Stock des déposants, total des parts, date d'ouverture | Toutes les conversions (propres ConsoM ou banque), dépôts, retraits ; seul contrat dont les brûlages comptent pour le halving |
+| Banque d'échange | Réseau | Stock des déposants, total des parts, date d'ouverture, stock de la Fondation (à part), « vide depuis » | Toutes les conversions (propres ConsoM ou banque), dépôts, retraits ; seul contrat dont les brûlages comptent pour le halving |
 | Part de banque | Déposant | Nombre de parts, date du dernier dépôt | Retrait après 24 h |
 | Réclamation de genèse | Ligne de genèse | Rien d'autre qu'« utilisée » | Empêche de réclamer deux fois une allocation de genèse |
 | Gardien | Réseau | Multisig v2 officiel, 2 signatures sur 3 | Pause, remplacement d'un témoin |
@@ -60,7 +60,7 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 | Anciens Contributeurs | 5 000 000 | Bon signé 2 sur 3 « Ancien Contributeur » (30 % créés, 70 % en parts de la banque) | Réclamable sans limite de durée |
 | Équipe | 5 000 000 | « Libérer la part de l'équipe », ouvert à tous, vers l'adresse gravée au déploiement | Blocage 12 mois, puis 1/24 par période de 30 jours (36 mois en tout) |
 | Bonus CHIKA | 20 000 000 | Commande payée en CHIKA, payée et livrée (réserve à part) | T0 → T0 + 24 mois |
-| Fondation | 100 000 | Aucune opération dans ce lot (le lot E3 l'ajoutera) | — |
+| Fondation | 100 000 | Genèse : créés une fois dans la banque, dans un stock à part (section 9) | Sous clé ; s'ouvre toute seule après T0 + 24 mois si la banque reste vide 30 jours de suite |
 
 **Règles de fin de période**
 
@@ -185,7 +185,7 @@ n = \min\left( \left\lfloor \frac{B}{15\,000\,000} \right\rfloor ,\; 16 \right)
 
 Dans les deux cas, la conversion donne droit à la récompense de 5 % (section 6).
 
-Si la banque ne contient pas assez de ConsoM, la conversion via la banque est refusée ; il n'existe aucune réserve de secours.
+Si la banque ne contient pas assez de ConsoM, la conversion via la banque est refusée, sauf si la réserve de la Fondation est ouverte (section 9) : elle couvre alors le reste, sans rien brûler.
 
 **Rythme du halving.** Chaque palier est deux fois plus long à atteindre que le précédent : comme il faut deux fois moins de ConsoM par Point, brûler 15 000 000 ConsoM demande de convertir 150 millions de Points au départ, 300 millions au palier suivant, puis 600 millions. Le halving ralentit donc de lui-même.
 
@@ -203,6 +203,13 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 **Pas de stock sans propriétaire.** Chaque brûlage de conversion via la banque est prélevé sur le stock des déposants, et sur lui seul. Les 10 % de frais en FECA vont entièrement aux déposants, au prorata de leurs parts.
 
+**Réserve de la Fondation (A13).** 100 000 ConsoM sont créés une fois pour toutes à la genèse, dans la banque, dans un stock à part (« stock de la Fondation ») : jamais mélangé au stock des déposants, jamais en parts, jamais retirable, jamais brûlé, jamais transférable par personne. Ils comptent dans l'offre totale (la réserve Fondation de la section 3 est vidée à la genèse). Aucune opération ne les touche tant que la réserve est fermée.
+
+- *Ouverture automatique.* La banque note le moment où le stock des déposants devient vide (« vide depuis ») et l'efface dès qu'un dépôt est accepté. La réserve est ouverte quand maintenant ≥ T0 + 24 mois ET que la banque est vide depuis au moins 30 jours sans interruption. Une fois ouverte, elle le reste pour toujours, même si des dépôts reviennent (l'ouverture acquise est enregistrée avant qu'un dépôt n'efface « vide depuis »).
+- *Dernier recours.* Pour une conversion via la banque, la banque passe toujours d'abord : elle brûle ce que son stock et son plafond de 5 % par 24 h permettent. Si la réserve est ouverte et que ce n'est pas tout, la Fondation couvre le RESTE sans rien brûler : la conversion est acceptée, le stock de la Fondation ne bouge pas, le compteur des paliers ne compte que la part réellement brûlée. Une conversion ne peut pas faire couvrir à la Fondation plus que son stock (100 000). Réserve fermée et banque insuffisante : la conversion est refusée.
+- *Résultat de chaque conversion.* La banque envoie à celui qui a présenté le bon (le serveur ou le membre) un message `ConversionResult` (op `0xc0150060`) : `queryId` (celui du bon), `status` (1 acceptée, 0 refusée), `required` (ConsoM demandés au taux du moment), `burned` (part couverte par la banque, brûlée) et `coveredByFoundation` (part couverte par la Fondation, non brûlée). Le serveur s'en sert pour verser les 10 % de frais : aux déposants pour `burned`, à la Fondation pour `coveredByFoundation`. Le calcul 90 % / 10 % reste fait par le serveur.
+- *Lecture.* `get_foundation_state` : stock de la Fondation (toujours 100 000), ouverte oui/non, « vide depuis », date d'ouverture (réelle si ouverte, possible sinon, 0 si la banque n'est pas vide), total couvert sans brûler.
+
 **Règles**
 
 1. De T0 à T0 + 12 mois : aucun dépôt, aucun retrait, y compris pour les Anciens Contributeurs. Seuls les brûlages de conversion sont possibles.
@@ -218,6 +225,7 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 - Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion avec ses propres ConsoM, ni genèse), ou sans assez de TON pour être traités, sont refusés : les jetons retournent à l'expéditeur et le stock de la banque ne change pas. Si le transfert ne portait pas assez de TON pour être rendu, les jetons restent dans le wallet de la banque sans entrer dans aucun stock.
 - Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur reçoit les siennes par sa réclamation (bon type 11, section 3), sur ordre de l'émetteur seul : le total des parts et le stock ne changent pas.
 - Chaque déposant a un petit contrat qui retient ses parts et la date de son dernier dépôt.
+- Le stock de la Fondation n'est pas un stock de déposants : le wallet de la banque contient donc 3 600 000 ConsoM après la genèse (3 500 000 pour les déposants, 100 000 pour la Fondation), comptés séparément.
 
 ## 10. Sécurité et gouvernance
 

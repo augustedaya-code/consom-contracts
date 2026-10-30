@@ -503,7 +503,7 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
         const bank = await env.minter.getBankAddress();
-        assert.equal(await env.balanceOf(bank), consom(3_500_000));
+        assert.equal(await env.balanceOf(bank), consom(3_600_000), '3 500 000 (déposants) + 100 000 (Fondation)');
         assert.equal((await env.minter.getCaps()).founders, consom(1_500_000));
         assert.equal((await env.minter.getState()).genesisDone, true);
         expectRejected(await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3')), env.minter.address, Err.GENESIS_DONE);
@@ -519,7 +519,7 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
             assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: true }), `jour ${day}\n${describeTxs(r)}`);
         }
         const st = await env.minter.getState();
-        assert.equal(st.totalSupply, consom(3_500_000 - 840_000));
+        assert.equal(st.totalSupply, consom(3_600_000 - 840_000));
         assert.equal(st.burnedByConversion, consom(840_000));
         assert.equal(st.halvingSteps, 0, 'le premier palier n\'est qu\'à 15 000 000');
         assert.equal(await env.minter.getBurnForPoints(100n), consom(10), 'V = 100 : 100 Points demandent 10 ConsoM');

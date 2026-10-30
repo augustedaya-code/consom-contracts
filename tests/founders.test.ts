@@ -9,6 +9,7 @@ import type { Env } from './helpers.ts';
 import { consom, Kind, Op, Err } from '../wrappers/ConsoMMinter.ts';
 
 const GENESIS = consom(3_500_000);       // parts à attribuer au départ
+const FOUNDATION = consom(100_000);      // réserve de la Fondation, créée à la genèse dans un stock à part
 const DIRECT_RESERVE = consom(1_500_000); // réserve des 30 %
 const REJECT_WRONG_OWNER = 10;
 const REJECT_NOT_ELIGIBLE = 11;
@@ -39,14 +40,14 @@ describe('Anciens Contributeurs : réclamation', () => {
         assert.equal(await env.balanceOf(env.member.address), consom(30_000));
         const caps = await env.minter.getCaps();
         assert.equal(caps.founders, DIRECT_RESERVE - consom(30_000), 'pris dans la réserve Anciens Contributeurs');
-        assert.equal((await env.minter.getJettonData()).totalSupply, GENESIS + consom(30_000), 'seuls les 30 % sont de nouveaux ConsoM');
+        assert.equal((await env.minter.getJettonData()).totalSupply, GENESIS + FOUNDATION + consom(30_000), 'seuls les 30 % sont de nouveaux ConsoM');
 
         // 70 % en parts : prises dans les parts à attribuer, aucun ConsoM ne bouge dans la banque
         const bank = await env.bankState();
         assert.equal(bank.unassignedShares, GENESIS - consom(70_000));
         assert.equal(bank.totalShares, GENESIS, 'le total des parts ne change pas');
         assert.equal(bank.depositorStock, GENESIS, 'le stock de la banque ne change pas');
-        assert.equal(await env.balanceOf(env.bankAddress), GENESIS);
+        assert.equal(await env.balanceOf(env.bankAddress), GENESIS + FOUNDATION);
         assert.equal((await env.shareState(env.member.address))!.shares, consom(70_000));
         assert.equal(caps.founderShares, GENESIS - consom(70_000), 'le compteur de l\'émetteur suit les parts à attribuer');
     });
@@ -199,7 +200,7 @@ describe('Anciens Contributeurs : montants et réserves', () => {
         assert.equal(caps.founders, 0n, 'réserve des 30 % vide');
         assert.equal(caps.founderShares, 0n);
         assert.equal((await env.bankState()).unassignedShares, 0n, 'toutes les parts de la genèse sont attribuées');
-        assert.equal((await env.minter.getJettonData()).totalSupply, GENESIS + DIRECT_RESERVE, 'jamais plus que 5 000 000 au total');
+        assert.equal((await env.minter.getJettonData()).totalSupply, GENESIS + FOUNDATION + DIRECT_RESERVE, 'jamais plus que 5 000 000 au total');
         assert.equal((await env.shareState(a.address))!.shares + (await env.shareState(b.address))!.shares, GENESIS);
         assert.equal((await env.balanceOf(a.address)) + (await env.balanceOf(b.address)), DIRECT_RESERVE);
         // plus rien à réclamer

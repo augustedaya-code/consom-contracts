@@ -26,7 +26,7 @@ describe('Genèse de la banque', () => {
         assert.equal(st.depositorStock, consom(3_500_000));
         assert.equal(st.totalShares, consom(3_500_000));
         assert.equal(st.unassignedShares, consom(3_500_000));
-        assert.equal(await env.balanceOf(env.bankAddress), consom(3_500_000), 'le wallet de la banque ne contient que la genèse');
+        assert.equal(await env.balanceOf(env.bankAddress), consom(3_600_000), 'le wallet de la banque ne contient que la genèse (stock des déposants + réserve de la Fondation)');
         assert.equal(st.isOpen, false, 'fermée pendant 12 mois');
     });
 });
@@ -42,7 +42,7 @@ describe('Conversion via la banque', () => {
         assert.equal(st.totalShares, consom(3_500_000), 'les parts ne changent pas');
         const ms = await env.minter.getState();
         assert.equal(ms.burnedByConversion, consom(100_000), 'le compteur des paliers monte');
-        assert.equal(ms.totalSupply, consom(3_000 + 3_500_000 - 100_000), 'l\'offre baisse');
+        assert.equal(ms.totalSupply, consom(3_000 + 3_600_000 - 100_000), 'l\'offre baisse');
     });
 
     it('un bon de conversion ne sert qu\'une fois', async () => {
@@ -168,7 +168,7 @@ describe('Dépôts et retraits', () => {
         await env.claim(env.voucher());
         await env.sendToBank(env.member, consom(100));
         assert.equal(await env.balanceOf(env.member.address), consom(3000), 'jetons rendus');
-        assert.equal(await env.balanceOf(env.bankAddress), consom(3_500_000), 'rien de plus dans la banque');
+        assert.equal(await env.balanceOf(env.bankAddress), consom(3_600_000), 'rien de plus dans la banque');
         const st = await env.bankState();
         assert.equal(st.depositorStock, consom(3_500_000));
         assert.equal(st.totalShares, consom(3_500_000));

@@ -9,6 +9,12 @@
 // Un brûlage de conversion via la banque est prélevé sur le stock des déposants, sans toucher aux parts :
 // chaque déposant perd la même proportion de son dépôt.
 // Seuls ses brûlages comptent pour le halving : elle ne brûle que sur ordre de l'émetteur, après un bon signé.
+//
+// Réserve de la Fondation (A13) : 100 000 ConsoM créés à la genèse dans un stock À PART (`foundationStock`), jamais mélangé
+// au stock des déposants, jamais en parts, jamais retiré, jamais brûlé, jamais transféré : aucune opération ne le touche.
+// Elle s'ouvre toute seule quand maintenant >= T0 + 24 mois ET que le stock des déposants est vide depuis 30 jours de suite ;
+// une fois ouverte, elle le reste. Ouverte, elle couvre le reste d'une conversion via la banque que le stock (ou le plafond
+// de 5 % par 24 h) ne couvre pas, SANS RIEN BRÛLER : son stock ne bouge pas, le halving ne compte que ce qui est brûlé.
 
 import "../jetton/messages"
 import "../jetton/jetton-utils"
@@ -28,9 +34,11 @@ const BANK_STORAGE_RESERVE   = ton("0.05")
 const OWN_CONVERSION_MIN_VALUE = ton("0.2")   // TON joint au transfert pour faire vérifier le bon et brûler
 
 const OP_FOUNDERS_TAG  = 0xc0150030
+const OP_FOUNDATION_TAG = 0xc0150031   // création de la réserve de la Fondation, à la genèse
 const OP_DEPOSIT_TAG   = 0xc0150032
 const OP_OWN_CONV_TAG  = 0xc0150033
 
+@overflow1023_policy("suppress")   // les vrais montants (< 2^56) tiennent largement
 struct BankState {
     depositorStock: coins       // ConsoM des déposants
     totalShares: coins          // parts émises (Anciens Contributeurs compris)
@@ -39,6 +47,10 @@ struct BankState {
     dayStart: uint32
     dayCap: coins               // 5 % du stock au début de la période de 24 h
     dayBurned: coins            // brûlé via la banque pendant la période
+    foundationStock: coins      // réserve de la Fondation : 100 000 après la genèse, ne bouge jamais
+    foundationCovered: coins    // total des conversions couvertes par la Fondation sans brûler (information)
+    emptySince: uint32          // depuis quand le stock des déposants est vide (0 = pas vide) ; effacé par tout dépôt
+    foundationOpenedAt: uint32  // date d'ouverture de la réserve (0 = fermée) ; une fois ouverte, pour toujours
 }
 
 contract ExchangeBank {
@@ -54,6 +66,7 @@ fun BankInit.loadBankState(self): BankState {
         return {
             depositorStock: 0, totalShares: 0, unassignedShares: 0,
             escrow: 0, dayStart: 0, dayCap: 0, dayBurned: 0,
+            foundationStock: 0, foundationCovered: 0, emptySince: 0, foundationOpenedAt: 0,
         };
     }
     return BankState.fromCell(self.state!);
@@ -73,6 +86,37 @@ fun BankInit.isOpen(self): bool {
 }
 
 
+
+// Date à partir de laquelle la réserve peut s'ouvrir si le stock des déposants reste vide ; 0 si le stock n'est pas vide
+fun BankState.foundationOpenableAt(self, t0: int): int {
+    if (self.emptySince == 0) {
+        return 0;
+    }
+    return max(t0 + REWARDS_WINDOW, self.emptySince + FOUNDATION_EMPTY_DELAY);
+}
+
+// Ouvre la réserve si ses deux conditions sont réunies. À appeler AVANT toute opération qui change le stock des déposants
+// (un dépôt efface « vide depuis » : l'ouverture déjà acquise doit être enregistrée d'abord).
+fun BankState.refreshFoundation(mutate self, t0: int) {
+    if ((self.foundationOpenedAt != 0) || (self.foundationStock == 0)) {
+        return;
+    }
+    val at = self.foundationOpenableAt(t0);
+    if ((at != 0) && (blockchain.now() >= at)) {
+        self.foundationOpenedAt = at;
+    }
+}
+
+// À appeler APRÈS un changement du stock des déposants : note le moment où il devient vide, l'efface dès qu'il ne l'est plus
+fun BankState.noteStockChange(mutate self) {
+    if (self.depositorStock == 0) {
+        if (self.emptySince == 0) {
+            self.emptySince = blockchain.now();
+        }
+    } else {
+        self.emptySince = 0;
+    }
+}
 
 fun emptyPayload(): slice {
     return beginCell().storeBool(false).endCell().beginParse();
@@ -145,11 +189,20 @@ fun onInternalMessage(in: InMessage) {
 
             if (msg.transferInitiator == null) {
                 // création par l'émetteur (seul l'émetteur peut créer des jetons)
-                // seule la genèse existe : 70 % de l'allocation des Anciens Contributeurs, en parts à attribuer
+                // seule la genèse existe : la réserve de la Fondation (stock à part, une fois), ou 70 % de
+                // l'allocation des Anciens Contributeurs, en parts à attribuer
+                if (tag == OP_FOUNDATION_TAG) {
+                    assert ((state.foundationStock == 0) && (amount == FOUNDATION_RESERVE)) throw ERR_UNKNOWN_DEPOSIT;
+                    state.foundationStock = amount;
+                    storage.saveBankState(state);
+                    return;
+                }
                 assert (tag == OP_FOUNDERS_TAG) throw ERR_UNKNOWN_DEPOSIT;
+                state.refreshFoundation(storage.t0);
                 state.depositorStock += amount;
                 state.totalShares += amount;
                 state.unassignedShares += amount;
+                state.noteStockChange();
                 storage.saveBankState(state);
                 return;
             }
@@ -190,8 +243,10 @@ fun onInternalMessage(in: InMessage) {
                 val shares = ((state.totalShares == 0) || (state.depositorStock == 0))
                     ? amount as int
                     : mulDivFloor(amount, state.totalShares, state.depositorStock);
+                state.refreshFoundation(storage.t0);      // une ouverture déjà acquise est enregistrée avant d'effacer « vide depuis »
                 state.depositorStock += amount;
                 state.totalShares += shares;
+                state.noteStockChange();
                 storage.saveBankState(state);
                 keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
                 createMessage({
@@ -210,8 +265,13 @@ fun onInternalMessage(in: InMessage) {
         }
 
         // ---------- Conversion via la banque (ordre de l'émetteur, après un bon signé) ----------
+        // La banque d'abord : elle brûle ce que son stock et son plafond de 5 % par 24 h permettent. Si ce n'est pas tout et que
+        // la réserve de la Fondation est ouverte, elle couvre le RESTE sans rien brûler (son stock ne bouge pas, le halving ne
+        // compte que ce qui est brûlé). Sinon rien n'est brûlé et la conversion est refusée. Dans tous les cas, celui qui a
+        // présenté le bon reçoit un ConversionResult qui dit la part brûlée et la part couverte par la Fondation.
         BankBurn => {
             assert (in.senderAddress == storage.minter) throw ERR_NOT_MINTER;
+            state.refreshFoundation(storage.t0);
             val now = blockchain.now();
             val stock = state.depositorStock;
             if (now >= state.dayStart + ONE_DAY) {
@@ -219,23 +279,41 @@ fun onInternalMessage(in: InMessage) {
                 state.dayBurned = 0;
                 state.dayCap = mulDivFloor(stock, BANK_DAILY_BURN_BP, BP_DENOMINATOR) as coins;
             }
-            if ((msg.burn == 0) || (msg.burn > stock) || (state.dayBurned + msg.burn > state.dayCap)) {
-                // stock insuffisant ou plafond de 5 % atteint : rien n'est brûlé, les TON sont rendus
+            val required: int = msg.burn;
+            val room: int = (state.dayCap > state.dayBurned) ? (state.dayCap - state.dayBurned) : 0;
+            val burned: int = min(required, min(stock, room));
+            val covered: int = required - burned;
+            val foundationCovers = (covered > 0) && (state.foundationOpenedAt != 0) && (covered <= state.foundationStock);
+            if ((required == 0) || ((covered > 0) && !foundationCovers)) {
+                // stock et plafond insuffisants, réserve fermée (ou trop petite) : rien n'est brûlé, les TON sont rendus
                 keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
                 createMessage({
                     bounce: BounceMode.NoBounce,
                     dest: msg.refundTo,
                     value: 0,
-                    body: ReturnExcessesBack { queryId: msg.queryId }
+                    body: ConversionResult { queryId: msg.queryId, status: 0, required: required as coins, burned: 0, coveredByFoundation: 0 }
                 }).send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
                 return;
             }
-            // prélèvement sur le stock des déposants ; les parts ne changent pas
-            state.depositorStock -= msg.burn;
-            state.dayBurned += msg.burn;
+            // prélèvement sur le stock des déposants ; les parts ne changent pas ; le stock de la Fondation ne change jamais
+            state.depositorStock -= burned;
+            state.dayBurned += burned;
+            state.foundationCovered += covered;
+            state.noteStockChange();
             storage.saveBankState(state);
             keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
-            sendBurn(storage.myWallet(), msg.queryId, msg.burn, msg.refundTo, SEND_MODE_CARRY_ALL_BALANCE, 0);
+            val result = ConversionResult {
+                queryId: msg.queryId, status: 1, required: required as coins, burned: burned as coins, coveredByFoundation: covered as coins,
+            };
+            if (burned == 0) {
+                // tout est couvert par la Fondation : rien à brûler, le résultat emporte le reste des TON
+                createMessage({ bounce: BounceMode.NoBounce, dest: msg.refundTo, value: 0, body: result })
+                    .send(SEND_MODE_CARRY_ALL_BALANCE | SEND_MODE_IGNORE_ERRORS);
+                return;
+            }
+            createMessage({ bounce: BounceMode.NoBounce, dest: msg.refundTo, value: BANK_RESULT_VALUE, body: result })
+                .send(SEND_MODE_PAY_FEES_SEPARATELY | SEND_MODE_IGNORE_ERRORS);
+            sendBurn(storage.myWallet(), msg.queryId, burned as coins, msg.refundTo, SEND_MODE_CARRY_ALL_BALANCE, 0);
         }
 
         // ---------- Conversion avec ses propres ConsoM : bon accepté ----------
@@ -269,8 +347,10 @@ fun onInternalMessage(in: InMessage) {
             assert (storage.isOpen()) throw ERR_BANK_CLOSED;
             val amount = mulDivFloor(msg.shares, state.depositorStock, state.totalShares);
             assert (amount > 0) throw ERR_NOTHING_TO_REDEEM;
+            state.refreshFoundation(storage.t0);
             state.depositorStock -= amount;
             state.totalShares -= msg.shares;
+            state.noteStockChange();                   // un retrait peut vider la banque : « vide depuis » démarre
             storage.saveBankState(state);
             keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
             sendJettons(storage.myWallet(), msg.queryId, amount as coins, msg.owner, SEND_MODE_CARRY_ALL_BALANCE, 0);
@@ -343,4 +423,25 @@ get fun get_shares_value(shares: int): int {
         return 0;
     }
     return mulDivFloor(shares, state.depositorStock, state.totalShares);
+}
+
+struct FoundationReply {
+    stock: int            // stock de la Fondation : 100 000 après la genèse, ne bouge jamais
+    isOpen: bool          // ouverte (pour toujours) ?
+    emptySince: int       // depuis quand le stock des déposants est vide (0 = pas vide)
+    openableAt: int       // si ouverte : date d'ouverture ; sinon date à laquelle elle s'ouvrirait si la banque reste vide (0 = impossible pour l'instant)
+    coveredTotal: int     // total des conversions couvertes par la Fondation, sans rien brûler
+}
+
+get fun get_foundation_state(): FoundationReply {
+    val storage = BankInit.fromCell(contract.getData());
+    var state = storage.loadBankState();
+    state.refreshFoundation(storage.t0);
+    return {
+        stock: state.foundationStock,
+        isOpen: state.foundationOpenedAt != 0,
+        emptySince: state.emptySince,
+        openableAt: (state.foundationOpenedAt != 0) ? state.foundationOpenedAt : state.foundationOpenableAt(storage.t0),
+        coveredTotal: state.foundationCovered,
+    }
 }

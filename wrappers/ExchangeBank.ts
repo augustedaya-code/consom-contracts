@@ -30,4 +30,13 @@ export class ExchangeBank implements Contract {
             dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
         };
     }
+
+    // Réserve de la Fondation : stock (100 000 après la genèse), ouverte ?, banque vide depuis, date d'ouverture possible, total couvert
+    async getFoundationState(provider: ContractProvider) {
+        const s = (await provider.get('get_foundation_state', [])).stack;
+        return {
+            stock: s.readBigNumber(), isOpen: s.readBoolean(), emptySince: s.readNumber(),
+            openableAt: s.readNumber(), coveredTotal: s.readBigNumber(),
+        };
+    }
 }

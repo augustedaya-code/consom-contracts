@@ -134,6 +134,10 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
             dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
         };
     };
+    const foundationState = async () => {
+        const s = (await (await blockchain.getContract(bankAddress)).get('get_foundation_state')).stackReader;
+        return { stock: s.readBigNumber(), isOpen: s.readBoolean(), emptySince: s.readNumber(), openableAt: s.readNumber(), coveredTotal: s.readBigNumber() };
+    };
     const shareState = async (owner: Address) => {
         const r = await (await blockchain.getContract(bankAddress)).get('get_share_address', [{ type: 'slice', cell: beginCell().storeAddress(owner).endCell() }]);
         const c = await blockchain.getContract(r.stackReader.readAddress());
@@ -161,7 +165,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     // Participation à la prévente (pack Essentiel, 3 000 ConsoM) : rend le membre éligible aux récompenses (règle d'équité)
     const becomeEligible = () => claim(voucher());
 
-    return { blockchain, minter, deploy, becomeEligible, memberState, budgetState, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, team, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
+    return { blockchain, minter, deploy, becomeEligible, memberState, budgetState, bankAddress, bankState, foundationState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, team, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
 }
 
 // ---------- Transactions ----------

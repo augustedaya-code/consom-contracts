@@ -4,7 +4,7 @@
 // Une émission n'est possible que :
 //   - par un bon signé par 2 témoins sur 3, envoyé par son bénéficiaire, puis accepté par le budget de paiement
 //     et/ou le compte membre (contrats enfants dont l'émetteur connaît le code) ;
-//   - une seule fois à la genèse, pour déposer 70 % de l'allocation des Anciens Contributeurs dans la banque ;
+//   - une seule fois à la genèse, pour déposer dans la banque 70 % de l'allocation des Anciens Contributeurs et la réserve de la Fondation ;
 //   - par un bon « Ancien Contributeur » (30 % créés pour lui, 70 % attribués en parts de la banque, sans création) ;
 //   - par « libérer la part de l'équipe » : n'importe qui peut l'appeler, tout est fixé par le calendrier gravé ;
 //   - pour recréer dans la banque des jetons brûlés volontairement (l'offre ne baisse que par les conversions).
@@ -418,6 +418,7 @@ fun taggedForwardPayload(tag: int): slice {
 }
 
 const OP_FOUNDERS_DEPOSIT_TAG = 0xc0150030
+const OP_FOUNDATION_DEPOSIT_TAG = 0xc0150031
 
 // Garde-fou d'offre : jetons en circulation + jetons brûlés par les conversions <= 250 M.
 // (Seuls les brûlages de conversion sortent de la circulation ; ils sont comptés dans B, jamais recréés.)
@@ -442,6 +443,25 @@ fun sendMint(walletCode: cell, recipient: address, amount: coins, queryId: uint6
         }
     });
     mintMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+}
+
+// Comme sendMint, mais avec un montant de TON fixe pris sur l'émetteur : permet d'envoyer ensuite un second message
+// qui emporte le reste de la valeur reçue (genèse : deux créations dans la banque)
+fun sendMintFunded(walletCode: cell, recipient: address, amount: coins, queryId: uint64, excessesTo: address?,
+                   forwardTonAmount: coins, forwardPayload: slice, value: coins) {
+    createMessage({
+        bounce: BounceMode.Only256BitsOfBody,
+        dest: calcDeployedJettonWallet(recipient, contract.getAddress(), walletCode),
+        value,
+        body: InternalTransferStep {
+            queryId,
+            jettonAmount: amount,
+            transferInitiator: null,
+            sendExcessesTo: excessesTo,
+            forwardTonAmount,
+            forwardPayload,
+        }
+    }).send(SEND_MODE_REGULAR);
 }
 
 fun sendExcesses(dest: address?, queryId: uint64) {
@@ -839,11 +859,16 @@ fun onInternalMessage(in: InMessage) {
             var caps = storage.caps.load();
             caps.setRemaining(CAT_FOUNDERS, caps.founders - FOUNDERS_BANK_DEPOSIT);
             caps.founderShares = FOUNDERS_BANK_DEPOSIT;      // parts à attribuer aux Anciens Contributeurs, dans la banque
+            caps.setRemaining(CAT_FOUNDATION, caps.foundation - FOUNDATION_RESERVE);   // réserve de la Fondation : vidée, créée ci-dessous
             storage.caps = caps.toCell();
             storage.genesisDone = true;
             storage.addSupply(FOUNDERS_BANK_DEPOSIT);
+            storage.addSupply(FOUNDATION_RESERVE);
             storage.save();
             val bank = storage.bankAddress();
+            // la réserve de la Fondation entre dans la banque, dans un stock à part (jamais mélangé à celui des déposants)
+            sendMintFunded(storage.config.load().walletCode, bank, FOUNDATION_RESERVE, msg.queryId, in.senderAddress,
+                           BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDATION_DEPOSIT_TAG), FOUNDATION_MINT_VALUE);
             sendMint(storage.config.load().walletCode, bank, FOUNDERS_BANK_DEPOSIT, msg.queryId, in.senderAddress,
                      BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG));
         }

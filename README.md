@@ -5,8 +5,8 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 
 > **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement, le compte membre et la banque
 > d'échange sont écrits et testés ensemble, avec la part de l'équipe (calendrier gravé) et la réclamation des Anciens
-> Contributeurs. Restent à écrire : la réserve de la Fondation, les préventes payées avant T0, le changement d'adresse liée
-> et l'enregistrement du parrain.
+> Contributeurs, puis la réserve de la Fondation. Restent à écrire : les préventes payées avant T0, le changement d'adresse
+> liée et l'enregistrement du parrain.
 
 ## Contenu
 
@@ -74,7 +74,8 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   `get_burn_for_points(points)` donne le brûlage à payer, arrondi au supérieur.
 - **Gardien** (Multisig v2) : pause immédiate de 14 jours au plus (une par 30 jours), levée immédiate, remplacement d'un témoin
   après 7 jours (un par 30 jours), annulable. Aucun autre pouvoir.
-- **Genèse** : dépôt unique de 3 500 000 ConsoM des Anciens Contributeurs dans la banque.
+- **Genèse** : dépôt unique dans la banque de 3 500 000 ConsoM (Anciens Contributeurs) et de 100 000 ConsoM (réserve de la
+  Fondation, stock à part).
 - **Part de l'équipe** (règle A9, 5 000 000) : l'adresse qui la reçoit est gravée au déploiement (`teamAddress`, un
   portefeuille Multisig) et ne peut jamais changer. Rien avant T0 + 12 mois, puis 1/24 par période de 30 jours terminée
   (la dernière part prend le reste), tout à T0 + 36 mois. « Libérer la part de l'équipe » peut être appelé par n'importe qui
@@ -119,6 +120,13 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   seul (après un bon d'Ancien Contributeur), la banque en attribue à une adresse : les parts à attribuer diminuent, le
   contrat « parts » de l'adresse est crédité, le total des parts et le stock ne changent pas. Les retraits restent soumis aux
   règles de la banque (fermée 12 mois, puis 24 h après la dernière arrivée de parts du déposant, attribution comprise).
+- **Réserve de la Fondation** (règle A13) : 100 000 ConsoM dans un stock à part, jamais en parts, jamais retirés, brûlés ni
+  transférés. Elle s'ouvre toute seule quand on est après T0 + 24 mois ET que le stock des déposants est vide depuis 30 jours
+  de suite (« vide depuis » est noté par la banque et effacé par tout dépôt) ; une fois ouverte, elle le reste. Ouverte, elle
+  couvre le reste d'une conversion via la banque que le stock (ou le plafond de 5 %) ne couvre pas, sans rien brûler.
+- **Résultat d'une conversion** : après chaque conversion via la banque, la banque envoie à celui qui a présenté le bon un
+  message `ConversionResult` (op `0xc0150060`) avec la part brûlée par la banque et la part couverte par la Fondation ; le
+  serveur en déduit à qui verser les 10 % de frais. Décodage : `decodeConversionResult` dans `wrappers/ConsoMMinter.ts`.
 - Seuls ses brûlages comptent pour le halving, et elle ne brûle que sur ordre de l'émetteur.
 
 ## Choix d'implémentation à connaître
@@ -162,7 +170,7 @@ Les créations de contrats incluent leur réserve de stockage. À remesurer sur 
 
 ## Prochaines étapes
 
-1. Réserve de la Fondation (lot E3b) et préventes payées avant T0.
+1. Préventes payées avant T0.
 2. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
    (décisions 5 et 6 de la spécification) — pas encore écrits.
 3. Scripts de déploiement testnet, puis audits.

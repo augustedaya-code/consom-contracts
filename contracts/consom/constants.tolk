@@ -11,7 +11,7 @@ const CAP_MISSIONS = 19900000 * ONE_CONSOM    // premier achat et missions
 const CAP_FOUNDERS = 5000000 * ONE_CONSOM     // Anciens Contributeurs
 const CAP_TEAM     = 5000000 * ONE_CONSOM
 const CAP_CHIKA    = 20000000 * ONE_CONSOM    // réserve à part du Bonus CHIKA
-const CAP_FOUNDATION = 100000 * ONE_CONSOM    // Fondation (aucune opération ne l'utilise encore)
+const CAP_FOUNDATION = 100000 * ONE_CONSOM    // réserve de la Fondation (A13) : créée à la genèse dans un stock à part de la banque
 const MAX_SUPPLY   = 250000000 * ONE_CONSOM
 
 // Part des Anciens Contributeurs déposée dans la banque à la genèse : 70 % de 5 M
@@ -81,6 +81,10 @@ const PRESALE_WINDOW = 18 * ONE_MONTH    // la prévente se ferme à T0 + 18 moi
 const REWARDS_WINDOW = 24 * ONE_MONTH    // les récompenses s'arrêtent à T0 + 24 mois
 const VOUCHER_MAX_VALIDITY = 7 * ONE_DAY
 
+// ---------- Réserve de la Fondation (A13) : 100 000 ConsoM sous clé, jamais brûlés ----------
+const FOUNDATION_RESERVE     = CAP_FOUNDATION   // créés une seule fois, à la genèse, dans le stock « Fondation » de la banque
+const FOUNDATION_EMPTY_DELAY = ONE_MONTH        // banque vide 30 jours de suite (et au moins T0 + 24 mois) : la réserve s'ouvre
+
 // ---------- Part de l'équipe (A9) : 5 000 000, rien avant 12 mois, puis 1/24 par période de 30 jours ----------
 const TEAM_CLIFF   = 12 * ONE_MONTH    // rien n'est libéré avant T0 + 12 mois
 const TEAM_PERIODS = 24                // 24 périodes de 30 jours : tout est libéré à T0 + 36 mois
@@ -106,6 +110,8 @@ const MINT_TON_VALUE      = ton("0.05")   // TON joint à une création de jeton
 const BANK_NOTIFY_VALUE   = ton("0.02")   // TON transmis à la banque avec un dépôt (notification)
 const MIN_STORAGE_RESERVE = ton("0.05")
 const TEAM_RELEASE_MIN_VALUE   = ton("0.1")    // TON joint à « libérer la part de l'équipe » (l'excédent revient à l'appelant)
+const FOUNDATION_MINT_VALUE    = ton("0.1")    // TON joint à la création de la réserve de la Fondation, à la genèse
+const BANK_RESULT_VALUE        = ton("0.01")   // TON joint au résultat d'une conversion envoyé à celui qui a présenté le bon
 const BANK_ASSIGN_VALUE        = ton("0.05")   // TON transmis à la banque pour attribuer les parts d'un Ancien Contributeur
 const MIN_FOUNDER_CLAIM_VALUE  = ton("0.35")   // réclamation d'un Ancien Contributeur : MIN_CLAIM_VALUE + BANK_ASSIGN_VALUE
 

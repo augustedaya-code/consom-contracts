@@ -7,7 +7,7 @@ export function createConsoMTestLib(TON, cfg) {
     const { Address, beginCell, Cell, contractAddress, toNano } = TON;
     const ONE = 1_000_000_000n;
     const consom = (n) => BigInt(Math.round(Number(n) * 1e9));
-    const KIND = { PRESALE: 0, PURCHASE_RECORD: 1, REFERRAL: 2, FIRST_PURCHASE: 3, CONVERSION: 4, MISSION_TG: 5, MISSION_FB: 6, INVESTMENT: 7, BANK_CONVERSION: 8, OWN_CONVERSION: 9 };
+    const KIND = { PRESALE: 0, PURCHASE_RECORD: 1, REFERRAL: 2, FIRST_PURCHASE: 3, CONVERSION: 4, MISSION_TG: 5, MISSION_FB: 6, INVESTMENT: 7, BANK_CONVERSION: 8, OWN_CONVERSION: 9, CHIKA_BONUS: 10, FOUNDER_CLAIM: 11 };
     const PACKS = { essentiel: [3000n, 3500n], populaire: [20000n, 17500n], grande: [50000n, 38000n] };
 
     const minter = Address.parse(cfg.minter);
@@ -146,7 +146,8 @@ export function createConsoMTestLib(TON, cfg) {
         420: 'réservé au gardien', 421: 'une pause a déjà eu lieu dans les 30 derniers jours',
     };
     const KIND_TEXT = ['Prévente', 'Enregistrement d\'achat', 'Parrainage', 'Bonus de 1er achat', 'Bonus de conversion',
-        'Mission Telegram', 'Mission Facebook', 'Bonus d\'investissement', 'Conversion via la banque', 'Conversion avec ses ConsoM'];
+        'Mission Telegram', 'Mission Facebook', 'Bonus d\'investissement', 'Conversion via la banque', 'Conversion avec ses ConsoM',
+        'Bonus CHIKA', 'Réclamation d\'Ancien Contributeur'];
     const fmtConsom = (nano) => (Number(nano) / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
 
     function describeMinterTxs(txs, owner) {
@@ -211,5 +212,21 @@ export function createConsoMTestLib(TON, cfg) {
         return out.filter((r) => !used.has(r));
     }
 
-    return { actions, tonkeeperLink, walletAddressOf, memberAccountOf, memberIdOf, describeMinterTxs, minter, bank, KIND };
+    // Résultat d'une conversion via la banque (message 0xc0150060 reçu par celui qui a présenté le bon) :
+    // quelle part a été brûlée par la banque, quelle part couverte par la réserve de la Fondation (rien n'est brûlé).
+    // Renvoie null si le corps n'est pas un résultat de conversion.
+    function describeConversionResult(body) {
+        const s = body.beginParse();
+        if (s.remainingBits < 32 || s.loadUint(32) !== 0xc0150060) return null;
+        s.loadUint(64);
+        const accepted = s.loadUint(8) === 1;
+        const required = s.loadCoins(), burned = s.loadCoins(), covered = s.loadCoins();
+        if (!accepted) return { status: 'refused', required, burned, covered, title: 'Conversion refusée', detail: 'la banque ne peut pas la couvrir (stock ou plafond de 5 % par 24 h) et la réserve de la Fondation est fermée' };
+        const parts = [];
+        if (burned > 0n) parts.push(fmtConsom(burned) + ' ConsoM brûlés par la banque (frais de 10 % aux déposants)');
+        if (covered > 0n) parts.push(fmtConsom(covered) + ' ConsoM couverts par la réserve de la Fondation, sans rien brûler (frais de 10 % à la Fondation)');
+        return { status: 'ok', required, burned, covered, title: 'Conversion acceptée : ' + fmtConsom(required) + ' ConsoM', detail: parts.join(' ; ') };
+    }
+
+    return { actions, tonkeeperLink, walletAddressOf, memberAccountOf, memberIdOf, describeMinterTxs, describeConversionResult, minter, bank, KIND };
 }

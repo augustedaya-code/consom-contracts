@@ -26,7 +26,7 @@ describe('Script de déploiement', () => {
         });
         const minter = blockchain.openContract(new (await import('../wrappers/ConsoMMinter.ts')).ConsoMMinter(res.minter));
         assert.equal((await minter.getState()).genesisDone, true);
-        assert.equal((await minter.getJettonData()).totalSupply, consom(3_500_000));
+        assert.equal((await minter.getJettonData()).totalSupply, consom(3_600_000));
         const bank = blockchain.openContract(new ExchangeBank(res.bank));
         assert.equal((await bank.getState()).depositorStock, consom(3_500_000));
         assert.ok((await minter.getTeamAddress()).equals(team.address), 'l\'adresse de l\'équipe est gravée au déploiement');

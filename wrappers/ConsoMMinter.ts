@@ -39,6 +39,7 @@ export const Op = {
     ExecuteWitness: 0xc0150014,
     GenesisFoundersDeposit: 0xc0150020,
     ReleaseTeamShare: 0xc0150050,
+    ConversionResult: 0xc0150060,
     AssignFounderShares: 0xc0150047,
     VerifyOwnConversion: 0xc0150043,
     BankBurn: 0xc0150040,
@@ -371,6 +372,23 @@ export function jettonTransferBody(o: { amount: bigint; to: Address; responseTo:
     if (o.payload) b.storeBit(true).storeRef(o.payload);
     else b.storeBit(false);
     return b.endCell();
+}
+
+// Résultat d'une conversion via la banque, envoyé par la banque à celui qui a présenté le bon (op 0xc0150060).
+// `burned` : part couverte par la banque (brûlée, frais de 10 % aux déposants) ;
+// `coveredByFoundation` : part couverte par la réserve de la Fondation (rien n'est brûlé, frais de 10 % à la Fondation).
+export type ConversionResult = { queryId: bigint; accepted: boolean; required: bigint; burned: bigint; coveredByFoundation: bigint };
+
+export function decodeConversionResult(body: Cell): ConversionResult | null {
+    const s = body.beginParse();
+    if (s.remainingBits < 32 || s.loadUint(32) !== Op.ConversionResult) return null;
+    return {
+        queryId: s.loadUintBig(64),
+        accepted: s.loadUint(8) === 1,
+        required: s.loadCoins(),
+        burned: s.loadCoins(),
+        coveredByFoundation: s.loadCoins(),
+    };
 }
 
 export const depositPayload = () => beginCell().storeUint(Op.DepositTag, 32).endCell();
