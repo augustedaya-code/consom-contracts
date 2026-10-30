@@ -85,12 +85,12 @@ export function createConsoMTestLib(TON, cfg) {
             return claimMessage(owner, { kind: KIND.PRESALE, amount: qty * ONE, waveAmount: price });
         },
         purchaseRecord: (owner, points) => claimMessage(owner, { kind: KIND.PURCHASE_RECORD, points: BigInt(points), waveAmount: BigInt(points) * 2n }),
-        conversionReward: (owner, points) => claimMessage(owner, { kind: KIND.CONVERSION, points: BigInt(points), amount: BigInt(points) * ONE * 3500n / 10000n }),
+        conversionReward: (owner, points) => claimMessage(owner, { kind: KIND.CONVERSION, points: BigInt(points), amount: BigInt(points) * ONE * 500n / 10000n }),
         firstPurchase: (owner) => claimMessage(owner, { kind: KIND.FIRST_PURCHASE, amount: 500n * ONE, waveAmount: 1000n }),
         missionTelegram: (owner) => claimMessage(owner, { kind: KIND.MISSION_TG, amount: 150n * ONE }),
         missionFacebook: (owner) => claimMessage(owner, { kind: KIND.MISSION_FB, amount: 150n * ONE }),
         referral: (owner, points, level) => {
-            const rate = [0n, 1500n, 700n, 350n, 150n, 50n][level];
+            const rate = [0n, 250n, 130n, 70n, 40n, 10n][level];
             return claimMessage(owner, { kind: KIND.REFERRAL, level, points: BigInt(points), waveAmount: BigInt(points) * 2n, amount: BigInt(points) * ONE * rate / 10000n });
         },
         bankConversion: (owner, points) => claimMessage(owner, { kind: KIND.BANK_CONVERSION, points: BigInt(points) }),

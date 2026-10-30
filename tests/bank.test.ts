@@ -97,9 +97,9 @@ describe('Conversion via la banque', () => {
         assert.ok(hasTx(r, { to: env.minter.address, success: false, exitCode: 400 }), describeTxs(r));
     });
 
-    it('reste possible après la fin des récompenses (18 mois)', async () => {
+    it('reste possible après la fin des récompenses (24 mois)', async () => {
         const env = await withGenesis();
-        env.blockchain.now = T0 + 600 * DAY;
+        env.blockchain.now = T0 + 800 * DAY;
         const r = await bankConversion(env, 100n);
         assert.ok(hasTx(r, { op: BURN_NOTIFICATION, success: true }), describeTxs(r));
     });

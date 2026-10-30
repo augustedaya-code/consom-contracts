@@ -19,10 +19,25 @@ describe('Déploiement et lecture', () => {
         assert.equal(jd.totalSupply, 0n);
         assert.equal(jd.admin, null, "aucun administrateur (adresse vide)");
         const caps = await env.minter.getCaps();
-        assert.equal(caps.presale + caps.purchase + caps.referral + caps.missions + caps.founders + caps.team + caps.chika, consom(250_000_000));
+        assert.equal(caps.presale + caps.purchase + caps.referral + caps.missions + caps.founders + caps.team + caps.chika + caps.foundation, consom(250_000_000));
         const st = await env.minter.getState();
         assert.equal(st.t0, T0);
         assert.equal(st.halvingSteps, 0);
+    });
+
+    it('les 8 réserves sont celles du livre blanc v5.0 et font exactement 250 000 000', async () => {
+        const env = await setup();
+        const caps = await env.minter.getCaps();
+        assert.equal(caps.presale, consom(100_000_000));
+        assert.equal(caps.purchase, consom(55_000_000));
+        assert.equal(caps.referral, consom(45_000_000));
+        assert.equal(caps.chika, consom(20_000_000));
+        assert.equal(caps.missions, consom(19_900_000), 'premier achat et missions');
+        assert.equal(caps.founders, consom(5_000_000));
+        assert.equal(caps.team, consom(5_000_000));
+        assert.equal(caps.foundation, consom(100_000));
+        const total = caps.presale + caps.purchase + caps.referral + caps.chika + caps.missions + caps.founders + caps.team + caps.foundation;
+        assert.equal(total, consom(250_000_000));
     });
 
     it('au départ, convertir 100 Points demande 10 ConsoM (V = 100)', async () => {
@@ -57,45 +72,69 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         assert.equal(await env.balanceOf(env.member.address), consom(6000));
     });
 
-    it('parrainage niveau 1 : 15 % des Points, versés en entier', async () => {
+    it('parrainage niveau 1 : 2,5 % des Points, versés en entier', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // la prévente rend le membre éligible au parrainage
-        const amount = consom(150);   // 15 % de 1 000 Points
+        const amount = consom(25);   // 2,5 % de 1 000 Points
         await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount }));
         assert.equal(await env.balanceOf(env.member.address), consom(3000) + amount);
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - amount);
     });
 
-    it('les cinq niveaux de parrainage suivent 15 / 7 / 3,5 / 1,5 / 0,5 %', async () => {
+    it('les cinq niveaux de parrainage suivent 2,5 / 1,3 / 0,7 / 0,4 / 0,1 %', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // éligibilité au parrainage
-        const rates = [1500n, 700n, 350n, 150n, 50n];
+        const expected = [consom(25), consom(13), consom(7), consom(4), consom(1)];   // sur 1 000 Points
         for (let level = 1; level <= 5; level++) {
-            const amount = (1000n * consom(1) * rates[level - 1]) / 10000n;
+            const amount = expected[level - 1];
             const r = await env.claim(env.voucher({ kind: Kind.REFERRAL, level, points: 1000n, waveAmount: 2000n, amount }));
             assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `niveau ${level}\n${describeTxs(r)}`);
         }
-        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(275));  // 27,5 % de 1 000
+        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(50));  // 5 % de 1 000
     });
 
-    it('conversion : 35 % des Points convertis ; 1er achat : 500 ; missions : 150 ; investissement : 30 %', async () => {
+    it('conversion : 5 % des Points convertis ; 1er achat : 500 ; missions : 150 ; investissement : 0,04 par CHIKA', async () => {
         const env = await setup();
         // un achat attesté de 1 000 Points (enregistrement, sans ConsoM)
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
         const cases = [
-            { kind: Kind.CONVERSION, points: 1000n, amount: consom(350) },
+            { kind: Kind.CONVERSION, points: 1000n, amount: consom(50) },   // 5 % de 1 000 Points
             { kind: Kind.FIRST_PURCHASE, points: 0n, amount: consom(500) },
             { kind: Kind.MISSION_TG, points: 0n, amount: consom(150) },
             { kind: Kind.MISSION_FB, points: 0n, amount: consom(150) },
-            { kind: Kind.INVESTMENT, points: 1000n, amount: consom(300) },
+            { kind: Kind.INVESTMENT, points: 1000n, amount: consom(40) },   // 1 000 CHIKA investis x 0,04
         ];
         for (const c of cases) {
             const r = await env.claim(env.voucher({ ...c, waveAmount: 0n }));
             assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `type ${c.kind}\n${describeTxs(r)}`);
         }
         const caps = await env.minter.getCaps();
-        assert.equal(caps.purchase, INITIAL_CAPS.purchase - consom(350));
-        assert.equal(caps.missions, INITIAL_CAPS.missions - consom(1100));
+        assert.equal(caps.purchase, INITIAL_CAPS.purchase - consom(50 + 40), "l'investissement est payé par la réserve Achats");
+        assert.equal(caps.missions, INITIAL_CAPS.missions - consom(500 + 150 + 150), 'premier achat et missions');
+    });
+
+    it('investissement : 0,04 ConsoM par CHIKA investi, payé par la réserve Achats et non par les missions', async () => {
+        const env = await setup();
+        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
+        const before = await env.minter.getCaps();
+        const r = await env.claim(env.voucher({ kind: Kind.INVESTMENT, points: 2500n, waveAmount: 0n, amount: consom(100) }));   // 2 500 x 0,04
+        assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), describeTxs(r));
+        const after = await env.minter.getCaps();
+        assert.equal(after.purchase, before.purchase - consom(100));
+        assert.equal(after.missions, before.missions);
+        expectRejected(await env.claim(env.voucher({ kind: Kind.INVESTMENT, points: 1000n, waveAmount: 0n, amount: consom(300) })), env.minter.address, Err.WRONG_AMOUNT);
+    });
+
+    it('conversion : un exemple chiffré à 5 % (2 000 Points -> 100 ConsoM, 33 Points -> 1,65 ConsoM)', async () => {
+        const env = await setup();
+        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 2033n, waveAmount: 4066n, amount: 0n }));
+        const a = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 2000n, waveAmount: 0n, amount: consom(100) }));
+        assert.ok(hasTx(a, { op: Op.MintApproved, success: true }), describeTxs(a));
+        const b = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 33n, waveAmount: 0n, amount: 1_650_000_000n }));
+        assert.ok(hasTx(b, { op: Op.MintApproved, success: true }), describeTxs(b));
+        assert.equal(await env.balanceOf(env.member.address), consom(100) + 1_650_000_000n);
+        const old = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 100n, waveAmount: 0n, amount: consom(35) }));
+        expectRejected(old, env.minter.address, Err.WRONG_AMOUNT);   // l'ancien taux (35 %) n'est plus accepté
     });
 
     it('enregistrement d\'achat : montant nul, aucun plafond touché', async () => {
@@ -109,10 +148,10 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
     it('les récompenses sont versées en entier tout de suite (pas d\'étalement)', async () => {
         const env = await setup();
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
-        await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(350) }));
+        await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) }));
         await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 0n, amount: consom(500) }));
-        assert.equal(await env.balanceOf(env.member.address), consom(850));
-        assert.equal((await env.minter.getState()).totalSupply, consom(850));
+        assert.equal(await env.balanceOf(env.member.address), consom(550));
+        assert.equal((await env.minter.getState()).totalSupply, consom(550));
     });
 });
 
@@ -163,7 +202,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse un montant différent de celui que le contrat recalcule', async () => {
         const env = await setup();
-        const ref = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(150) + 1n });
+        const ref = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) + 1n });
         expectRejected(await env.claim(ref), env.minter.address, Err.WRONG_AMOUNT);
         expectRejected(await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 6, points: 1000n, waveAmount: 2000n, amount: 0n })), env.minter.address, Err.WRONG_AMOUNT);
         expectRejected(await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(300) })), env.minter.address, Err.WRONG_AMOUNT);
@@ -177,7 +216,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse des Points supérieurs à 0,5 par franc payé (P_max)', async () => {
         const env = await setup();
-        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1001n, waveAmount: 2000n, amount: (1001n * consom(1) * 1500n) / 10000n });
+        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1001n, waveAmount: 2000n, amount: (1001n * consom(1) * 250n) / 10000n });
         expectRejected(await env.claim(v), env.minter.address, Err.POINTS_TOO_HIGH);
     });
 
@@ -204,18 +243,18 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
     it('libère la réservation quand le budget de paiement refuse', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // éligibilité
-        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(150) });
+        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) });
         await env.claim(v);
         const again = await env.claim({ ...v, voucherId: v.voucherId + 1000n });   // même paiement, même niveau
         assert.ok(hasTx(again, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(again));
-        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(150));
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000 + 150));
+        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(25));
+        assert.equal((await env.minter.getState()).totalSupply, consom(3000 + 25));
     });
 
     it('libère la réservation quand le compte membre refuse', async () => {
         const env = await setup();
         // conversion sans aucun achat attesté : le compte membre refuse
-        const r = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 13n, waveAmount: 0n, amount: (13n * consom(1) * 3500n) / 10000n }));
+        const r = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 13n, waveAmount: 0n, amount: (13n * consom(1) * 500n) / 10000n }));
         assert.ok(hasTx(r, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(r));
         assert.equal((await env.minter.getCaps()).purchase, INITIAL_CAPS.purchase);
     });
@@ -227,29 +266,86 @@ describe('Fenêtres et plafonds (sections 3 et 10)', () => {
         expectRejected(await env.claim(env.voucher()), env.minter.address, Err.WINDOW_CLOSED);
     });
 
-    it('ferme la prévente à T0 + 12 mois et les récompenses à T0 + 18 mois', async () => {
+    // Fenêtres du livre blanc v5.0 : prévente 18 mois, récompenses 24 mois (mois de 30 jours)
+    const PRESALE_END = 18 * 30 * DAY;
+    const REWARDS_END = 24 * 30 * DAY;
+
+    it('prévente : acceptée une seconde avant T0 + 18 mois, refusée à la limite', async () => {
         const env = await setup();
-        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 10n, waveAmount: 20n, amount: 0n }));
-        env.blockchain.now = T0 + 365 * DAY;
+        env.blockchain.now = T0 + PRESALE_END - 1;
+        const before = await env.claim(env.voucher());
+        assert.ok(hasTx(before, { op: Op.MintApproved, success: true }), describeTxs(before));
+        env.blockchain.now = T0 + PRESALE_END;
         expectRejected(await env.claim(env.voucher()), env.minter.address, Err.WINDOW_CLOSED);
-        const r = await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));
-        assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), describeTxs(r));
-        env.blockchain.now = T0 + 540 * DAY;
-        expectRejected(await env.claim(env.voucher({ kind: Kind.MISSION_FB, amount: consom(150) })), env.minter.address, Err.WINDOW_CLOSED);
     });
 
-    it('applique une seule fois la règle des invendus de prévente (50 % retirés, 25 % / 25 %)', async () => {
+    it('récompenses : acceptées une seconde avant T0 + 24 mois, refusées à la limite', async () => {
+        const env = await setup();
+        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 10n, waveAmount: 20n, amount: 0n }));
+        env.blockchain.now = T0 + PRESALE_END;   // la prévente est déjà fermée, les récompenses continuent
+        const mid = await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));
+        assert.ok(hasTx(mid, { op: Op.MintApproved, success: true }), describeTxs(mid));
+        env.blockchain.now = T0 + REWARDS_END - 1;
+        const before = await env.claim(env.voucher({ kind: Kind.MISSION_FB, amount: consom(150) }));
+        assert.ok(hasTx(before, { op: Op.MintApproved, success: true }), describeTxs(before));
+        env.blockchain.now = T0 + REWARDS_END;
+        expectRejected(await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n })), env.minter.address, Err.WINDOW_CLOSED);
+    });
+
+    it('après 24 mois, plus aucune création de récompense, quel que soit le type de bon', async () => {
+        const env = await setup();
+        env.blockchain.now = T0 + REWARDS_END;
+        const cases = [
+            { kind: Kind.PURCHASE_RECORD, points: 100n, waveAmount: 200n, amount: 0n },
+            { kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) },
+            { kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 1000n, amount: consom(500) },
+            { kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) },
+            { kind: Kind.MISSION_TG, points: 0n, waveAmount: 0n, amount: consom(150) },
+            { kind: Kind.INVESTMENT, points: 1000n, waveAmount: 0n, amount: consom(40) },
+            { kind: Kind.CHIKA_BONUS, points: 0n, waveAmount: 1000n, amount: consom(3) },
+            { kind: Kind.PRESALE },
+        ];
+        for (const c of cases) {
+            expectRejected(await env.claim(env.voucher(c)), env.minter.address, Err.WINDOW_CLOSED);
+        }
+        assert.equal((await env.minter.getState()).totalSupply, 0n);
+    });
+
+    it('get_caps : réserves de récompenses à 0 à partir de T0 + 24 mois, les autres réserves ne bougent pas', async () => {
+        const env = await setup();
+        env.blockchain.now = T0 + REWARDS_END - 1;
+        const before = await env.minter.getCaps();
+        assert.equal(before.purchase > 0n && before.referral > 0n && before.missions > 0n && before.chika > 0n, true, 'encore ouvertes une seconde avant');
+        env.blockchain.now = T0 + REWARDS_END;
+        const after = await env.minter.getCaps();
+        assert.equal(after.purchase, 0n);
+        assert.equal(after.referral, 0n);
+        assert.equal(after.chika, 0n);
+        assert.equal(after.missions, 0n, 'premier achat et missions');
+        assert.equal(after.presale, 0n);
+        assert.equal(after.founders, INITIAL_CAPS.founders);
+        assert.equal(after.team, INITIAL_CAPS.team);
+        assert.equal(after.foundation, INITIAL_CAPS.foundation);
+    });
+
+    it('applique une seule fois la règle des invendus de prévente à T0 + 18 mois (50 % retirés, 25 % / 25 %)', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // 3 000 vendus
-        env.blockchain.now = T0 + 365 * DAY;
-        await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));   // déclenche la règle
+        env.blockchain.now = T0 + PRESALE_END - 1;
+        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 10n, waveAmount: 20n, amount: 0n }));
         const rest = INITIAL_CAPS.presale - consom(3000);
+        const early = await env.minter.getCaps();
+        assert.equal(early.presale, rest, 'pas encore appliquée une seconde avant 18 mois');
+        assert.equal(early.presaleSettled, false);
+        env.blockchain.now = T0 + PRESALE_END;
+        assert.equal((await env.minter.getCaps()).presale, 0n, 'visible dans get_caps dès la limite');
+        await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));   // déclenche la règle dans le stockage
         const caps = await env.minter.getCaps();
         assert.equal(caps.presale, 0n);
         assert.equal(caps.presaleSettled, true);
         assert.equal(caps.purchase, INITIAL_CAPS.purchase + rest / 4n);
         assert.equal(caps.referral, INITIAL_CAPS.referral + rest / 4n);
-        env.blockchain.now = T0 + 400 * DAY;
+        env.blockchain.now = T0 + 600 * DAY;
         await env.claim(env.voucher({ kind: Kind.MISSION_FB, amount: consom(150) }));
         assert.equal((await env.minter.getCaps()).purchase, INITIAL_CAPS.purchase + rest / 4n, 'règle appliquée une seule fois');
     });
@@ -376,7 +472,7 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
         expectRejected(await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3')), env.minter.address, Err.GENESIS_DONE);
     });
 
-    it('un brûlage de conversion (par la banque) est définitif et compte pour le halving', async () => {
+    it('un brûlage de conversion (par la banque) est définitif et fait monter le compteur', async () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
         // 6 jours de conversions de 1 400 000 Points = 140 000 ConsoM par jour (sous le plafond de 5 %)
@@ -388,9 +484,8 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
         const st = await env.minter.getState();
         assert.equal(st.totalSupply, consom(3_500_000 - 840_000));
         assert.equal(st.burnedByConversion, consom(840_000));
-        assert.equal(st.burnedInYear1, consom(840_000));
-        assert.equal(st.halvingSteps, 1);
-        assert.equal(await env.minter.getBurnForPoints(100n), consom(5), 'V = 50 : 100 Points demandent 5 ConsoM');
+        assert.equal(st.halvingSteps, 0, 'le premier palier n\'est qu\'à 15 000 000');
+        assert.equal(await env.minter.getBurnForPoints(100n), consom(10), 'V = 100 : 100 Points demandent 10 ConsoM');
     });
 
     it('un brûlage volontaire est recréé dans la banque et ne compte pas pour le halving', async () => {
@@ -425,39 +520,52 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
         expectRejected(await env.minter.sendRaw(env.stranger.getSender(), toNano('0.2'), fake), env.minter.address, Err.NOT_WALLET);
     });
 
-    it('halving : 800 000 par palier la 1re année, puis 12 000 000 avec report', async () => {
-        // fin de 1re année au palier 2 (2 000 000 brûlés) : 400 000 sont reportés
-        const cases: Array<[bigint, bigint, number]> = [
-            [consom(0), consom(0), 0],
-            [consom(799_999), consom(799_999), 0],
-            [consom(2_000_000), consom(2_000_000), 2],
-            [consom(2_000_000 + 11_599_999), consom(2_000_000), 2],
-            [consom(2_000_000 + 11_600_000), consom(2_000_000), 3],    // 400 000 reportés + 11 600 000 = 12 M
-            [consom(2_000_000 + 23_600_000), consom(2_000_000), 4],
-            [consom(230_000_000), consom(230_000_000), 30],             // plafonné à 30 paliers
+    it('paliers : un palier tous les 15 000 000 brûlés, 16 divisions au plus', async () => {
+        const cases: Array<[bigint, number]> = [
+            [consom(0), 0],
+            [consom(14_999_999), 0],
+            [consom(15_000_000) - 1n, 0],      // une unité de base avant le palier
+            [consom(15_000_000), 1],
+            [consom(29_999_999), 1],
+            [consom(30_000_000), 2],
+            [consom(239_999_999), 15],
+            [consom(240_000_000), 16],         // 16e et dernière division
+            [consom(250_000_000), 16],         // le compteur monte, le taux ne bouge plus
+            [consom(1_000_000_000), 16],
         ];
-        for (const [burned, year1, expected] of cases) {
-            const env = await setup({ testState: { burnedByConversion: burned, burnedInYear1: year1, totalSupply: 0n } });
-            assert.equal((await env.minter.getState()).halvingSteps, expected, `B=${burned} B1=${year1}`);
+        for (const [burned, expected] of cases) {
+            const env = await setup({ testState: { burnedByConversion: burned, totalSupply: 0n } });
+            assert.equal((await env.minter.getState()).halvingSteps, expected, `B=${burned}`);
         }
     });
 
+    it('paliers : le taux est divisé par 2 à chaque palier (17 paliers), puis ne bouge plus', async () => {
+        for (let n = 0; n <= 18; n++) {
+            const env = await setup({ testState: { burnedByConversion: consom(15_000_000) * BigInt(n), totalSupply: 0n } });
+            const steps = Math.min(n, 16);
+            // ConsoM à brûler pour 100 Points = 10 / 2^steps, arrondi au supérieur en unités de base
+            const expected = (10_000_000_000n + (1n << BigInt(steps)) - 1n) >> BigInt(steps);
+            assert.equal(await env.minter.getBurnForPoints(100n), expected, `palier ${n}`);
+        }
+        const env = await setup({ testState: { burnedByConversion: consom(15_000_000) * 16n, totalSupply: 0n } });
+        assert.equal(await env.minter.getBurnForPoints(100n), 152_588n, 'palier 16 : 10 / 65 536 ConsoM, arrondi au supérieur');
+    });
+
     it('le brûlage à payer est arrondi au supérieur, en unités de base', async () => {
-        const env = await setup({ testState: { burnedByConversion: consom(2_400_000), burnedInYear1: consom(2_400_000) } });
+        const env = await setup({ testState: { burnedByConversion: consom(45_000_000) } });
         assert.equal((await env.minter.getState()).halvingSteps, 3);
         assert.equal(await env.minter.getBurnForPoints(100n), 1_250_000_000n, 'V = 12,5 : 1,25 ConsoM pour 100 Points');
         assert.equal(await env.minter.getBurnForPoints(1n), 12_500_000n);
         assert.equal(await env.minter.getBurnForPoints(3n), 37_500_000n);
     });
 
-    it('après la 1re année, les brûlages ne comptent plus dans B1', async () => {
+    it('le compteur compte tous les brûlages de conversion, quelle que soit la date', async () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
         await bankBurn(env, 1_000_000n);   // 100 000 ConsoM
-        env.blockchain.now = T0 + 365 * DAY;
+        env.blockchain.now = T0 + 800 * DAY;
         await bankBurn(env, 1_000_000n);
         const st = await env.minter.getState();
-        assert.equal(st.burnedInYear1, consom(100_000));
         assert.equal(st.burnedByConversion, consom(200_000));
         assert.equal(st.halvingSteps, 0);
     });

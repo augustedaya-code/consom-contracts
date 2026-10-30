@@ -217,7 +217,7 @@ fun onInternalMessage(in: InMessage) {
                     reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_STALE_VOUCHER, false);
                     return;
                 }
-                val limit = mulDivFloor(state.rewardablePoints * ONE_CONSOM, INVESTMENT_RATE_BP, BP_DENOMINATOR);
+                val limit = mulDivFloor(state.rewardablePoints * ONE_CONSOM, INVESTMENT_LIMIT_BP, BP_DENOMINATOR);
                 if (state.investmentBonus + msg.reserved > limit) {
                     reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_NOT_ENOUGH_POINTS, false);
                     return;
