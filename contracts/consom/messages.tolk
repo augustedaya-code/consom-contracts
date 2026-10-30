@@ -141,6 +141,13 @@ struct (0xc0150043) VerifyOwnConversion {
     sigB: Cell<WitnessSignature>
 }
 
+// Émetteur -> banque : attribuer à un Ancien Contributeur une partie des parts de la genèse (70 % de sa part totale)
+struct (0xc0150047) AssignFounderShares {
+    queryId: uint64
+    shares: coins
+    to: address
+}
+
 // Banque -> parts d'un déposant : ajout de parts après un dépôt
 struct (0xc0150044) AddShares {
     queryId: uint64
@@ -199,6 +206,14 @@ struct (0xc0150014) ExecuteWitness {
 
 // Une seule fois : dépose 70 % de l'allocation des Anciens Contributeurs dans la banque d'échange
 struct (0xc0150020) GenesisFoundersDeposit {
+    queryId: uint64
+}
+
+// ---------- Part de l'équipe (A9) ----------
+
+// N'importe qui peut l'envoyer (il paie seulement les frais) : crée vers l'adresse de l'équipe, gravée au déploiement,
+// la part déjà libérée selon le calendrier et pas encore créée
+struct (0xc0150050) ReleaseTeamShare {
     queryId: uint64
 }
 

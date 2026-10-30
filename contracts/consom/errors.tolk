@@ -29,4 +29,7 @@ const ERR_NOT_CHILD           = 430   // message qui ne vient pas d'un budget ou
 const ERR_NOT_WALLET          = 431   // notification de brûlage qui ne vient pas d'un wallet ConsoM
 const ERR_NOT_BANK            = 432   // message réservé à la banque d'échange
 const ERR_GENESIS_DONE        = 440   // genèse déjà faite
+const ERR_GENESIS_NOT_DONE    = 441   // réclamation d'un Ancien Contributeur avant la genèse (les parts à attribuer n'existent pas encore)
+const ERR_NOTHING_TO_RELEASE  = 442   // part de l'équipe : rien de nouveau à libérer
+const ERR_NO_FOUNDER_SHARES   = 443   // réclamation d'un Ancien Contributeur : pas assez de parts à attribuer dans la banque
 const ERR_UNKNOWN_OP          = 0xFFFF

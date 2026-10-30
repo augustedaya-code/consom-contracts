@@ -16,6 +16,7 @@ struct Caps {
     presaleSettled: bool     // règle des invendus de prévente appliquée (une seule fois, après T0 + 18 mois)
     dayStart: uint32         // début de la période de 24 h en cours
     dayMinted: coins         // émis (ou réservé) depuis dayStart
+    founderShares: coins     // parts de la banque encore à attribuer aux Anciens Contributeurs (3 500 000 après la genèse)
 }
 
 // Remplacement de témoin en attente (délai public de 7 jours)
@@ -37,6 +38,7 @@ struct Witnesses {
 // Adresses et codes fixés au déploiement
 struct Config {
     guardian: address        // Multisig v2 officiel, 2 signatures sur 3
+    teamAddress: address     // reçoit la part de l'équipe (Multisig de l'équipe) : gravée, jamais modifiable
     walletCode: cell         // wallet Jetton (shardé, même principe que Jetton 2.0)
     budgetCode: cell         // contrat « budget de paiement », un par paiement Wave
     memberCode: cell         // contrat « compte membre », un par membre

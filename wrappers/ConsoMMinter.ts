@@ -22,6 +22,7 @@ export const Kind = {
     BANK_CONVERSION: 8,
     OWN_CONVERSION: 9,
     CHIKA_BONUS: 10,
+    FOUNDER_CLAIM: 11,
 } as const;
 
 export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6, FOUNDATION: 7 } as const;
@@ -37,6 +38,8 @@ export const Op = {
     CancelWitness: 0xc0150013,
     ExecuteWitness: 0xc0150014,
     GenesisFoundersDeposit: 0xc0150020,
+    ReleaseTeamShare: 0xc0150050,
+    AssignFounderShares: 0xc0150047,
     VerifyOwnConversion: 0xc0150043,
     BankBurn: 0xc0150040,
     EscrowBurn: 0xc0150041,
@@ -56,7 +59,7 @@ export const Err = {
     WINDOW_CLOSED: 410, WRONG_AMOUNT: 411, CATEGORY_CAP: 412, DAILY_CAP: 413, SUPPLY_CAP: 414,
     POINTS_TOO_HIGH: 415, NOT_ENOUGH_TON: 416, BURN_NOT_ALLOWED: 417, NOT_GUARDIAN: 420, PAUSE_TOO_SOON: 421,
     REPLACE_TOO_SOON: 422, REPLACE_PENDING: 423, NO_PENDING: 424, TIMELOCK: 425, DUPLICATE_KEY: 426,
-    NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440,
+    NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440, GENESIS_NOT_DONE: 441, NOTHING_TO_RELEASE: 442, NO_FOUNDER_SHARES: 443,
 } as const;
 
 // Plafonds initiaux (section 3)
@@ -76,6 +79,7 @@ export type MinterConfig = {
     networkId: number;
     witnessKeys: [Buffer, Buffer, Buffer];   // clés publiques Ed25519 (32 octets)
     guardian: Address;
+    teamAddress: Address;                    // reçoit la part de l'équipe : gravée au déploiement, jamais modifiable
     walletCode: Cell;
     budgetCode: Cell;
     memberCode: Cell;
@@ -104,6 +108,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .storeBit(false)        // presaleSettled
         .storeUint(0, 32)       // dayStart
         .storeCoins(0)          // dayMinted
+        .storeCoins(0)          // founderShares (rempli par la genèse)
         .endCell();
     const witnesses = beginCell()
         .storeUint(bigFromKey(c.witnessKeys[0]), 256)
@@ -114,6 +119,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .endCell();
     const config = beginCell()
         .storeAddress(c.guardian)
+        .storeAddress(c.teamAddress)
         .storeRef(c.walletCode)
         .storeRef(c.budgetCode)
         .storeRef(c.memberCode)
@@ -228,6 +234,11 @@ export class ConsoMMinter implements Contract {
         await this.sendRaw(provider, via, value, simpleOp(Op.GenesisFoundersDeposit));
     }
 
+    // N'importe qui peut libérer la part de l'équipe (il ne paie que les frais) : elle va à l'adresse gravée
+    async sendReleaseTeam(provider: ContractProvider, via: Sender, value = 200_000_000n) {
+        await this.sendRaw(provider, via, value, simpleOp(Op.ReleaseTeamShare));
+    }
+
     async sendPause(provider: ContractProvider, via: Sender) {
         await this.sendRaw(provider, via, 50_000_000n, simpleOp(Op.GuardianPause));
     }
@@ -305,7 +316,17 @@ export class ConsoMMinter implements Contract {
             presaleSettled: s.readBoolean(),
             dayStart: s.readNumber(),
             dayMinted: s.readBigNumber(),
+            founderShares: s.readBigNumber(),
         };
+    }
+
+    async getTeamVesting(provider: ContractProvider) {
+        const s = (await provider.get('get_team_vesting', [])).stack;
+        return { unlocked: s.readBigNumber(), created: s.readBigNumber(), nextReleaseAt: s.readNumber() };
+    }
+
+    async getTeamAddress(provider: ContractProvider): Promise<Address> {
+        return (await provider.get('get_team_address', [])).stack.readAddress();
     }
 
     async getBurnForPoints(provider: ContractProvider, points: bigint): Promise<bigint> {

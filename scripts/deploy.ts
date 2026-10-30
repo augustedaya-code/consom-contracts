@@ -1,7 +1,7 @@
 // Déploiement de ConsoM : émetteur, banque d'échange, puis dépôt de genèse des Anciens Contributeurs.
 //
 // Utilisation (testnet) :
-//   TESTNET_DEPLOYER_MNEMONIC="24 mots"  GUARDIAN_ADDRESS="0Q..."  node scripts/deploy.ts testnet
+//   TESTNET_DEPLOYER_MNEMONIC="24 mots"  GUARDIAN_ADDRESS="0Q..."  TEAM_ADDRESS="0Q..."  node scripts/deploy.ts testnet
 // Variables facultatives : TONCENTER_API_KEY, T0 (secondes Unix ; par défaut : maintenant).
 // Les clés publiques des témoins viennent de deployments/<réseau>.config.json.
 // Le résultat (adresses, empreintes des codes) est écrit dans deployments/<réseau>.json et dans le résumé GitHub.
@@ -20,6 +20,7 @@ export type DeployConfig = {
     network: 'testnet' | 'mainnet';
     t0: number;
     guardian: Address;
+    teamAddress: Address;    // portefeuille Multisig de l'équipe : gravé au déploiement
     witnessPublicKeys: [Buffer, Buffer, Buffer];
     content: Cell;
 };
@@ -56,6 +57,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         networkId: cfg.network === 'mainnet' ? NETWORK_MAINNET : NETWORK_TESTNET,
         witnessKeys: cfg.witnessPublicKeys,
         guardian: cfg.guardian,
+        teamAddress: cfg.teamAddress,
         walletCode: codes.walletCode,
         budgetCode: codes.budgetCode,
         memberCode: codes.memberCode,
@@ -87,6 +89,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         minter: minter.address,
         bank: bank.address,
         guardian: cfg.guardian,
+        teamAddress: cfg.teamAddress,
         codeHashes: Object.fromEntries(Object.entries(codes).map(([k, c]) => [k, c.hash().toString('hex')])),
     };
 }
@@ -103,6 +106,8 @@ async function main() {
     if (mnemonic.length !== 24) throw new Error('TESTNET_DEPLOYER_MNEMONIC manquant (24 mots).');
     const guardianText = (process.env.GUARDIAN_ADDRESS ?? '').trim();
     if (!guardianText) throw new Error('GUARDIAN_ADDRESS manquant (adresse Tonkeeper du gardien de test).');
+    const teamText = (process.env.TEAM_ADDRESS ?? '').trim();
+    if (!teamText) throw new Error('TEAM_ADDRESS manquant (adresse du portefeuille Multisig de l\'équipe, gravée au déploiement).');
     const fileCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'deployments', `${network}.config.json`), 'utf-8'));
 
     const client = new TonClient({
@@ -174,6 +179,7 @@ async function main() {
         network,
         t0,
         guardian: Address.parse(guardianText),
+        teamAddress: Address.parse(teamText),
         witnessPublicKeys: fileCfg.witnessPublicKeys.map((h: string) => Buffer.from(h, 'hex')) as [Buffer, Buffer, Buffer],
         content: jettonContent(fileCfg.metadataUri ?? 'https://tonmarche.example/consom-testnet.json'),
     }, target);
@@ -185,6 +191,7 @@ async function main() {
         minter: res.minter.toString({ testOnly: true }),
         bank: res.bank.toString({ testOnly: true }),
         guardian: res.guardian.toString({ testOnly: true, bounceable: false }),
+        teamAddress: res.teamAddress.toString({ testOnly: true, bounceable: false }),
         witnessPublicKeys: fileCfg.witnessPublicKeys,
         codeHashes: res.codeHashes,
     };
@@ -197,6 +204,7 @@ async function main() {
         `| Émetteur | [${out.minter}](https://testnet.tonviewer.com/${out.minter}) |`,
         `| Banque d'échange | [${out.bank}](https://testnet.tonviewer.com/${out.bank}) |`,
         `| Gardien | ${out.guardian} |`,
+        `| Équipe (part gravée) | ${out.teamAddress} |`,
         '',
         `T0 : ${new Date(t0 * 1000).toISOString()}`,
         '',

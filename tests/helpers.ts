@@ -36,12 +36,14 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     const guardian = await blockchain.treasury('guardian');
     const member = await blockchain.treasury('member');
     const stranger = await blockchain.treasury('stranger');
+    const team = await blockchain.treasury('team');           // portefeuille de l'équipe, gravé au déploiement
 
     const config: MinterConfig = {
         t0: T0,
         networkId: NETWORK_TESTNET,
         witnessKeys: [witnesses[0].publicKey, witnesses[1].publicKey, witnesses[2].publicKey],
         guardian: guardian.address,
+        teamAddress: team.address,
         walletCode,
         budgetCode,
         memberCode,
@@ -159,7 +161,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     // Participation à la prévente (pack Essentiel, 3 000 ConsoM) : rend le membre éligible aux récompenses (règle d'équité)
     const becomeEligible = () => claim(voucher());
 
-    return { blockchain, minter, deploy, becomeEligible, memberState, budgetState, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
+    return { blockchain, minter, deploy, becomeEligible, memberState, budgetState, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, team, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
 }
 
 // ---------- Transactions ----------

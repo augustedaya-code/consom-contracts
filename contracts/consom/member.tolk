@@ -18,10 +18,11 @@ const ERR_NOT_MINTER      = 450
 const FLAG_FIRST_PURCHASE = 1
 const FLAG_MISSION_TG     = 2
 const FLAG_MISSION_FB     = 4
+const FLAG_FOUNDER_CLAIM  = 8     // réclamation d'Ancien Contributeur déjà faite (une seule par identifiant)
 
 struct MemberState {
     owner: address                  // adresse liée, fixée par la première réclamation
-    referralEligible: bool          // a participé à la prévente : condition de toute récompense (et du parrainage)
+    referralEligible: bool          // a participé à la prévente (ou Ancien Contributeur) : condition de toute récompense (et du parrainage)
     hasPayment: bool                // au moins un paiement attesté (condition des missions)
     flags: uint8                    // FLAG_* : bonus de 1er achat et missions déjà reçus
     lastDirectVoucherId: uint64     // conversions et investissements : numéros strictement croissants
@@ -184,6 +185,15 @@ fun onInternalMessage(in: InMessage) {
                     reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_NOT_ELIGIBLE, false);
                     return;
                 }
+            } else if (kind == KIND_FOUNDER_CLAIM) {
+                // Ancien Contributeur (décision du 30 octobre 2026) : compte comme participant à la prévente ;
+                // une seule réclamation par identifiant, sans limite de temps
+                if ((state.flags & FLAG_FOUNDER_CLAIM) != 0) {
+                    reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_ALREADY_DONE, false);
+                    return;
+                }
+                state.flags = state.flags | FLAG_FOUNDER_CLAIM;
+                state.referralEligible = true;
             } else if (kind == KIND_FIRST_PURCHASE) {
                 if ((state.flags & FLAG_FIRST_PURCHASE) != 0) {
                     reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_ALREADY_DONE, false);
@@ -237,8 +247,8 @@ fun onInternalMessage(in: InMessage) {
                 state.investmentBonus += msg.reserved;
             }
 
-            // ---------- plafond de 50 000 par 24 h (hors prévente) ; tout est versé tout de suite ----------
-            if (kind != KIND_PRESALE) {
+            // ---------- plafond de 50 000 par 24 h (hors prévente et Anciens Contributeurs) ; tout est versé tout de suite ----------
+            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM)) {
                 state.rollDay();
                 if (state.dayReceived + msg.reserved > MEMBER_DAILY_CAP) {
                     // passager : le bon pourra être réclamé de nouveau s'il n'a pas expiré
