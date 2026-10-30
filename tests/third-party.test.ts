@@ -56,8 +56,8 @@ describe('Réclamation par un tiers', () => {
             { kind: Kind.PRESALE, amount: consom(3000), waveAmount: 3500n, points: 0n },
             { kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 0n, points: 0n },
             { kind: Kind.MISSION_TG, amount: consom(150), waveAmount: 0n, points: 0n },
-            { kind: Kind.CONVERSION, amount: consom(350), waveAmount: 0n, points: 1000n },
-            { kind: Kind.INVESTMENT, amount: consom(300), waveAmount: 0n, points: 1000n },
+            { kind: Kind.CONVERSION, amount: consom(50), waveAmount: 0n, points: 1000n },
+            { kind: Kind.INVESTMENT, amount: consom(40), waveAmount: 0n, points: 1000n },
         ]) {
             const r = await env.claim(env.voucher(c), { from: server });
             assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `type ${c.kind}\n${describeTxs(r)}`);
@@ -78,18 +78,18 @@ describe('Réclamation par un tiers', () => {
 
         // bon sans paiement Wave (bonus de conversion) : refusé par numéro de bon déjà utilisé
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
-        const c = env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(350) });
+        const c = env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) });
         await env.claim(c, { from: env.stranger });
         const again = await env.claim(c, { from: env.member });
         assert.ok(hasTx(again, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(again));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 350));
+        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 50));
     });
 
     it('un refus de l\'émetteur ou d\'un contrat enfant rend l\'excédent au tiers, jamais au membre', async () => {
         const env = await setup();
         const server = env.stranger;
         // refus du compte membre (aucun Point) : ClaimRejected
-        const r = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 13n, waveAmount: 0n, amount: (13n * consom(1) * 3500n) / 10000n }), { from: server });
+        const r = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 13n, waveAmount: 0n, amount: (13n * consom(1) * 500n) / 10000n }), { from: server });
         assert.ok(hasTx(r, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(r));
         assert.ok(tonReceived(r, server.address) > toNano('0.3'));
         assert.equal(tonReceived(r, env.member.address), 0n);
@@ -101,9 +101,9 @@ describe('Réclamation par un tiers', () => {
         assert.equal(tonReceived(r2, env.member.address), 0n);
         assert.ok(tonReceived(r2, server.address) > toNano('0.3'));
         // refus passager (plafond de 50 000 par 24 h) : l'emplacement est libéré puis les frais rendus au tiers
-        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 300_000n, waveAmount: 600_000n, amount: 0n }));
+        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1_800_000n, waveAmount: 3_600_000n, amount: 0n }));
         await env.claim(env.voucher());
-        const ref = () => env.voucher({ kind: Kind.REFERRAL, level: 1, points: 300_000n, waveAmount: 600_000n, amount: consom(45_000), validUntil: T0 + 3 * DAY });
+        const ref = () => env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1_800_000n, waveAmount: 3_600_000n, amount: consom(45_000), validUntil: T0 + 3 * DAY });
         await env.claim(ref(), { from: server });
         const r3 = await env.claim(ref(), { from: server });
         assert.equal(rejectReason(r3), 12, describeTxs(r3));

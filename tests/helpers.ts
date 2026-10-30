@@ -156,7 +156,10 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         return from.send({ to: st!.address, value: toNano('0.3'), body: withdrawRequestBody(shares) });
     };
 
-    return { blockchain, minter, deploy, memberState, budgetState, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
+    // Participation à la prévente (pack Essentiel, 3 000 ConsoM) : rend le membre éligible aux récompenses (règle d'équité)
+    const becomeEligible = () => claim(voucher());
+
+    return { blockchain, minter, deploy, becomeEligible, memberState, budgetState, bankAddress, bankState, shareState, sendToBank, ownConversion, deposit, withdraw, config, witnesses, deployer, guardian, member, stranger, voucher, claim, balanceOf, codes: { minterCode, walletCode, budgetCode, memberCode, bankCode } };
 }
 
 // ---------- Transactions ----------

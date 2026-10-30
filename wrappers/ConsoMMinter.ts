@@ -24,7 +24,7 @@ export const Kind = {
     CHIKA_BONUS: 10,
 } as const;
 
-export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6 } as const;
+export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6, FOUNDATION: 7 } as const;
 
 export const Op = {
     ClaimVoucher: 0xc0150001,
@@ -64,10 +64,11 @@ export const INITIAL_CAPS = {
     presale: consom(100_000_000),
     purchase: consom(55_000_000),
     referral: consom(45_000_000),
-    missions: consom(20_000_000),
+    missions: consom(19_900_000),
     founders: consom(5_000_000),
     team: consom(5_000_000),
     chika: consom(20_000_000),
+    foundation: consom(100_000),
 };
 
 export type MinterConfig = {
@@ -83,7 +84,7 @@ export type MinterConfig = {
     content: Cell;
     // TESTS UNIQUEMENT : état de départ différent (plafonds, offre, brûlages) pour tester les limites
     testCaps?: Partial<typeof INITIAL_CAPS>;
-    testState?: { totalSupply?: bigint; burnedByConversion?: bigint; burnedInYear1?: bigint };
+    testState?: { totalSupply?: bigint; burnedByConversion?: bigint };
 };
 
 const bigFromKey = (key: Buffer) => BigInt('0x' + key.toString('hex'));
@@ -99,6 +100,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .storeCoins(k.founders)
         .storeCoins(k.team)
         .storeCoins(k.chika)
+        .storeCoins(k.foundation)
         .storeBit(false)        // presaleSettled
         .storeUint(0, 32)       // dayStart
         .storeCoins(0)          // dayMinted
@@ -123,7 +125,6 @@ export function minterConfigToCell(c: MinterConfig): Cell {
     return beginCell()
         .storeCoins(st.totalSupply ?? 0n)
         .storeCoins(st.burnedByConversion ?? 0n)
-        .storeCoins(st.burnedInYear1 ?? 0n)
         .storeCoins(0)          // recycled
         .storeUint(c.t0, 32)
         .storeInt(c.networkId, 32)
@@ -282,7 +283,6 @@ export class ConsoMMinter implements Contract {
         return {
             totalSupply: s.readBigNumber(),
             burnedByConversion: s.readBigNumber(),
-            burnedInYear1: s.readBigNumber(),
             recycled: s.readBigNumber(),
             t0: s.readNumber(),
             networkId: s.readNumber(),
@@ -303,6 +303,7 @@ export class ConsoMMinter implements Contract {
             founders: s.readBigNumber(),
             team: s.readBigNumber(),
             chika: s.readBigNumber(),
+            foundation: s.readBigNumber(),
             presaleSettled: s.readBoolean(),
             dayStart: s.readNumber(),
             dayMinted: s.readBigNumber(),

@@ -56,7 +56,10 @@ fun categoryOf(kind: int): int {
     if (kind == KIND_CHIKA_BONUS) {
         return CAT_CHIKA;
     }
-    return CAT_MISSIONS;    // 1er achat, missions, investissement
+    if (kind == KIND_INVESTMENT) {
+        return CAT_PURCHASE;    // l'investissement est payé par la réserve Achats
+    }
+    return CAT_MISSIONS;    // 1er achat, missions
 }
 
 // Les bons liés à un paiement Wave passent d'abord par le budget de ce paiement ;
@@ -134,7 +137,7 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
         return mulDivFloor(payment.points * ONE_CONSOM, INVESTMENT_RATE_BP, BP_DENOMINATOR);
     }
     if ((kind == KIND_BANK_CONVERSION) || (kind == KIND_OWN_CONVERSION)) {
-        return 0;     // une conversion ne crée rien : elle brûle (la récompense de 35 % est un bon séparé)
+        return 0;     // une conversion ne crée rien : elle brûle (la récompense de 5 % est un bon séparé)
     }
     return -1;
 }
@@ -143,13 +146,10 @@ fun isConversionBurn(kind: int): bool {
     return (kind == KIND_BANK_CONVERSION) || (kind == KIND_OWN_CONVERSION);
 }
 
-// Nombre de paliers de halving (section 8).
-// La 1re année : un palier tous les 800 000 ; ensuite un palier tous les 12 000 000, avec report
-// de ce qui dépassait le dernier palier de la 1re année.
-fun halvingSteps(burnedByConversion: int, burnedInYear1: int): int {
-    val n1 = burnedInYear1 / HALVING_STEP_YEAR1;
-    val n = n1 + (burnedByConversion - n1 * HALVING_STEP_YEAR1) / HALVING_STEP_AFTER;
-    return min(n, HALVING_MAX_STEPS);
+// Nombre de paliers de halving (section 8) : un palier tous les 15 000 000 ConsoM brûlés par les conversions,
+// 16 divisions au plus ; ensuite le taux ne bouge plus, même si le compteur continue de monter.
+fun halvingSteps(burnedByConversion: int): int {
+    return min(burnedByConversion / HALVING_STEP, HALVING_MAX_STEPS);
 }
 
 // ConsoM à brûler (unités de base) pour convertir `points` Points : ceil(points × 10^8 / 2^n)
@@ -180,6 +180,9 @@ fun Caps.remainingOf(self, category: int): int {
     if (category == CAT_CHIKA) {
         return self.chika;
     }
+    if (category == CAT_FOUNDATION) {
+        return self.foundation;
+    }
     return self.team;
 }
 
@@ -196,12 +199,14 @@ fun Caps.setRemaining(mutate self, category: int, value: coins) {
         self.founders = value;
     } else if (category == CAT_CHIKA) {
         self.chika = value;
+    } else if (category == CAT_FOUNDATION) {
+        self.foundation = value;
     } else {
         self.team = value;
     }
 }
 
-// Règle des invendus (section 3) : à T0 + 12 mois, 50 % du reste de la prévente sont retirés,
+// Règle des invendus (section 3) : à T0 + 18 mois, 50 % du reste de la prévente sont retirés,
 // 25 % vont aux récompenses d'achat et 25 % au parrainage. Appliquée une seule fois.
 fun Caps.settlePresaleIfDue(mutate self, t0: int) {
     if (!self.presaleSettled && (blockchain.now() >= t0 + PRESALE_WINDOW)) {
@@ -210,6 +215,17 @@ fun Caps.settlePresaleIfDue(mutate self, t0: int) {
         self.referral += quarter;
         self.presale = 0;
         self.presaleSettled = true;
+    }
+}
+
+// Fin des récompenses (section 3) : à T0 + 24 mois, plus rien ne peut être créé ; les réserves de récompenses
+// (achats, parrainage, bonus CHIKA, premier achat et missions) sont affichées à 0 par `get_caps`.
+fun Caps.zeroRewardsIfOver(mutate self, t0: int) {
+    if (blockchain.now() >= t0 + REWARDS_WINDOW) {
+        self.purchase = 0;
+        self.referral = 0;
+        self.missions = 0;
+        self.chika = 0;
     }
 }
 
@@ -268,10 +284,11 @@ fun witnessIndexOrError(witnesses: Witnesses, hash: uint256, sigCell: Cell<Witne
 // Ne lève jamais d'exception : une conversion avec ses propres ConsoM doit pouvoir rendre les jetons reçus.
 fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<WitnessSignature>,
                  sigB: Cell<WitnessSignature>): int {
-    if (storage.isPaused()) {
+    val voucher = voucherCell.load();
+    // la pause bloque les créations et les conversions via la banque ; la conversion avec ses propres ConsoM reste possible
+    if (storage.isPaused() && (voucher.kind != KIND_OWN_CONVERSION)) {
         return ERR_PAUSED;
     }
-    val voucher = voucherCell.load();
     val now = blockchain.now();
     if (voucher.networkId != storage.networkId) {
         return ERR_WRONG_NETWORK;
@@ -304,7 +321,7 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
         return ERR_SAME_WITNESS;
     }
 
-    // fenêtre : prévente jusqu'à T0 + 12 mois, récompenses jusqu'à T0 + 18 mois, conversions sans limite
+    // fenêtre : prévente jusqu'à T0 + 18 mois, récompenses jusqu'à T0 + 24 mois, conversions sans limite
     var windowEnd = storage.t0 + REWARDS_WINDOW;
     if (voucher.kind == KIND_PRESALE) {
         windowEnd = storage.t0 + PRESALE_WINDOW;
@@ -336,7 +353,7 @@ fun ConsoMStorage.bankAddress(self): address {
 }
 
 fun ConsoMStorage.currentHalvingSteps(self): int {
-    return halvingSteps(self.burnedByConversion, self.burnedInYear1);
+    return halvingSteps(self.burnedByConversion);
 }
 
 // ===================================================================================================
@@ -638,12 +655,9 @@ fun onInternalMessage(in: InMessage) {
             val bank = storage.bankAddress();
 
             if (msg.burnInitiator == bank) {
-                // brûlage de conversion : définitif, compte pour le halving
+                // brûlage de conversion : définitif, compte pour les paliers
                 storage.totalSupply -= msg.jettonAmount;
                 storage.burnedByConversion += msg.jettonAmount;
-                if (blockchain.now() < storage.t0 + ONE_YEAR) {
-                    storage.burnedInYear1 += msg.jettonAmount;
-                }
                 storage.save();
                 sendExcesses(msg.sendExcessesTo, msg.queryId);
                 return;
@@ -806,7 +820,6 @@ get fun get_wallet_address(ownerAddress: address): address {
 struct ConsoMStateReply {
     totalSupply: int
     burnedByConversion: int
-    burnedInYear1: int
     recycled: int
     t0: int
     networkId: int
@@ -821,14 +834,13 @@ get fun get_consom_state(): ConsoMStateReply {
     return {
         totalSupply: storage.totalSupply,
         burnedByConversion: storage.burnedByConversion,
-        burnedInYear1: storage.burnedInYear1,
         recycled: storage.recycled,
         t0: storage.t0,
         networkId: storage.networkId,
         pausedUntil: storage.pausedUntil,
         lastPauseStart: storage.lastPauseStart,
         genesisDone: storage.genesisDone,
-        halvingSteps: halvingSteps(storage.burnedByConversion, storage.burnedInYear1),
+        halvingSteps: halvingSteps(storage.burnedByConversion),
     }
 }
 
@@ -837,6 +849,7 @@ get fun get_caps(): Caps {
     val storage = lazy ConsoMStorage.load();
     var caps = storage.caps.load();
     caps.settlePresaleIfDue(storage.t0);
+    caps.zeroRewardsIfOver(storage.t0);
     return caps;
 }
 

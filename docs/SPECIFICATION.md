@@ -53,18 +53,19 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 
 | Catégorie | Plafond (ConsoM) | Source d'émission | Fenêtre |
 | --- | --- | --- | --- |
-| Prévente | 100 000 000 | Paiement Wave d'un pack | T0 → T0 + 12 mois |
-| Récompenses d'achat | 55 000 000 | Paiement Wave d'une commande livrée | T0 → T0 + 18 mois |
-| Parrainage | 45 000 000 | Paiement Wave d'une commande d'un filleul | T0 → T0 + 18 mois |
-| Missions | 20 000 000 | Membre ayant au moins un paiement | T0 → T0 + 18 mois |
+| Prévente | 100 000 000 | Paiement Wave d'un pack | T0 → T0 + 18 mois |
+| Récompenses d'achat (conversion et investissement) | 55 000 000 | Paiement Wave d'une commande livrée | T0 → T0 + 24 mois |
+| Parrainage | 45 000 000 | Paiement Wave d'une commande d'un filleul | T0 → T0 + 24 mois |
+| Premier achat et missions | 19 900 000 | Membre ayant au moins un paiement | T0 → T0 + 24 mois |
 | Anciens Contributeurs | 5 000 000 | Genèse (liste gravée) | Réclamable sans limite de durée |
 | Équipe | 5 000 000 | Genèse (adresses gravées) | Blocage 12 mois, puis 24 mois linéaires |
-| Bonus CHIKA | 20 000 000 | Commande payée en CHIKA, payée et livrée (réserve à part) | T0 → T0 + 18 mois |
+| Bonus CHIKA | 20 000 000 | Commande payée en CHIKA, payée et livrée (réserve à part) | T0 → T0 + 24 mois |
+| Fondation | 100 000 | Aucune opération dans ce lot (le lot E3 l'ajoutera) | — |
 
 **Règles de fin de période**
 
-1. À T0 + 12 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date.
-2. À T0 + 18 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage, Missions et Bonus CHIKA est retiré définitivement.
+1. À T0 + 18 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date.
+2. À T0 + 24 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage, Premier achat et missions, et Bonus CHIKA est retiré définitivement ; `get_caps` affiche 0 pour ces quatre réserves.
 3. « Retiré » veut dire que le plafond est ramené au montant déjà émis ou réservé : rien n'est créé puis brûlé.
 
 **Phases de test** : aucun gain n'est repris. Le testnet n'a donné lieu à aucun achat réel ; seules les préventes réellement payées par Wave avant T0 entrent dans la genèse, dans le plafond de la prévente (section 11).
@@ -76,7 +77,7 @@ Aucun ConsoM ne peut être créé sans un paiement Wave préalable, attesté par
 **Le budget de paiement.** La première émission qui cite un paiement Wave crée son contrat « Budget de paiement », dont l'adresse dépend de l'empreinte de l'identifiant Wave. Un même paiement ne peut donc exister qu'une fois. Le budget enregistre ce que les témoins ont attesté et refuse ensuite toute récompense qui ne correspond pas aux règles :
 
 - `points` : les Points de la commande, plafonnés à `montant_fcfa × P_max`, où P\_max = 0,5 Point par franc, gravé au déploiement (les Points valent 25 % ou 50 % de la marge d'un produit, et la marge est toujours inférieure au prix) ;
-- un emplacement par récompense versée à l'achat : parrainage niveaux 1 à 5, bonus de 1er achat, Bonus CHIKA ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 35 % à la conversion.
+- un emplacement par récompense versée à l'achat : parrainage niveaux 1 à 5, bonus de 1er achat, Bonus CHIKA ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 5 % à la conversion.
 
 **Ce que le budget protège, et ce qu'il ne protège pas.** Il bloque une erreur de calcul de l'application, la réutilisation d'un paiement et toute récompense hors règle. Il ne protège pas contre deux témoins compromis, qui pourraient attester un faux paiement. Contre ce cas, les protections sont le plafond journalier global, le plafond par membre et la pause (section 10).
 
@@ -93,7 +94,7 @@ Un bon est une autorisation signée par au moins deux témoins. N'importe qui pe
 | `network_id` | -239 pour le réseau principal, -3 pour le testnet : un bon de testnet est refusé sur le réseau principal |
 | `minter` | Adresse de l'émetteur : un bon ne vaut que pour ce contrat |
 | `voucher_id` | Identifiant unique sur 64 bits |
-| `kind` | Prévente, conversion (35 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10) |
+| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10) |
 | `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave (jamais l'identifiant en clair) |
 | `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés (pour un Bonus CHIKA : montant payé en CHIKA) |
 | `member_id` | Empreinte de l'identifiant TonMarché du bénéficiaire |
@@ -113,23 +114,25 @@ Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa r
 
 ## 6. Règles de récompense
 
-Une commande livrée et payée peut donner au plus 62,5 % de ses Points en ConsoM : 27,5 % répartis sur cinq niveaux de parrainage dès l'achat, et 35 % à l'acheteur quand il convertit ses Points avant leur expiration. 1 Point donne droit à 1 ConsoM au taux indiqué ; le contrat calcule chaque montant avec un arrondi à l'unité de base inférieure.
+Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM : 5 % répartis sur cinq niveaux de parrainage dès l'achat, et 5 % à l'acheteur quand il convertit ses Points avant leur expiration. 1 Point donne droit à 1 ConsoM au taux indiqué ; le contrat calcule chaque montant avec un arrondi à l'unité de base inférieure.
 
 | Récompense | Montant | Bénéficiaire | Catégorie | Limite |
 | --- | --- | --- | --- | --- |
-| Achat | 35 % des Points convertis | L'acheteur | Achats | Versé à chaque conversion ; total ≤ 35 % des Points de ses commandes attestées |
-| Parrainage niveau 1 | 15 % des Points | Parrain direct, s'il est éligible | Parrainage | Une fois par paiement |
-| Niveau 2 | 7 % | Idem, niveau 2 | Parrainage | Idem |
-| Niveau 3 | 3,5 % | Idem, niveau 3 | Parrainage | Idem |
-| Niveau 4 | 1,5 % | Idem, niveau 4 | Parrainage | Idem |
-| Niveau 5 | 0,5 % | Idem, niveau 5 | Parrainage | Idem |
+| Achat | 5 % des Points convertis | L'acheteur | Achats | Versé à chaque conversion ; total ≤ 5 % des Points de ses commandes attestées |
+| Parrainage niveau 1 | 2,5 % des Points | Parrain direct, s'il est éligible | Parrainage | Une fois par paiement |
+| Niveau 2 | 1,3 % | Idem, niveau 2 | Parrainage | Idem |
+| Niveau 3 | 0,7 % | Idem, niveau 3 | Parrainage | Idem |
+| Niveau 4 | 0,4 % | Idem, niveau 4 | Parrainage | Idem |
+| Niveau 5 | 0,1 % | Idem, niveau 5 | Parrainage | Idem |
 | 1er achat | 500 ConsoM | L'acheteur | Missions | Une fois par membre |
 | Telegram | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
 | Facebook | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
-| Investissement | 30 % des FECA investis | L'investisseur | Missions | Total ≤ 30 % des Points reçus par ce membre |
-| Bonus CHIKA | 10 % du montant payé en CHIKA (`montant_paye`, arrondi inférieur) | L'acheteur d'une commande payée en CHIKA, payée et livrée | Bonus CHIKA (réserve de 20 M, séparée des autres) | Une fois par commande ; refusé en entier quand la réserve ne suffit plus, sans toucher aux autres réserves |
+| Investissement | 0,04 ConsoM par CHIKA investi | L'investisseur | Achats | Total ≤ 30 % des Points attestés cumulés de ce membre |
+| Bonus CHIKA | 0,3 % du montant payé en CHIKA, soit 3 ConsoM pour 1 000 FCFA (`montant_paye`, arrondi inférieur) | L'acheteur d'une commande payée en CHIKA, payée et livrée | Bonus CHIKA (réserve de 20 M, séparée des autres) | Une fois par commande ; refusé en entier quand la réserve ne suffit plus, sans toucher aux autres réserves |
 
-**Récompense de conversion.** Le compte membre garde les Points de chaque commande attestée avec leur date d'expiration : 7 jours après l'attestation de l'achat. À chaque conversion attestée, le membre reçoit 35 % des Points convertis, dans la limite des Points encore valides ; les Points les plus proches de l'expiration sont utilisés d'abord. Des Points de plus de 7 jours sont perdus : le contrat refuse de les récompenser, même si l'application signait un bon par erreur.
+**Récompense de conversion.** Le compte membre garde les Points de chaque commande attestée avec leur date d'expiration : 7 jours après l'attestation de l'achat. À chaque conversion attestée, le membre reçoit 5 % des Points convertis, dans la limite des Points encore valides ; les Points les plus proches de l'expiration sont utilisés d'abord. Des Points de plus de 7 jours sont perdus : le contrat refuse de les récompenser, même si l'application signait un bon par erreur.
+
+**Règle d'équité.** Toute récompense en ConsoM (achat, investissement, bonus CHIKA, 1er achat, missions) exige que le membre ait participé à la prévente : son compte est alors « éligible ». Sans prévente, le compte membre refuse (code 11) et l'émetteur rend la réservation ; le bon pourra être présenté de nouveau après une prévente. Le parrainage suit la même condition : une part destinée à un non-participant n'est versée à personne. Seul le pack de prévente ne demande pas cette condition. Les Anciens Contributeurs ne sont pas encore éligibles (lot E3).
 
 **Parrainage.** Il est versé dès que l'achat du filleul est attesté, sans attendre que le filleul convertisse.
 
@@ -151,7 +154,7 @@ Un paiement Wave de prévente donne exactement les ConsoM d'un pack, crédités 
 
 - Un paiement Wave = un pack. Plusieurs packs = plusieurs paiements.
 - La prévente n'est pas soumise au plafond de 50 000 par jour, mais compte dans le plafond journalier global.
-- Elle se ferme à T0 + 12 mois ; le reste suit la règle de la section 3.
+- Elle se ferme à T0 + 18 mois ; le reste suit la règle de la section 3.
 - Les prix actuellement enregistrés dans l'application (3 000, 16 000 et 35 000 FCFA) doivent être alignés sur ce tableau avant l'ouverture.
 - **Condition préalable** : la revue juridique (Côte d'Ivoire, UEMOA) doit être terminée avant l'ouverture publique de la prévente sur le réseau principal.
 
@@ -159,10 +162,10 @@ Un paiement Wave de prévente donne exactement les ConsoM d'un pack, crédités 
 
 Convertir des Points en FECA coûte toujours 10 % des Points, payés en ConsoM brûlés ; le nombre de ConsoM à brûler est divisé par deux à chaque palier de halving. L'émetteur ne compte que les brûlages faits par la banque d'échange, qui traite toutes les conversions, et publie le taux courant par une méthode de lecture `get_burn_for_points(points)` ; l'application ne calcule rien elle-même.
 
-**Paliers.** B est le total brûlé par les conversions depuis T0, B₁ la part brûlée pendant la première année. La première année compte un palier tous les 800 000 ConsoM ; ensuite, un palier tous les 12 000 000, et ce qui dépassait le dernier palier de la première année est reporté sur le premier palier de 12 000 000. Le nombre de paliers n vaut :
+**Paliers.** B est le total brûlé par les conversions depuis T0 (zéro au déploiement). À chaque multiple de 15 000 000 ConsoM brûlés, le nombre de ConsoM pour 100 Points est divisé par 2 : 16 divisions au plus, soit 17 paliers. Après la 16e division, le taux ne bouge plus, même si B continue de monter. Le nombre de paliers n vaut :
 
 ```latex
-n_1 = \left\lfloor \frac{B_1}{800\,000} \right\rfloor \qquad n = \min\left( n_1 + \left\lfloor \frac{B - 800\,000 \times n_1}{12\,000\,000} \right\rfloor ,\; n_{max} \right)
+n = \min\left( \left\lfloor \frac{B}{15\,000\,000} \right\rfloor ,\; 16 \right)
 ```
 
 **ConsoM à brûler** pour P Points, en unités de base (10⁹ par ConsoM), arrondi au supérieur. Avec n = 0, 100 Points demandent 10 ConsoM, soit V = 100.
@@ -176,11 +179,11 @@ n_1 = \left\lfloor \frac{B_1}{800\,000} \right\rfloor \qquad n = \min\left( n_1 
 1. **Avec ses propres ConsoM** (ouvert à tous ; ici l'expéditeur doit être le bénéficiaire du bon, puisque les jetons partent de son wallet : sinon tous les jetons sont rendus) : le membre envoie à la banque au moins les ConsoM requis, accompagnés du bon de conversion signé par 2 témoins sur 3. La banque les garde en attente, l'émetteur vérifie le bon et calcule le brûlage au taux courant ; la banque brûle ce montant et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tous les jetons sont rendus. L'application crédite 100 % des Points en FECA.
 2. **Via la banque d'échange** : les témoins signent une attestation de conversion ; la banque brûle le montant requis sur son stock (section 9). L'application crédite 90 % en FECA ; les 10 % restants vont en FECA aux déposants, au prorata de leurs parts.
 
-Dans les deux cas, la conversion donne droit à la récompense de 35 % (section 6).
+Dans les deux cas, la conversion donne droit à la récompense de 5 % (section 6).
 
 Si la banque ne contient pas assez de ConsoM, la conversion via la banque est refusée ; il n'existe aucune réserve de secours.
 
-**Rythme du halving.** Chaque palier est deux fois plus long à atteindre que le précédent : comme il faut deux fois moins de ConsoM par Point, brûler 800 000 ConsoM demande de convertir 8 millions de Points au départ, 16 millions au palier suivant, puis 32 millions. Le halving ralentit donc de lui-même.
+**Rythme du halving.** Chaque palier est deux fois plus long à atteindre que le précédent : comme il faut deux fois moins de ConsoM par Point, brûler 15 000 000 ConsoM demande de convertir 150 millions de Points au départ, 300 millions au palier suivant, puis 600 millions. Le halving ralentit donc de lui-même.
 
 **Brûlages volontaires.** Un détenteur peut toujours détruire ses ConsoM depuis son wallet : le standard Jetton le permet, et l'interdire casserait la compatibilité des wallets. L'émetteur, prévenu de chaque brûlage, recrée immédiatement le même montant dans la banque d'échange, comme stock sans propriétaire (section 9). Ces brûlages ne comptent pas pour le halving : l'offre en circulation ne baisse que par les conversions. La recréation fonctionne même pendant une pause.
 
@@ -232,7 +235,7 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouverte pendant 7 jours ; elle ne fait courir aucun risque aux membres, puisqu'elle ne touche à aucun solde. Le remplacement de témoin, lui, est le vrai pouvoir sensible : remplacer deux clés donnerait le contrôle des émissions. D'où le délai, la limite d'un remplacement par mois et les plafonds globaux.
 
-**Ce que la pause arrête** : les bons d'émission, les réclamations de genèse et les brûlages de la banque. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
+**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations de genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
 
 **Plafonds globaux** (filet de sécurité si deux témoins sont compromis)
 
@@ -271,9 +274,9 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 | 4 | Délai entre livraison et signature d'une récompense d'achat | Tranché : 48 h ; en cas de problème, l'acheteur écrit à l'équipe |
 | 5 | Vérification du parrainage | Tranché : parrain enregistré dans le compte membre, modifiable par l'équipe seule (bon signé 2 sur 3, pour les achats suivants) ; niveau 1 vérifié par le contrat, niveaux 2 à 5 attestés |
 | 6 | Lien membre ↔ adresse TON | Tranché : fixé par la première réclamation ; changement par bon signé 2 sur 3, effectif après 7 jours |
-| 7 | Nombre maximal de paliers de halving n\_max | Tranché : 30, simple sécurité technique. Avec 250 M, environ 20 paliers sont possibles en théorie, mais chaque palier demande deux fois plus de conversions que le précédent : ce plafond ne sera jamais atteint |
-| 8 | Unité du bonus d'investissement | Tranché : 1 FECA investi = 0,30 ConsoM |
-| 9 | Paliers après la 1re année | Tranché : ce qui dépasse le dernier palier de la 1re année est reporté (section 8) |
+| 7 | Nombre maximal de paliers de halving n\_max | Tranché (livre blanc v5.0) : 16 divisions au plus (17 paliers), un palier tous les 15 000 000 ConsoM brûlés |
+| 8 | Unité du bonus d'investissement | Tranché (livre blanc v5.0) : 1 CHIKA investi = 0,04 ConsoM, payé par la réserve Achats |
+| 9 | Paliers après la 1re année | Sans objet depuis le livre blanc v5.0 : il n'y a plus de distinction entre la 1re année et la suite (section 8) |
 | 10 | « Pause renouvelable une fois par mois » | Tranché : une seule pause commencée par période de 30 jours |
 | 11 | 20 réclamations déjà créées sur l'ancien contrat | Tranché : non reprises. C'était le testnet, sans achat réel ; aucun gain de test n'est repris sur le réseau principal |
 | 12 | Préventes payées avant T0 | Tranché : les préventes réellement payées avant T0 sont reprises dans la genèse, dans le plafond de la prévente |
@@ -292,15 +295,15 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 **Décisions prises le 14 octobre, après la synthèse**
 
 - Bonus de 1er achat : 500 ConsoM au lieu de 300.
-- Récompense de 35 % versée à la conversion des Points, et non à l'achat ; des Points expirés ne donnent rien.
+- Récompense (5 % depuis le livre blanc v5.0) versée à la conversion des Points, et non à l'achat ; des Points expirés ne donnent rien.
 - Parrainage versé dès l'achat attesté du filleul.
-- Seuls les brûlages de conversion comptent pour le halving ; ce qui dépasse le dernier palier de la 1re année est reporté.
+- Seuls les brûlages de conversion comptent pour le halving.
 - Brûlage volontaire : recréé dans la banque comme stock sans propriétaire, utilisé au prorata des dépôts ; les frais correspondants sont versés en plus aux déposants.
 - Commissions de prévente au parrain : 500, 5 000 et 10 000 Points.
 - Récompenses versées en entier, sans étalement (décision prise pendant le testnet).
 - Points convertibles pendant 7 jours après l'achat ; au-delà, perdus. Appliqué par le contrat.
 
-Conséquence à garder en tête : pendant les 18 mois de récompenses, une conversion crée plus de ConsoM qu'elle n'en brûle (35 reçus pour 10 brûlés au départ, pour 100 Points). L'offre en circulation augmente donc pendant cette période, et la rareté s'installe après.
+Conséquence à garder en tête : pendant les 24 mois de récompenses, une conversion crée moins de ConsoM qu'elle n'en brûle (5 reçus pour 10 brûlés au départ, pour 100 Points).
 
 ## Sources
 

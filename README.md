@@ -59,15 +59,15 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 ## Ce que fait l'émetteur
 
 - **Bons d'émission** : vérifie 2 signatures Ed25519 de 2 témoins différents, le réseau (-239 / -3), l'adresse de l'émetteur,
-  l'expiration (7 jours au plus), la fenêtre de la catégorie (prévente 12 mois,
-  récompenses 18 mois depuis T0), et **recalcule lui-même le montant** (packs de prévente, 35 %, 15/7/3,5/1,5/0,5 %, 500, 150, 30 %).
+  l'expiration (7 jours au plus), la fenêtre de la catégorie (prévente 18 mois,
+  récompenses 24 mois depuis T0), et **recalcule lui-même le montant** (packs de prévente, 5 %, 2,5/1,3/0,7/0,4/0,1 %, 500, 150, 0,04 par CHIKA investi, 0,3 % de bonus CHIKA).
   Il réserve le montant sur le plafond de la catégorie et sur le plafond global de 2 000 000 ConsoM par 24 h, puis transmet
   le bon au budget du paiement Wave ou au compte du membre.
 - **Création** : seulement sur approbation d'un compte membre dont l'adresse est calculée à partir de son code ; jamais plus
   de 250 M (jetons en circulation + brûlés par conversion).
 - **Brûlages** : ceux de la banque d'échange (conversions) sont définitifs et font avancer le halving ; tous les autres sont
   recréés aussitôt dans la banque comme stock sans propriétaire.
-- **Halving** : un palier par 800 000 brûlés la 1re année, puis par 12 000 000 avec report ; au plus 30 paliers.
+- **Halving** : un palier par 15 000 000 ConsoM brûlés par les conversions ; 16 divisions au plus (17 paliers), puis le taux ne bouge plus.
   `get_burn_for_points(points)` donne le brûlage à payer, arrondi au supérieur.
 - **Gardien** (Multisig v2) : pause immédiate de 14 jours au plus (une par 30 jours), levée immédiate, remplacement d'un témoin
   après 7 jours (un par 30 jours), annulable. Aucun autre pouvoir.
@@ -79,8 +79,8 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   parrainage niveaux 1 à 5), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
   un paiement de prévente ne donne que son pack.
 - **Compte membre** (un par membre) : adresse liée à la première réclamation ; droit au parrainage ouvert par une prévente ;
-  Points attestés, convertibles 7 jours (au-delà, perdus), qui bornent la récompense de 35 % à la conversion ; total des
-  Points, qui borne le bonus d'investissement de 30 % ; bonus de
+  Points attestés, convertibles 7 jours (au-delà, perdus), qui bornent la récompense de 5 % à la conversion ; total des
+  Points, qui borne le bonus d'investissement (30 % des Points) ; bonus de
   1er achat et missions une seule fois, missions réservées aux membres ayant un paiement ; numéros de bon croissants pour
   les conversions et investissements ; plafond de 50 000 par 24 h (hors prévente). Toutes les récompenses sont versées
   en entier, tout de suite.
@@ -107,7 +107,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
    c'est plus simple et plus sûr. Le budget et le compte membre gardent le contrôle des emplacements déjà versés,
    des doublons, de l'éligibilité, du plafond de 50 000 par membre et de l'expiration des Points.
 2. Un bon refusé plus loin dans la chaîne libère sa réservation de catégorie, mais reste compté dans le plafond du jour.
-3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons sont bloqués.
+3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons de création et les conversions via la banque sont bloqués, pas la conversion avec ses propres ConsoM.
 4. Un brûlage volontaire doit être accompagné d'au moins 0,1 TON pour financer sa recréation ; sinon il est annulé et le
    solde du wallet est rétabli.
 5. Conséquence de la règle « une pause par 30 jours » : après une pause, le gardien ne peut plus en déclencher pendant le
@@ -130,7 +130,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 | --- | --- |
 | Première réclamation (crée le compte membre, le budget et le wallet) | environ 0,028 TON |
 | Bon lié à un nouveau paiement (crée son budget) | environ 0,016 à 0,019 TON |
-| Récompense de conversion (35 %) | environ 0,007 TON |
+| Récompense de conversion (5 %) | environ 0,007 TON |
 | Conversion via la banque | environ 0,007 TON |
 | Conversion avec ses propres ConsoM | environ 0,011 TON |
 | Premier dépôt dans la banque (crée les parts) | environ 0,015 TON |

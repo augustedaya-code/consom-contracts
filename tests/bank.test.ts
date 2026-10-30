@@ -97,9 +97,9 @@ describe('Conversion via la banque', () => {
         assert.ok(hasTx(r, { to: env.minter.address, success: false, exitCode: 400 }), describeTxs(r));
     });
 
-    it('reste possible après la fin des récompenses (18 mois)', async () => {
+    it('reste possible après la fin des récompenses (24 mois)', async () => {
         const env = await withGenesis();
-        env.blockchain.now = T0 + 600 * DAY;
+        env.blockchain.now = T0 + 800 * DAY;
         const r = await bankConversion(env, 100n);
         assert.ok(hasTx(r, { op: BURN_NOTIFICATION, success: true }), describeTxs(r));
     });
@@ -147,12 +147,14 @@ describe('Conversion avec ses propres ConsoM', () => {
         assert.equal((await env.minter.getState()).burnedByConversion, consom(215_000));
     });
 
-    it('rend les jetons pendant une pause', async () => {
+    it('reste possible pendant une pause (contrairement à la conversion via la banque)', async () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         await env.minter.sendPause(env.guardian.getSender());
-        await env.ownConversion(ownVoucher(env, 100n), consom(10));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000));
+        const r = await env.ownConversion(ownVoucher(env, 100n), consom(10));
+        assert.ok(hasTx(r, { op: BURN_NOTIFICATION, success: true }), describeTxs(r));
+        assert.equal(await env.balanceOf(env.member.address), consom(2990));
+        assert.equal((await env.minter.getState()).burnedByConversion, consom(10));
     });
 });
 

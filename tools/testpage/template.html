@@ -150,8 +150,8 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
   <h2>Récompenses</h2>
   <div class="grid">
     <div class="panel">
-      <h3>Bonus de conversion (35 %)</h3>
-      <p class="note">Ce n'est pas la conversion elle-même : c'est le bonus en ConsoM neufs versé quand tu convertis. Ex. 1 000 Points → 350 ConsoM. Refusé si tu dépasses les Points enregistrés il y a moins de 7 jours.</p>
+      <h3>Bonus de conversion (5 %)</h3>
+      <p class="note">Ce n'est pas la conversion elle-même : c'est le bonus en ConsoM neufs versé quand tu convertis. Ex. 1 000 Points → 50 ConsoM. Refusé si tu dépasses les Points enregistrés il y a moins de 7 jours.</p>
       <div class="row">
         <label>Points convertis<input id="convPoints" type="number" min="1" value="1000"></label>
         <button data-act="conversionReward">Préparer</button>
@@ -159,7 +159,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
     </div>
     <div class="panel">
       <h3>Parrainage</h3>
-      <p class="note">Toi en tant que parrain (il faut avoir fait une prévente). Niveau 1 = 15 %, 2 = 7 %, 3 = 3,5 %, 4 = 1,5 %, 5 = 0,5 %.</p>
+      <p class="note">Toi en tant que parrain (il faut avoir fait une prévente). Niveau 1 = 2,5 %, 2 = 1,3 %, 3 = 0,7 %, 4 = 0,4 %, 5 = 0,1 %.</p>
       <div class="row">
         <label>Points du filleul<input id="refPoints" type="number" min="1" value="1000"></label>
         <label>Niveau<select id="refLevel"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
@@ -293,7 +293,7 @@ const CFG = /*CFG*/;
     presale: () => ({ t: 'Prévente — pack ' + $('pack').selectedOptions[0].text.split(' — ')[0], d: 'Crée ton compte membre et ton wallet ConsoM au 1er passage. Le pack arrive en entier.', m: lib.actions.presale(owner, $('pack').value) }),
     firstPurchase: () => ({ t: 'Bonus de 1er achat', d: '500 ConsoM, une seule fois.', m: lib.actions.firstPurchase(owner) }),
     purchaseRecord: () => ({ t: 'Enregistrement de ' + num('recPoints') + ' Points', d: 'Aucun ConsoM créé : seul ton compte membre change.', m: lib.actions.purchaseRecord(owner, num('recPoints')) }),
-    conversionReward: () => ({ t: 'Bonus de conversion (35 %) — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.35).toLocaleString('fr-FR') + ' ConsoM.', m: lib.actions.conversionReward(owner, num('convPoints')) }),
+    conversionReward: () => ({ t: 'Bonus de conversion (5 %) — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.05).toLocaleString('fr-FR') + ' ConsoM.', m: lib.actions.conversionReward(owner, num('convPoints')) }),
     referral: () => ({ t: 'Parrainage niveau ' + $('refLevel').value, d: 'Refusé (raison visible sur l\'explorateur) si tu n\'as pas fait de prévente.', m: lib.actions.referral(owner, num('refPoints'), Number($('refLevel').value)) }),
     missionTelegram: () => ({ t: 'Mission Telegram', d: '150 ConsoM, une seule fois.', m: lib.actions.missionTelegram(owner) }),
     missionFacebook: () => ({ t: 'Mission Facebook', d: '150 ConsoM, une seule fois.', m: lib.actions.missionFacebook(owner) }),

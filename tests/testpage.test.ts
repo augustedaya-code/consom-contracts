@@ -90,13 +90,13 @@ describe('Page de test', () => {
         record(await send(env, lib.actions.presale(me, 'essentiel')));
         record(await send(env, lib.actions.conversionReward(me, 1000)));      // aucun Point : refusé (16)
         record(await send(env, lib.actions.purchaseRecord(me, 1000)));
-        record(await send(env, lib.actions.conversionReward(me, 1000)));      // accepté : +350
+        record(await send(env, lib.actions.conversionReward(me, 1000)));      // accepté : +50
         const rows = lib.describeMinterTxs(minterTxs, me);
         const titles = rows.map((r: any) => `${r.status} ${r.title} | ${r.detail}`);
         assert.ok(titles.some((t: string) => t.startsWith('ok') && t.includes('Prévente — Accepté : +3')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.startsWith('refused Bonus de conversion — Refusé') && t.includes('pas assez de Points')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.includes('Points enregistrés')), titles.join('\n'));
-        assert.ok(titles.some((t: string) => t.startsWith('ok Bonus de conversion — Accepté : +350')), titles.join('\n'));
+        assert.ok(titles.some((t: string) => t.startsWith('ok Bonus de conversion — Accepté : +50')), titles.join('\n'));
         assert.ok(!titles.some((t: string) => t.includes('compte ouvert')), 'les envois d\'une autre adresse ne sont pas montrés');
     });
 });

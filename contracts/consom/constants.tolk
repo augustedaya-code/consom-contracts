@@ -7,10 +7,11 @@ const ONE_CONSOM = 1000000000
 const CAP_PRESALE  = 100000000 * ONE_CONSOM
 const CAP_PURCHASE = 55000000 * ONE_CONSOM
 const CAP_REFERRAL = 45000000 * ONE_CONSOM
-const CAP_MISSIONS = 20000000 * ONE_CONSOM
+const CAP_MISSIONS = 19900000 * ONE_CONSOM    // premier achat et missions
 const CAP_FOUNDERS = 5000000 * ONE_CONSOM     // Anciens Contributeurs
 const CAP_TEAM     = 5000000 * ONE_CONSOM
 const CAP_CHIKA    = 20000000 * ONE_CONSOM    // réserve à part du Bonus CHIKA
+const CAP_FOUNDATION = 100000 * ONE_CONSOM    // Fondation (aucune opération ne l'utilise encore)
 const MAX_SUPPLY   = 250000000 * ONE_CONSOM
 
 // Part des Anciens Contributeurs déposée dans la banque à la genèse : 70 % de 5 M
@@ -24,32 +25,34 @@ const CAT_MISSIONS = 3
 const CAT_FOUNDERS = 4
 const CAT_TEAM     = 5
 const CAT_CHIKA    = 6
+const CAT_FOUNDATION = 7
 
 // ---------- Section 5 : types de bon ----------
 const KIND_PRESALE         = 0   // pack de prévente                  -> budget de paiement
 const KIND_PURCHASE_RECORD = 1   // enregistre les Points d'un achat   -> budget de paiement (montant 0)
 const KIND_REFERRAL        = 2   // parrainage niveau 1 à 5            -> budget de paiement
 const KIND_FIRST_PURCHASE  = 3   // bonus de 1er achat                 -> budget de paiement
-const KIND_CONVERSION      = 4   // 35 % des Points convertis          -> compte membre
+const KIND_CONVERSION      = 4   // 5 % des Points convertis           -> compte membre
 const KIND_MISSION_TG      = 5   // mission Telegram                   -> compte membre
 const KIND_MISSION_FB      = 6   // mission Facebook                   -> compte membre
-const KIND_INVESTMENT      = 7   // 30 % des FECA investis             -> compte membre
+const KIND_INVESTMENT      = 7   // 0,04 ConsoM par CHIKA investi      -> compte membre, réserve Achats
 const KIND_BANK_CONVERSION = 8   // conversion via la banque : la banque brûle sur son stock (aucune création)
 const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive par la banque, jamais par ClaimVoucher
-const KIND_CHIKA_BONUS     = 10  // bonus de 10 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
+const KIND_CHIKA_BONUS     = 10  // bonus de 0,3 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
 const KIND_MAX             = 10
 
 // ---------- Section 6 : montants des récompenses ----------
 const FIRST_PURCHASE_REWARD = 500 * ONE_CONSOM
 const MISSION_REWARD        = 150 * ONE_CONSOM
-const CONVERSION_RATE_BP    = 3500   // 35 %
-const INVESTMENT_RATE_BP    = 3000   // 30 %
-const REFERRAL_L1_BP        = 1500   // 15 %
-const REFERRAL_L2_BP        = 700    // 7 %
-const REFERRAL_L3_BP        = 350    // 3,5 %
-const REFERRAL_L4_BP        = 150    // 1,5 %
-const REFERRAL_L5_BP        = 50     // 0,5 %
-const CHIKA_BONUS_BP        = 1000   // 10 % du montant payé en CHIKA
+const CONVERSION_RATE_BP    = 500    // 5 % des Points convertis
+const INVESTMENT_RATE_BP    = 400    // 0,04 ConsoM par CHIKA investi
+const INVESTMENT_LIMIT_BP   = 3000   // total des bonus d'investissement <= 30 % des Points attestés cumulés du membre
+const REFERRAL_L1_BP        = 250    // 2,5 %
+const REFERRAL_L2_BP        = 130    // 1,3 %
+const REFERRAL_L3_BP        = 70     // 0,7 %
+const REFERRAL_L4_BP        = 40     // 0,4 %
+const REFERRAL_L5_BP        = 10     // 0,1 %
+const CHIKA_BONUS_BP        = 30     // 0,3 % du montant payé en CHIKA (3 ConsoM pour 1 000 FCFA)
 const BP_DENOMINATOR        = 10000
 
 // Section 4 : P_max = 0,5 Point par FCFA payé, soit 2 × Points <= montant payé
@@ -67,8 +70,8 @@ const PACK_GRANDE_PRICE     = 38000
 const ONE_DAY   = 86400
 const ONE_MONTH = 30 * ONE_DAY
 const ONE_YEAR  = 365 * ONE_DAY
-const PRESALE_WINDOW = ONE_YEAR          // la prévente se ferme à T0 + 12 mois
-const REWARDS_WINDOW = 18 * ONE_MONTH    // les récompenses s'arrêtent à T0 + 18 mois
+const PRESALE_WINDOW = 18 * ONE_MONTH    // la prévente se ferme à T0 + 18 mois (et la règle des invendus se déclenche)
+const REWARDS_WINDOW = 24 * ONE_MONTH    // les récompenses s'arrêtent à T0 + 24 mois
 const VOUCHER_MAX_VALIDITY = 7 * ONE_DAY
 
 // ---------- Section 10 : sécurité ----------
@@ -80,9 +83,9 @@ const WITNESS_REPLACE_INTERVAL = ONE_MONTH             // un remplacement de té
 const WITNESS_COUNT           = 3
 
 // ---------- Section 8 : halving ----------
-const HALVING_STEP_YEAR1 = 800000 * ONE_CONSOM
-const HALVING_STEP_AFTER = 12000000 * ONE_CONSOM
-const HALVING_MAX_STEPS  = 30
+// un palier tous les 15 000 000 ConsoM brûlés par les conversions, 16 divisions au plus (17 paliers)
+const HALVING_STEP      = 15000000 * ONE_CONSOM
+const HALVING_MAX_STEPS = 16
 // brûlage (unités de base) pour P Points avec n paliers = ceil(P × 10^8 / 2^n)  (V = 100 au départ)
 const BURN_PER_POINT_NUMERATOR = 100000000
 
@@ -103,7 +106,7 @@ const REJECT_SLOT_USED          = 1   // budget : cette récompense a déjà ét
 const REJECT_PAYMENT_MISMATCH   = 2   // budget : montant ou Points différents de ceux déjà attestés pour ce paiement
 const REJECT_PRESALE_EXCLUSIVE  = 3   // budget : un paiement de prévente ne donne pas d'autre récompense (et inversement)
 const REJECT_WRONG_OWNER        = 10  // membre : le bon n'est pas pour l'adresse liée au compte
-const REJECT_NOT_ELIGIBLE       = 11  // membre : parrain sans prévente ni statut d'Ancien Contributeur
+const REJECT_NOT_ELIGIBLE       = 11  // membre : récompense demandée sans participation à la prévente
 const REJECT_DAILY_CAP          = 12  // membre : plafond de 50 000 par 24 h atteint
 const REJECT_ALREADY_DONE       = 13  // membre : bonus ou mission déjà reçu
 const REJECT_NO_PAYMENT         = 14  // membre : mission sans aucun paiement attesté
