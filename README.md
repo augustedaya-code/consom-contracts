@@ -121,9 +121,10 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   contrat « parts » de l'adresse est crédité, le total des parts et le stock ne changent pas. Les retraits restent soumis aux
   règles de la banque (fermée 12 mois, puis 24 h après la dernière arrivée de parts du déposant, attribution comprise).
 - **Réserve de la Fondation** (règle A13) : 100 000 ConsoM dans un stock à part, jamais en parts, jamais retirés, brûlés ni
-  transférés. Elle s'ouvre toute seule quand on est après T0 + 24 mois ET que le stock des déposants est vide depuis 30 jours
-  de suite (« vide depuis » est noté par la banque et effacé par tout dépôt) ; une fois ouverte, elle le reste. Ouverte, elle
-  couvre le reste d'une conversion via la banque que le stock (ou le plafond de 5 %) ne couvre pas, sans rien brûler.
+  transférés. Elle s'ouvre toute seule quand on est après T0 + 24 mois ET que le stock des déposants est « vide » (moins de
+  1 ConsoM) depuis 30 jours de suite (« vide depuis » est noté par la banque et effacé seulement si le stock remonte à 1 ConsoM
+  ou plus) ; une fois ouverte, elle le reste. Ouverte, elle couvre le reste d'une conversion via la banque que le stock (ou le
+  plafond de 5 %) ne couvre pas, sans rien brûler, au plus 100 000 ConsoM par conversion (sinon refus en entier).
 - **Résultat d'une conversion** : après chaque conversion via la banque, la banque envoie à celui qui a présenté le bon un
   message `ConversionResult` (op `0xc0150060`) avec la part brûlée par la banque et la part couverte par la Fondation ; le
   serveur en déduit à qui verser les 10 % de frais. Décodage : `decodeConversionResult` dans `wrappers/ConsoMMinter.ts`.
