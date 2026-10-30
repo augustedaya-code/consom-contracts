@@ -22,6 +22,7 @@ const ERR_NOT_SHARE         = 462
 const ERR_BANK_CLOSED       = 463
 const ERR_NOTHING_TO_REDEEM = 464
 const ERR_UNKNOWN_DEPOSIT  = 465
+const ERR_NOT_ENOUGH_UNASSIGNED = 466
 
 const BANK_STORAGE_RESERVE   = ton("0.05")
 const OWN_CONVERSION_MIN_VALUE = ton("0.2")   // TON joint au transfert pour faire vérifier le bon et brûler
@@ -33,7 +34,7 @@ const OP_OWN_CONV_TAG  = 0xc0150033
 struct BankState {
     depositorStock: coins       // ConsoM des déposants
     totalShares: coins          // parts émises (Anciens Contributeurs compris)
-    unassignedShares: coins     // parts de la genèse pas encore attribuées à chaque Ancien Contributeur
+    unassignedShares: coins     // parts de la genèse pas encore attribuées à chaque Ancien Contributeur (voir AssignFounderShares)
     escrow: coins               // ConsoM reçus pour des conversions avec ses propres ConsoM en cours
     dayStart: uint32
     dayCap: coins               // 5 % du stock au début de la période de 24 h
@@ -46,7 +47,7 @@ contract ExchangeBank {
     storage: BankInit
 }
 
-type BankMessage = TransferNotificationForRecipient | BankBurn | EscrowBurn | ReturnEscrow | WithdrawShares | TopUpTons
+type BankMessage = TransferNotificationForRecipient | BankBurn | EscrowBurn | ReturnEscrow | WithdrawShares | AssignFounderShares | TopUpTons
 
 fun BankInit.loadBankState(self): BankState {
     if (self.state == null) {
@@ -273,6 +274,24 @@ fun onInternalMessage(in: InMessage) {
             storage.saveBankState(state);
             keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
             sendJettons(storage.myWallet(), msg.queryId, amount as coins, msg.owner, SEND_MODE_CARRY_ALL_BALANCE, 0);
+        }
+
+        // ---------- Anciens Contributeurs : attribution de parts de la genèse (ordre de l'émetteur, après un bon signé) ----------
+        // Aucun ConsoM n'entre ni ne sort : les parts existent déjà (elles ont été émises à la genèse, avec le stock) ;
+        // elles passent de « à attribuer » à un déposant précis. Le retrait reste soumis aux règles de la banque
+        // (fermée 12 mois, puis 24 h après la dernière arrivée de parts de ce déposant, attribution comprise).
+        AssignFounderShares => {
+            assert (in.senderAddress == storage.minter) throw ERR_NOT_MINTER;
+            assert (state.unassignedShares >= msg.shares) throw ERR_NOT_ENOUGH_UNASSIGNED;
+            state.unassignedShares -= msg.shares;
+            storage.saveBankState(state);
+            keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
+            createMessage({
+                bounce: BounceMode.NoBounce,
+                dest: calcDeployedShare(storage.shareCode, msg.to),
+                value: 0,
+                body: AddShares { queryId: msg.queryId, shares: msg.shares, at: blockchain.now() }
+            }).send(SEND_MODE_CARRY_ALL_BALANCE);
         }
 
         TopUpTons => {

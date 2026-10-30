@@ -9,6 +9,9 @@ on:
       guardian_address:
         description: "Adresse Tonkeeper (testnet) du gardien de test"
         required: true
+      team_address:
+        description: "Adresse (testnet) du portefeuille de l'équipe : gravée au déploiement, ne pourra jamais être changée"
+        required: true
 
 permissions:
   contents: write
@@ -30,6 +33,7 @@ jobs:
           TESTNET_DEPLOYER_MNEMONIC: ${{ secrets.TESTNET_DEPLOYER_MNEMONIC }}
           TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
           GUARDIAN_ADDRESS: ${{ inputs.guardian_address }}
+          TEAM_ADDRESS: ${{ inputs.team_address }}
         run: npm run deploy:testnet
       - name: Enregistrer les adresses dans le dépôt
         run: |

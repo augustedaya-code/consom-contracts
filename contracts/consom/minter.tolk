@@ -5,6 +5,8 @@
 //   - par un bon signé par 2 témoins sur 3, envoyé par son bénéficiaire, puis accepté par le budget de paiement
 //     et/ou le compte membre (contrats enfants dont l'émetteur connaît le code) ;
 //   - une seule fois à la genèse, pour déposer 70 % de l'allocation des Anciens Contributeurs dans la banque ;
+//   - par un bon « Ancien Contributeur » (30 % créés pour lui, 70 % attribués en parts de la banque, sans création) ;
+//   - par « libérer la part de l'équipe » : n'importe qui peut l'appeler, tout est fixé par le calendrier gravé ;
 //   - pour recréer dans la banque des jetons brûlés volontairement (l'offre ne baisse que par les conversions).
 // Le gardien (Multisig v2, 2 sur 3) peut seulement mettre en pause et remplacer un témoin sous délai de 7 jours.
 
@@ -37,6 +39,7 @@ type AllowedMessageToConsoMMinter =
     | CancelWitness
     | ExecuteWitness
     | GenesisFoundersDeposit
+    | ReleaseTeamShare
     | TopUpTons
 
 // ===================================================================================================
@@ -55,6 +58,9 @@ fun categoryOf(kind: int): int {
     }
     if (kind == KIND_CHIKA_BONUS) {
         return CAT_CHIKA;
+    }
+    if (kind == KIND_FOUNDER_CLAIM) {
+        return CAT_FOUNDERS;
     }
     if (kind == KIND_INVESTMENT) {
         return CAT_PURCHASE;    // l'investissement est payé par la réserve Achats
@@ -139,7 +145,47 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
     if ((kind == KIND_BANK_CONVERSION) || (kind == KIND_OWN_CONVERSION)) {
         return 0;     // une conversion ne crée rien : elle brûle (la récompense de 5 % est un bon séparé)
     }
+    if (kind == KIND_FOUNDER_CLAIM) {
+        // `requested` est la part totale T de l'Ancien Contributeur ; le contrat en crée 30 % et attribue 70 % en parts
+        if ((requested <= 0) || (requested > CAP_FOUNDERS) || (requested % FOUNDER_UNIT != 0)) {
+            return -1;
+        }
+        return requested;
+    }
     return -1;
+}
+
+// Anciens Contributeurs : 30 % de T sont créés pour l'Ancien Contributeur (T est un multiple de 10 : le calcul est exact)
+fun founderDirectPart(total: int): int {
+    return mulDivFloor(total, FOUNDER_DIRECT_BP, BP_DENOMINATOR);
+}
+
+// Parts de la banque attribuées en plus, pour une partie directe donnée : 70 % de T = 7/3 de la partie directe
+fun founderSharesFor(direct: int): int {
+    return direct * 7 / 3;
+}
+
+// Part de l'équipe libérée à la date `now` (A9) : rien avant T0 + 12 mois, puis 1/24 par période de 30 jours terminée ;
+// la dernière période libère tout le reste, pour un total exact de 5 000 000
+fun teamUnlocked(t0: int, now: int): int {
+    if (now < t0 + TEAM_CLIFF) {
+        return 0;
+    }
+    val periods = (now - t0 - TEAM_CLIFF) / ONE_MONTH;
+    if (periods >= TEAM_PERIODS) {
+        return CAP_TEAM;
+    }
+    return periods * (CAP_TEAM / TEAM_PERIODS);
+}
+
+// Prochaine date de libération de l'équipe ; 0 quand tout est libéré
+fun teamNextRelease(t0: int, now: int): int {
+    val cliffEnd = t0 + TEAM_CLIFF;
+    if (now >= cliffEnd + TEAM_PERIODS * ONE_MONTH) {
+        return 0;
+    }
+    val periods = (now < cliffEnd) ? 0 : (now - cliffEnd) / ONE_MONTH;
+    return cliffEnd + (periods + 1) * ONE_MONTH;
 }
 
 fun isConversionBurn(kind: int): bool {
@@ -245,6 +291,9 @@ fun ConsoMStorage.releaseReservation(mutate self, category: int, reserved: coins
     }
     var caps = self.caps.load();
     caps.setRemaining(category, caps.remainingOf(category) + reserved);
+    if (category == CAT_FOUNDERS) {
+        caps.founderShares += founderSharesFor(reserved);    // les parts réservées avec la partie directe sont rendues aussi
+    }
     self.caps = caps.toCell();
 }
 
@@ -321,11 +370,11 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
         return ERR_SAME_WITNESS;
     }
 
-    // fenêtre : prévente jusqu'à T0 + 18 mois, récompenses jusqu'à T0 + 24 mois, conversions sans limite
+    // fenêtre : prévente jusqu'à T0 + 18 mois, récompenses jusqu'à T0 + 24 mois, conversions et Anciens Contributeurs sans limite
     var windowEnd = storage.t0 + REWARDS_WINDOW;
     if (voucher.kind == KIND_PRESALE) {
         windowEnd = storage.t0 + PRESALE_WINDOW;
-    } else if (isConversionBurn(voucher.kind)) {
+    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM)) {
         windowEnd = MAX_UINT32;
     }
     if ((now < storage.t0) || (now >= windowEnd)) {
@@ -482,17 +531,31 @@ fun onInternalMessage(in: InMessage) {
             // une conversion avec ses propres ConsoM arrive toujours par la banque, avec les jetons
             assert (voucher.kind != KIND_OWN_CONVERSION) throw ERR_UNKNOWN_KIND;
             val payment = voucher.payment.load();
+            val isFounderClaim = voucher.kind == KIND_FOUNDER_CLAIM;
+            if (isFounderClaim) {
+                // les parts à attribuer n'existent qu'après la genèse ; la banque reçoit aussi un message en plus des jetons
+                assert (storage.genesisDone) throw ERR_GENESIS_NOT_DONE;
+                assert (in.valueCoins >= MIN_FOUNDER_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;
+            }
 
-            // réservation sur le plafond de la catégorie et sur le plafond journalier global
+            // réservation sur le plafond de la catégorie et sur le plafond journalier global.
+            // Anciens Contributeurs : seuls les 30 % créés sont réservés (et comptent dans le plafond du jour) ;
+            // les 70 % de parts sont pris sur les parts à attribuer, sans rien créer.
             val category = categoryOf(voucher.kind);
+            val reserved: int = isFounderClaim ? founderDirectPart(voucher.amount) : voucher.amount;
             var caps = storage.caps.load();
             caps.settlePresaleIfDue(storage.t0);
             caps.rollDay();
-            if (voucher.amount > 0) {
-                assert (caps.remainingOf(category) >= voucher.amount) throw ERR_CATEGORY_CAP;
-                assert (caps.dayMinted + voucher.amount <= GLOBAL_DAILY_CAP) throw ERR_DAILY_CAP;
-                caps.setRemaining(category, caps.remainingOf(category) - voucher.amount);
-                caps.dayMinted += voucher.amount;
+            if (reserved > 0) {
+                assert (caps.remainingOf(category) >= reserved) throw ERR_CATEGORY_CAP;
+                assert (caps.dayMinted + reserved <= GLOBAL_DAILY_CAP) throw ERR_DAILY_CAP;
+                if (isFounderClaim) {
+                    val shares = voucher.amount - reserved;
+                    assert (caps.founderShares >= shares) throw ERR_NO_FOUNDER_SHARES;
+                    caps.founderShares -= shares;
+                }
+                caps.setRemaining(category, caps.remainingOf(category) - reserved);
+                caps.dayMinted += reserved;
             }
             storage.caps = caps.toCell();
             storage.save();
@@ -509,7 +572,7 @@ fun onInternalMessage(in: InMessage) {
                 body: CheckClaim {
                     queryId: msg.queryId,
                     category,
-                    reserved: voucher.amount,
+                    reserved,
                     viaBudget: false,
                     voucher: msg.voucher,
                     burnOrder: (voucher.kind == KIND_BANK_CONVERSION)
@@ -564,6 +627,19 @@ fun onInternalMessage(in: InMessage) {
             }
             storage.addSupply(msg.reserved);
             storage.save();
+            if (msg.category == CAT_FOUNDERS) {
+                // Ancien Contributeur : la banque lui attribue ses 70 % en parts (rien n'est créé pour cette partie)
+                createMessage({
+                    bounce: BounceMode.NoBounce,
+                    dest: storage.bankAddress(),
+                    value: BANK_ASSIGN_VALUE,
+                    body: AssignFounderShares {
+                        queryId: msg.queryId,
+                        shares: founderSharesFor(msg.reserved) as coins,
+                        to: msg.recipient,
+                    }
+                }).send(SEND_MODE_REGULAR);
+            }
             // les jetons vont au bénéficiaire du bon ; l'excédent de TON revient à celui qui a présenté le bon (et payé)
             sendMint(config.walletCode, msg.recipient, msg.reserved, msg.queryId, msg.payer, 0, emptyForwardPayload());
         }
@@ -762,6 +838,7 @@ fun onInternalMessage(in: InMessage) {
             assert (!storage.isPaused()) throw ERR_PAUSED;
             var caps = storage.caps.load();
             caps.setRemaining(CAT_FOUNDERS, caps.founders - FOUNDERS_BANK_DEPOSIT);
+            caps.founderShares = FOUNDERS_BANK_DEPOSIT;      // parts à attribuer aux Anciens Contributeurs, dans la banque
             storage.caps = caps.toCell();
             storage.genesisDone = true;
             storage.addSupply(FOUNDERS_BANK_DEPOSIT);
@@ -769,6 +846,31 @@ fun onInternalMessage(in: InMessage) {
             val bank = storage.bankAddress();
             sendMint(storage.config.load().walletCode, bank, FOUNDERS_BANK_DEPOSIT, msg.queryId, in.senderAddress,
                      BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG));
+        }
+
+        // ---------- Part de l'équipe (A9) ----------
+        // N'importe qui peut l'appeler : il ne paie que les frais, tout va à l'adresse gravée au déploiement.
+        // Puisée uniquement dans la réserve équipe ; pas de fenêtre de 24 mois ni de plafond par membre ;
+        // elle compte dans le plafond global du jour : ce qui ne passe pas aujourd'hui reste à libérer pour un prochain appel.
+        ReleaseTeamShare => {
+            var storage = lazy ConsoMStorage.load();
+            assert (in.valueCoins >= TEAM_RELEASE_MIN_VALUE) throw ERR_NOT_ENOUGH_TON;
+            assert (!storage.isPaused()) throw ERR_PAUSED;
+            var caps = storage.caps.load();
+            caps.rollDay();
+            val created = CAP_TEAM - caps.team;
+            val due = teamUnlocked(storage.t0, blockchain.now()) - created;
+            assert (due > 0) throw ERR_NOTHING_TO_RELEASE;
+            val room = GLOBAL_DAILY_CAP - caps.dayMinted;
+            assert (room > 0) throw ERR_DAILY_CAP;
+            val amount = min(due, room);
+            caps.setRemaining(CAT_TEAM, caps.team - amount);
+            caps.dayMinted += amount;
+            storage.caps = caps.toCell();
+            storage.addSupply(amount);
+            storage.save();
+            sendMint(storage.config.load().walletCode, storage.config.load().teamAddress, amount as coins, msg.queryId,
+                     in.senderAddress, 0, emptyForwardPayload());
         }
 
         TopUpTons => {
@@ -849,6 +951,28 @@ get fun get_caps(): Caps {
 get fun get_burn_for_points(points: int): int {
     val storage = lazy ConsoMStorage.load();
     return burnForPoints(points, storage.currentHalvingSteps());
+}
+
+struct TeamVestingReply {
+    unlocked: int          // total libéré à ce jour selon le calendrier (0 avant T0 + 12 mois, 5 000 000 à T0 + 36 mois)
+    created: int           // total déjà créé vers l'adresse de l'équipe
+    nextReleaseAt: int     // prochaine date de libération ; 0 quand tout est libéré
+}
+
+get fun get_team_vesting(): TeamVestingReply {
+    val storage = lazy ConsoMStorage.load();
+    val caps = storage.caps.load();
+    val now = blockchain.now();
+    return {
+        unlocked: teamUnlocked(storage.t0, now),
+        created: CAP_TEAM - caps.team,
+        nextReleaseAt: teamNextRelease(storage.t0, now),
+    }
+}
+
+get fun get_team_address(): address {
+    val storage = lazy ConsoMStorage.load();
+    return storage.config.load().teamAddress;
 }
 
 get fun get_witnesses(): Witnesses {

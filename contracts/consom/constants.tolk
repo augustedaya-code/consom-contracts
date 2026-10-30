@@ -17,6 +17,12 @@ const MAX_SUPPLY   = 250000000 * ONE_CONSOM
 // Part des Anciens Contributeurs déposée dans la banque à la genèse : 70 % de 5 M
 const FOUNDERS_BANK_DEPOSIT = 3500000 * ONE_CONSOM
 
+// Anciens Contributeurs (A8) : 30 % de leur part sont créés pour eux, 70 % leur sont attribués en parts de la banque.
+// La part totale T d'un bon doit être un multiple de 10 unités de base : les deux morceaux sont alors exacts
+// et la somme de toutes les réclamations ne peut pas dépasser 5 000 000 (1 500 000 créés + 3 500 000 de parts).
+const FOUNDER_DIRECT_BP = 3000     // 30 % de T créés directement
+const FOUNDER_UNIT      = 10       // T est un multiple de 10 unités de base
+
 // Catégories (index dans Caps)
 const CAT_PRESALE  = 0
 const CAT_PURCHASE = 1
@@ -39,7 +45,8 @@ const KIND_INVESTMENT      = 7   // 0,04 ConsoM par CHIKA investi      -> compte
 const KIND_BANK_CONVERSION = 8   // conversion via la banque : la banque brûle sur son stock (aucune création)
 const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive par la banque, jamais par ClaimVoucher
 const KIND_CHIKA_BONUS     = 10  // bonus de 0,3 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
-const KIND_MAX             = 10
+const KIND_FOUNDER_CLAIM   = 11  // réclamation d'un Ancien Contributeur -> compte membre, réserve Anciens Contributeurs
+const KIND_MAX             = 11
 
 // ---------- Section 6 : montants des récompenses ----------
 const FIRST_PURCHASE_REWARD = 500 * ONE_CONSOM
@@ -74,6 +81,10 @@ const PRESALE_WINDOW = 18 * ONE_MONTH    // la prévente se ferme à T0 + 18 moi
 const REWARDS_WINDOW = 24 * ONE_MONTH    // les récompenses s'arrêtent à T0 + 24 mois
 const VOUCHER_MAX_VALIDITY = 7 * ONE_DAY
 
+// ---------- Part de l'équipe (A9) : 5 000 000, rien avant 12 mois, puis 1/24 par période de 30 jours ----------
+const TEAM_CLIFF   = 12 * ONE_MONTH    // rien n'est libéré avant T0 + 12 mois
+const TEAM_PERIODS = 24                // 24 périodes de 30 jours : tout est libéré à T0 + 36 mois
+
 // ---------- Section 10 : sécurité ----------
 const GLOBAL_DAILY_CAP        = 2000000 * ONE_CONSOM   // émission maximale par 24 h, prévente comprise
 const PAUSE_MAX_DURATION      = 14 * ONE_DAY
@@ -94,6 +105,9 @@ const MIN_CLAIM_VALUE     = ton("0.25")   // un bon traverse 3 contrats avant la
 const MINT_TON_VALUE      = ton("0.05")   // TON joint à une création de jetons (le reste revient au membre)
 const BANK_NOTIFY_VALUE   = ton("0.02")   // TON transmis à la banque avec un dépôt (notification)
 const MIN_STORAGE_RESERVE = ton("0.05")
+const TEAM_RELEASE_MIN_VALUE   = ton("0.1")    // TON joint à « libérer la part de l'équipe » (l'excédent revient à l'appelant)
+const BANK_ASSIGN_VALUE        = ton("0.05")   // TON transmis à la banque pour attribuer les parts d'un Ancien Contributeur
+const MIN_FOUNDER_CLAIM_VALUE  = ton("0.35")   // réclamation d'un Ancien Contributeur : MIN_CLAIM_VALUE + BANK_ASSIGN_VALUE
 
 // ---------- Compte membre (section 6) ----------
 const MEMBER_DAILY_CAP   = 50000 * ONE_CONSOM   // reçu par membre et par 24 h, hors prévente

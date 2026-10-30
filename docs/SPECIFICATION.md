@@ -57,8 +57,8 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 | Récompenses d'achat (conversion et investissement) | 55 000 000 | Paiement Wave d'une commande livrée | T0 → T0 + 24 mois |
 | Parrainage | 45 000 000 | Paiement Wave d'une commande d'un filleul | T0 → T0 + 24 mois |
 | Premier achat et missions | 19 900 000 | Membre ayant au moins un paiement | T0 → T0 + 24 mois |
-| Anciens Contributeurs | 5 000 000 | Genèse (liste gravée) | Réclamable sans limite de durée |
-| Équipe | 5 000 000 | Genèse (adresses gravées) | Blocage 12 mois, puis 24 mois linéaires |
+| Anciens Contributeurs | 5 000 000 | Bon signé 2 sur 3 « Ancien Contributeur » (30 % créés, 70 % en parts de la banque) | Réclamable sans limite de durée |
+| Équipe | 5 000 000 | « Libérer la part de l'équipe », ouvert à tous, vers l'adresse gravée au déploiement | Blocage 12 mois, puis 1/24 par période de 30 jours (36 mois en tout) |
 | Bonus CHIKA | 20 000 000 | Commande payée en CHIKA, payée et livrée (réserve à part) | T0 → T0 + 24 mois |
 | Fondation | 100 000 | Aucune opération dans ce lot (le lot E3 l'ajoutera) | — |
 
@@ -67,6 +67,10 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 1. À T0 + 18 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date.
 2. À T0 + 24 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage, Premier achat et missions, et Bonus CHIKA est retiré définitivement ; `get_caps` affiche 0 pour ces quatre réserves.
 3. « Retiré » veut dire que le plafond est ramené au montant déjà émis ou réservé : rien n'est créé puis brûlé.
+
+**Part de l'équipe (A9).** L'adresse qui reçoit les 5 000 000 est un paramètre de déploiement (un portefeuille Multisig de l'équipe) ; elle est gravée dans la configuration et ne peut jamais être changée. Rien n'est libéré avant T0 + 12 mois ; ensuite, chaque période de 30 jours terminée libère 1/24 (soit 208 333,333… ConsoM, arrondi à l'unité de base inférieure), la dernière part prenant le reste pour un total exact ; tout est libéré à T0 + 36 mois. L'opération « libérer la part de l'équipe » peut être appelée par n'importe qui, qui ne paie que les frais : elle crée vers l'adresse de l'équipe la différence entre ce qui est libéré à ce jour et ce qui a déjà été créé, et rien d'autre. Elle puise uniquement dans la réserve équipe, n'est soumise ni à la fenêtre de 24 mois ni au plafond de 50 000 par membre, compte dans le plafond global de 2 000 000 par 24 h (si la place manque, elle crée ce qui rentre et le reste est libéré par un appel suivant) et est bloquée par la pause du gardien. `get_team_vesting` donne le total libéré, le total déjà créé et la prochaine date de libération (0 quand tout est libéré) ; `get_team_address` donne l'adresse gravée.
+
+**Anciens Contributeurs (A8, décisions du 30 octobre 2026).** À la genèse, 3 500 000 ConsoM (70 %) entrent dans la banque comme parts « à attribuer » ; les 1 500 000 restants (30 %) sont dans la réserve Anciens Contributeurs. Le bon « réclamation d'un Ancien Contributeur » (type 11), signé par 2 témoins sur 3, porte l'adresse de l'Ancien Contributeur, son identifiant unique (empreinte, jamais de nom ni de numéro en clair) et sa part totale T (champ `amount`). Le contrat recalcule et applique lui-même : 30 % de T créés pour l'adresse ; 70 % de T attribués en parts de la banque, pris dans les parts à attribuer (aucun ConsoM créé pour cette partie, puisqu'ils sont déjà dans la banque) ; le compte membre devient éligible (les Anciens Contributeurs comptent comme participants à la prévente). T doit être un multiple de 10 unités de base et au plus 5 000 000 : les deux parts sont alors exactes et la somme de toutes les réclamations ne peut pas dépasser 5 000 000. Une seule réclamation par identifiant ; refus si la réserve des 30 % ou les parts à attribuer ne suffisent pas, ou avant la genèse. Aucune limite de temps (ni 18 ni 24 mois), pas de plafond de 50 000 par membre ; seuls les 30 % créés comptent dans le plafond global de 2 000 000 par 24 h. Les retraits de parts restent soumis aux règles de la banque (fermée 12 mois, retrait 24 h après la dernière arrivée de parts du déposant, l'attribution comprise).
 
 **Phases de test** : aucun gain n'est repris. Le testnet n'a donné lieu à aucun achat réel ; seules les préventes réellement payées par Wave avant T0 entrent dans la genèse, dans le plafond de la prévente (section 11).
 
@@ -94,7 +98,7 @@ Un bon est une autorisation signée par au moins deux témoins. N'importe qui pe
 | `network_id` | -239 pour le réseau principal, -3 pour le testnet : un bon de testnet est refusé sur le réseau principal |
 | `minter` | Adresse de l'émetteur : un bon ne vaut que pour ce contrat |
 | `voucher_id` | Identifiant unique sur 64 bits |
-| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10) |
+| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10), réclamation d'un Ancien Contributeur (type 11) |
 | `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave (jamais l'identifiant en clair) |
 | `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés (pour un Bonus CHIKA : montant payé en CHIKA) |
 | `member_id` | Empreinte de l'identifiant TonMarché du bénéficiaire |
@@ -132,7 +136,7 @@ Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM 
 
 **Récompense de conversion.** Le compte membre garde les Points de chaque commande attestée avec leur date d'expiration : 7 jours après l'attestation de l'achat. À chaque conversion attestée, le membre reçoit 5 % des Points convertis, dans la limite des Points encore valides ; les Points les plus proches de l'expiration sont utilisés d'abord. Des Points de plus de 7 jours sont perdus : le contrat refuse de les récompenser, même si l'application signait un bon par erreur.
 
-**Règle d'équité.** Toute récompense en ConsoM (achat, investissement, bonus CHIKA, 1er achat, missions) exige que le membre ait participé à la prévente : son compte est alors « éligible ». Sans prévente, le compte membre refuse (code 11) et l'émetteur rend la réservation ; le bon pourra être présenté de nouveau après une prévente. Le parrainage suit la même condition : une part destinée à un non-participant n'est versée à personne. Seul le pack de prévente ne demande pas cette condition. Les Anciens Contributeurs ne sont pas encore éligibles (lot E3).
+**Règle d'équité.** Toute récompense en ConsoM (achat, investissement, bonus CHIKA, 1er achat, missions) exige que le membre ait participé à la prévente : son compte est alors « éligible ». Sans prévente, le compte membre refuse (code 11) et l'émetteur rend la réservation ; le bon pourra être présenté de nouveau après une prévente. Le parrainage suit la même condition : une part destinée à un non-participant n'est versée à personne. Seul le pack de prévente ne demande pas cette condition. Les Anciens Contributeurs sont éligibles dès leur réclamation (section 3).
 
 **Parrainage.** Il est versé dès que l'achat du filleul est attesté, sans attendre que le filleul convertisse.
 
@@ -212,7 +216,7 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 - Un dépôt doit être accompagné d'au moins 0,05 TON. Pendant les 12 premiers mois, les jetons d'un dépôt sont rendus.
 - Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion avec ses propres ConsoM, ni genèse), ou sans assez de TON pour être traités, sont refusés : les jetons retournent à l'expéditeur et le stock de la banque ne change pas. Si le transfert ne portait pas assez de TON pour être rendu, les jetons restent dans le wallet de la banque sans entrer dans aucun stock.
-- Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur recevra les siennes par sa réclamation de genèse.
+- Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur reçoit les siennes par sa réclamation (bon type 11, section 3), sur ordre de l'émetteur seul : le total des parts et le stock ne changent pas.
 - Chaque déposant a un petit contrat qui retient ses parts et la date de son dernier dépôt.
 
 ## 10. Sécurité et gouvernance
@@ -235,7 +239,7 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouverte pendant 7 jours ; elle ne fait courir aucun risque aux membres, puisqu'elle ne touche à aucun solde. Le remplacement de témoin, lui, est le vrai pouvoir sensible : remplacer deux clés donnerait le contrôle des émissions. D'où le délai, la limite d'un remplacement par mois et les plafonds globaux.
 
-**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations de genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts ne sont jamais arrêtés ; un brûlage demandé par un membre est refusé, pause ou non.
+**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations d'Anciens Contributeurs, libération de la part de l'équipe, genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts ne sont jamais arrêtés ; un brûlage demandé par un membre est refusé, pause ou non.
 
 **Plafonds globaux** (filet de sécurité si deux témoins sont compromis)
 
@@ -248,7 +252,7 @@ La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouve
 
 Le testnet sert à prouver ce contrat exact, pas à créer des soldes : les jetons du testnet n'ont aucune valeur et ne sont jamais transférés sur le réseau principal. Les deux déploiements utilisent le même code, avec un `network_id` et des clés de témoins différents ; une clé de testnet n'est jamais réutilisée sur le réseau principal.
 
-**Genèse.** Au déploiement sur le réseau principal, l'émetteur grave une racine de Merkle par liste de genèse : Anciens Contributeurs (part de 30 % réclamable) et préventes réellement payées avant T0. Chaque ligne contient l'identifiant de membre, la catégorie et le montant. Le membre réclame sa ligne avec sa preuve de Merkle ; un petit contrat « réclamation de genèse » par ligne empêche toute double réclamation. La part de 70 % des Anciens Contributeurs est déposée directement dans la banque au déploiement.
+**Genèse.** Au déploiement sur le réseau principal, l'émetteur grave une racine de Merkle par liste de genèse : Anciens Contributeurs (part de 30 % réclamable) et préventes réellement payées avant T0. Chaque ligne contient l'identifiant de membre, la catégorie et le montant. Le membre réclame sa ligne avec sa preuve de Merkle ; un petit contrat « réclamation de genèse » par ligne empêche toute double réclamation. La part de 70 % des Anciens Contributeurs est déposée directement dans la banque au déploiement ; leur part de 30 % et l'attribution de leurs parts passent par le bon signé « Ancien Contributeur » (section 3), qui remplace la preuve de Merkle pour cette liste.
 
 **Aucune reprise des phases de test.** Ni les soldes du testnet, ni les 20 réclamations déjà créées sur l'ancien contrat ne sont repris : il n'y a eu aucun achat réel. Chaque prévente payée avant T0 est vérifiée paiement par paiement avant d'entrer dans la liste de genèse.
 

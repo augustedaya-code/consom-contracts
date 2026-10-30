@@ -4,8 +4,9 @@ Contrats de ConsoM, la couche crypto de TonMarché, écrits en [Tolk](https://do
 La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque règle du code renvoie à une de ses sections.
 
 > **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement, le compte membre et la banque
-> d'échange sont écrits et testés ensemble. Restent à écrire : les réclamations de genèse, le blocage des ConsoM de l'équipe,
-> le changement d'adresse liée et l'enregistrement du parrain.
+> d'échange sont écrits et testés ensemble, avec la part de l'équipe (calendrier gravé) et la réclamation des Anciens
+> Contributeurs. Restent à écrire : la réserve de la Fondation, les préventes payées avant T0, le changement d'adresse liée
+> et l'enregistrement du parrain.
 
 ## Contenu
 
@@ -60,7 +61,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 
 - **Bons d'émission** : vérifie 2 signatures Ed25519 de 2 témoins différents, le réseau (-239 / -3), l'adresse de l'émetteur,
   l'expiration (7 jours au plus), la fenêtre de la catégorie (prévente 18 mois,
-  récompenses 24 mois depuis T0), et **recalcule lui-même le montant** (packs de prévente, 5 %, 2,5/1,3/0,7/0,4/0,1 %, 500, 150, 0,04 par CHIKA investi, 0,3 % de bonus CHIKA).
+  récompenses 24 mois depuis T0 ; aucune limite pour les conversions et les Anciens Contributeurs), et **recalcule lui-même le montant** (packs de prévente, 5 %, 2,5/1,3/0,7/0,4/0,1 %, 500, 150, 0,04 par CHIKA investi, 0,3 % de bonus CHIKA, 30 % de la part d'un Ancien Contributeur).
   Il réserve le montant sur le plafond de la catégorie et sur le plafond global de 2 000 000 ConsoM par 24 h, puis transmet
   le bon au budget du paiement Wave ou au compte du membre.
 - **Création** : seulement sur approbation d'un compte membre dont l'adresse est calculée à partir de son code ; jamais plus
@@ -74,6 +75,19 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 - **Gardien** (Multisig v2) : pause immédiate de 14 jours au plus (une par 30 jours), levée immédiate, remplacement d'un témoin
   après 7 jours (un par 30 jours), annulable. Aucun autre pouvoir.
 - **Genèse** : dépôt unique de 3 500 000 ConsoM des Anciens Contributeurs dans la banque.
+- **Part de l'équipe** (règle A9, 5 000 000) : l'adresse qui la reçoit est gravée au déploiement (`teamAddress`, un
+  portefeuille Multisig) et ne peut jamais changer. Rien avant T0 + 12 mois, puis 1/24 par période de 30 jours terminée
+  (la dernière part prend le reste), tout à T0 + 36 mois. « Libérer la part de l'équipe » peut être appelé par n'importe qui
+  (il ne paie que les frais) : elle crée vers l'adresse de l'équipe la différence entre le libéré et le déjà créé, et rien
+  d'autre. Puisée dans la réserve équipe seule ; ni fenêtre de 24 mois, ni plafond de 50 000 ; elle compte dans le plafond
+  global du jour (si la place manque, elle crée ce qui rentre et le reste attend le prochain appel) ; la pause la bloque.
+  Lectures : `get_team_vesting` (libéré, créé, prochaine date) et `get_team_address`.
+- **Anciens Contributeurs** (règle A8, 5 000 000) : bon signé 2 sur 3 « réclamation d'un Ancien Contributeur » (adresse,
+  empreinte de l'identifiant, part totale T). Le contrat en crée 30 % pour l'adresse (réserve Anciens Contributeurs) et lui
+  attribue 70 % en parts de la banque, prises dans les parts à attribuer de la genèse (rien n'est créé pour cette partie) ;
+  le compte devient éligible (participant à la prévente). Une seule réclamation par identifiant, sans limite de temps, hors
+  plafond de 50 000 par membre, comptée dans le plafond global du jour pour les 30 % créés. T est un multiple de 10 unités
+  de base, pour que les deux parts soient exactes et que le total ne dépasse jamais 5 000 000.
 
 ## Ce que font le budget de paiement et le compte membre
 
@@ -101,7 +115,10 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   Pas de plafond de 5 %.
 - **Dépôts et retraits** : fermés 12 mois (un dépôt est rendu) ; ensuite, dépôt contre des parts, retrait 24 h après
   le dernier dépôt, à la valeur actuelle des parts. Un contrat « parts » par déposant.
-- **Genèse** : les 3 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer.
+- **Genèse** : les 3 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer. Sur ordre de l'émetteur
+  seul (après un bon d'Ancien Contributeur), la banque en attribue à une adresse : les parts à attribuer diminuent, le
+  contrat « parts » de l'adresse est crédité, le total des parts et le stock ne changent pas. Les retraits restent soumis aux
+  règles de la banque (fermée 12 mois, puis 24 h après la dernière arrivée de parts du déposant, attribution comprise).
 - Seuls ses brûlages comptent pour le halving, et elle ne brûle que sur ordre de l'émetteur.
 
 ## Choix d'implémentation à connaître
@@ -145,8 +162,7 @@ Les créations de contrats incluent leur réserve de stockage. À remesurer sur 
 
 ## Prochaines étapes
 
-1. Réclamations de genèse (racines de Merkle) : Anciens Contributeurs (part de 30 %, attribution de leurs parts dans la banque, droit au parrainage), préventes payées avant T0.
-2. Blocage des ConsoM de l'équipe (5 M : 12 mois de blocage puis 24 mois linéaires).
-3. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
+1. Réserve de la Fondation (lot E3b) et préventes payées avant T0.
+2. Compte membre : changement d'adresse liée (bon signé, effectif après 7 jours) et parrain enregistré dans le compte
    (décisions 5 et 6 de la spécification) — pas encore écrits.
-4. Scripts de déploiement testnet, puis audits.
+3. Scripts de déploiement testnet, puis audits.
