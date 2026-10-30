@@ -9,6 +9,10 @@ on:
       guardian_address:
         description: "Adresse Tonkeeper (testnet) du gardien de test"
         required: true
+      early_contributions_total:
+        description: "Total (en ConsoM entiers) des contributions du lancement anticipé : somme de la liste du serveur, gravé au déploiement (0 sur le testnet)"
+        required: true
+        default: "0"
       team_address:
         description: "Adresse (testnet) du portefeuille de l'équipe : gravée au déploiement, ne pourra jamais être changée"
         required: true
@@ -34,6 +38,7 @@ jobs:
           TONCENTER_API_KEY: ${{ secrets.TONCENTER_API_KEY }}
           GUARDIAN_ADDRESS: ${{ inputs.guardian_address }}
           TEAM_ADDRESS: ${{ inputs.team_address }}
+          EARLY_CONTRIBUTIONS_TOTAL: ${{ inputs.early_contributions_total }}
         run: npm run deploy:testnet
       - name: Enregistrer les adresses dans le dépôt
         run: |
