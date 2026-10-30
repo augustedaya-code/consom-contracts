@@ -284,10 +284,11 @@ fun witnessIndexOrError(witnesses: Witnesses, hash: uint256, sigCell: Cell<Witne
 // Ne lève jamais d'exception : une conversion avec ses propres ConsoM doit pouvoir rendre les jetons reçus.
 fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<WitnessSignature>,
                  sigB: Cell<WitnessSignature>): int {
-    if (storage.isPaused()) {
+    val voucher = voucherCell.load();
+    // la pause bloque les créations et les conversions via la banque ; la conversion avec ses propres ConsoM reste possible
+    if (storage.isPaused() && (voucher.kind != KIND_OWN_CONVERSION)) {
         return ERR_PAUSED;
     }
-    val voucher = voucherCell.load();
     val now = blockchain.now();
     if (voucher.networkId != storage.networkId) {
         return ERR_WRONG_NETWORK;

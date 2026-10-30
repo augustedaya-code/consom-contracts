@@ -132,6 +132,8 @@ Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM 
 
 **Récompense de conversion.** Le compte membre garde les Points de chaque commande attestée avec leur date d'expiration : 7 jours après l'attestation de l'achat. À chaque conversion attestée, le membre reçoit 5 % des Points convertis, dans la limite des Points encore valides ; les Points les plus proches de l'expiration sont utilisés d'abord. Des Points de plus de 7 jours sont perdus : le contrat refuse de les récompenser, même si l'application signait un bon par erreur.
 
+**Règle d'équité.** Toute récompense en ConsoM (achat, investissement, bonus CHIKA, 1er achat, missions) exige que le membre ait participé à la prévente : son compte est alors « éligible ». Sans prévente, le compte membre refuse (code 11) et l'émetteur rend la réservation ; le bon pourra être présenté de nouveau après une prévente. Le parrainage suit la même condition : une part destinée à un non-participant n'est versée à personne. Seul le pack de prévente ne demande pas cette condition. Les Anciens Contributeurs ne sont pas encore éligibles (lot E3).
+
 **Parrainage.** Il est versé dès que l'achat du filleul est attesté, sans attendre que le filleul convertisse.
 
 **Éligibilité au parrainage.** Seul un membre ayant acheté en prévente ou un Ancien Contributeur peut recevoir une récompense de parrainage. Le compte membre porte ce droit, activé par une attestation de prévente ou par la genèse. Le parrain d'un membre est enregistré dans son compte ; seule l'équipe peut le changer, par bon signé 2 sur 3, et le changement ne vaut que pour les achats suivants. Si le parrain d'un niveau n'est pas éligible, son emplacement est perdu : il n'est ni versé à un autre, ni reporté.
@@ -233,7 +235,7 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouverte pendant 7 jours ; elle ne fait courir aucun risque aux membres, puisqu'elle ne touche à aucun solde. Le remplacement de témoin, lui, est le vrai pouvoir sensible : remplacer deux clés donnerait le contrôle des émissions. D'où le délai, la limite d'un remplacement par mois et les plafonds globaux.
 
-**Ce que la pause arrête** : les bons d'émission, les réclamations de genèse et les brûlages de la banque. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
+**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations de genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts, les brûlages volontaires et leur recréation dans la banque ne sont jamais arrêtés.
 
 **Plafonds globaux** (filet de sécurité si deux témoins sont compromis)
 

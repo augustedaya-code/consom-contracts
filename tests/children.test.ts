@@ -95,19 +95,53 @@ describe('Compte membre', () => {
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral, 'réservation de l\'émetteur libérée');
     });
 
+    it('règle d\'équité : sans prévente, chaque récompense est refusée ; après une prévente, la même est acceptée', async () => {
+        const env = await setup();
+        // un achat attesté (Points) ne suffit pas : il n'y a pas eu de prévente
+        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 100_000n, waveAmount: 200_000n, amount: 0n }));
+        const rewards = [
+            { kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) },
+            { kind: Kind.INVESTMENT, points: 1000n, waveAmount: 0n, amount: consom(40) },
+            { kind: Kind.CHIKA_BONUS, points: 0n, waveAmount: 1000n, amount: consom(3) },
+            { kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 1000n, amount: consom(500) },
+            { kind: Kind.MISSION_TG, points: 0n, waveAmount: 0n, amount: consom(150) },
+            { kind: Kind.MISSION_FB, points: 0n, waveAmount: 0n, amount: consom(150) },
+        ];
+        const caps = await env.minter.getCaps();
+        for (const c of rewards) {
+            const r = await env.claim(env.voucher(c));
+            assert.equal(rejectReason(r), Reject.NOT_ELIGIBLE, `type ${c.kind}\n${describeTxs(r)}`);
+        }
+        assert.equal(await env.balanceOf(env.member.address), 0n);
+        assert.deepEqual({ ...(await env.minter.getCaps()), dayMinted: 0n }, { ...caps, dayMinted: 0n }, 'toutes les réservations sont rendues');
+        await env.becomeEligible();
+        for (const c of rewards) {
+            const r = await env.claim(env.voucher(c));
+            assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `type ${c.kind}\n${describeTxs(r)}`);
+        }
+        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 50 + 40 + 3 + 500 + 150 + 150));
+    });
+
+    it('le pack de prévente lui-même ne demande aucune condition', async () => {
+        const env = await setup();
+        const r = await env.claim(env.voucher());
+        assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), describeTxs(r));
+    });
+
     it('bonus de 1er achat une seule fois par membre', async () => {
         const env = await setup();
+        await env.becomeEligible();
         await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n }));
         const r = await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n }));
         assert.equal(rejectReason(r), Reject.ALREADY_DONE, describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(500));
+        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 500));
     });
 
-    it('les missions exigent un paiement attesté et ne se reçoivent qu\'une fois', async () => {
+    it('les missions exigent la prévente et ne se reçoivent qu\'une fois', async () => {
         const env = await setup();
         const r = await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));
-        assert.equal(rejectReason(r), Reject.NO_PAYMENT, describeTxs(r));
-        await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 10n, waveAmount: 20n, amount: 0n }));
+        assert.equal(rejectReason(r), Reject.NOT_ELIGIBLE, describeTxs(r));
+        await env.becomeEligible();
         await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));
         const r2 = await env.claim(env.voucher({ kind: Kind.MISSION_TG, amount: consom(150) }));
         assert.equal(rejectReason(r2), Reject.ALREADY_DONE, describeTxs(r2));
@@ -117,6 +151,7 @@ describe('Compte membre', () => {
 
     it('la récompense de conversion ne dépasse jamais les Points attestés', async () => {
         const env = await setup();
+        await env.becomeEligible();
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
         await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 600n, waveAmount: 0n, amount: consom(30) }));
         const r = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 600n, waveAmount: 0n, amount: consom(30) }));
@@ -128,6 +163,7 @@ describe('Compte membre', () => {
 
     it('un bon de conversion déjà utilisé, ou plus ancien qu\'un bon utilisé, est refusé', async () => {
         const env = await setup();
+        await env.becomeEligible();
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
         const v = env.voucher({ kind: Kind.CONVERSION, points: 100n, waveAmount: 0n, amount: consom(5) });
         await env.claim(v);
@@ -137,6 +173,7 @@ describe('Compte membre', () => {
 
     it('le bonus d\'investissement (0,04 ConsoM par CHIKA) est limité à 30 % des Points attestés', async () => {
         const env = await setup();
+        await env.becomeEligible();
         // 1 000 Points attestés : le total des bonus d'investissement ne peut pas dépasser 300 ConsoM
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
         await env.claim(env.voucher({ kind: Kind.INVESTMENT, points: 4500n, amount: consom(180) }));
@@ -148,6 +185,7 @@ describe('Compte membre', () => {
 
     it('les Points d\'un achat se convertissent dans les 7 jours, sinon ils sont perdus', async () => {
         const env = await setup();
+        await env.becomeEligible();
         const record = (points: bigint) => env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points, waveAmount: points * 2n, amount: 0n }));
         const convert = (points: bigint) => env.claim(env.voucher({ kind: Kind.CONVERSION, points, waveAmount: 0n, amount: points * consom(5) / 100n }));
         await record(1000n);
@@ -157,11 +195,12 @@ describe('Compte membre', () => {
         env.blockchain.now = T0 + 7 * DAY;
         assert.equal(rejectReason(await convert(400n)), Reject.NOT_ENOUGH_POINTS, 'J+7 : les 400 Points restants ont expiré');
         assert.equal((await env.memberState(1n))!.availablePoints, 0n);
-        assert.equal(await env.balanceOf(env.member.address), consom(30));
+        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 30));
     });
 
     it('une conversion utilise d\'abord les Points les plus proches de l\'expiration', async () => {
         const env = await setup();
+        await env.becomeEligible();
         const record = (points: bigint) => env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points, waveAmount: points * 2n, amount: 0n }));
         const convert = (points: bigint) => env.claim(env.voucher({ kind: Kind.CONVERSION, points, waveAmount: 0n, amount: points * consom(5) / 100n }));
         await record(500n);                       // expire à J+7

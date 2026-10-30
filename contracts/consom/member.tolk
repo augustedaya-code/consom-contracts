@@ -21,7 +21,7 @@ const FLAG_MISSION_FB     = 4
 
 struct MemberState {
     owner: address                  // adresse liée, fixée par la première réclamation
-    referralEligible: bool          // a acheté en prévente (ou Ancien Contributeur, via la genèse)
+    referralEligible: bool          // a participé à la prévente : condition de toute récompense (et du parrainage)
     hasPayment: bool                // au moins un paiement attesté (condition des missions)
     flags: uint8                    // FLAG_* : bonus de 1er achat et missions déjà reçus
     lastDirectVoucherId: uint64     // conversions et investissements : numéros strictement croissants
@@ -155,6 +155,17 @@ fun onInternalMessage(in: InMessage) {
 
             if (voucher.recipient != state.owner) {
                 reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_WRONG_OWNER, true);
+                return;
+            }
+
+            // ---------- règle d'équité : toute récompense en ConsoM demande une participation à la prévente ----------
+            // (seul le pack de prévente lui-même, l'enregistrement d'un achat, le parrainage — qui a sa propre règle —
+            // et les conversions par brûlage n'ont pas cette condition). Le refus est passager : l'emplacement du budget
+            // est libéré, le bon pourra être présenté de nouveau après une prévente.
+            val isFairnessReward = (kind == KIND_CONVERSION) || (kind == KIND_INVESTMENT) || (kind == KIND_CHIKA_BONUS)
+                || (kind == KIND_FIRST_PURCHASE) || (kind == KIND_MISSION_TG) || (kind == KIND_MISSION_FB);
+            if (isFairnessReward && !state.referralEligible) {
+                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_NOT_ELIGIBLE, true);
                 return;
             }
 

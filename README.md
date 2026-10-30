@@ -107,7 +107,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
    c'est plus simple et plus sûr. Le budget et le compte membre gardent le contrôle des emplacements déjà versés,
    des doublons, de l'éligibilité, du plafond de 50 000 par membre et de l'expiration des Points.
 2. Un bon refusé plus loin dans la chaîne libère sa réservation de catégorie, mais reste compté dans le plafond du jour.
-3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons sont bloqués.
+3. Une approbation déjà en route quand la pause commence est honorée ; les nouveaux bons de création et les conversions via la banque sont bloqués, pas la conversion avec ses propres ConsoM.
 4. Un brûlage volontaire doit être accompagné d'au moins 0,1 TON pour financer sa recréation ; sinon il est annulé et le
    solde du wallet est rétabli.
 5. Conséquence de la règle « une pause par 30 jours » : après une pause, le gardien ne peut plus en déclencher pendant le
