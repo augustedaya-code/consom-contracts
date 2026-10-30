@@ -25,7 +25,7 @@ export class ExchangeBank implements Contract {
     async getState(provider: ContractProvider) {
         const s = (await provider.get('get_bank_state', [])).stack;
         return {
-            depositorStock: s.readBigNumber(), ownerlessStock: s.readBigNumber(), totalShares: s.readBigNumber(),
+            depositorStock: s.readBigNumber(), totalShares: s.readBigNumber(),
             unassignedShares: s.readBigNumber(), escrow: s.readBigNumber(), dayCap: s.readBigNumber(),
             dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
         };

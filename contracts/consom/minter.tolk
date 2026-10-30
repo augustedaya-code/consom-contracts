@@ -369,10 +369,9 @@ fun taggedForwardPayload(tag: int): slice {
 }
 
 const OP_FOUNDERS_DEPOSIT_TAG = 0xc0150030
-const OP_RECYCLED_DEPOSIT_TAG = 0xc0150031
 
 // Garde-fou d'offre : jetons en circulation + jetons brûlés par les conversions <= 250 M.
-// (Les brûlages volontaires sont recréés, ils ne sortent donc pas de ce total.)
+// (Seuls les brûlages de conversion sortent de la circulation ; ils sont comptés dans B, jamais recréés.)
 fun ConsoMStorage.addSupply(mutate self, amount: coins) {
     assert (self.totalSupply + self.burnedByConversion + amount <= MAX_SUPPLY) throw ERR_SUPPLY_CAP;
     self.totalSupply += amount;
@@ -663,14 +662,9 @@ fun onInternalMessage(in: InMessage) {
                 return;
             }
 
-            // brûlage volontaire : recréé immédiatement dans la banque, comme stock sans propriétaire.
-            // Fonctionne même pendant une pause. Sans assez de TON, le message rebondit et le wallet
-            // rétablit le solde : le brûlage n'a pas lieu.
-            assert (in.valueCoins >= RECYCLE_MIN_VALUE) throw ERR_NOT_ENOUGH_TON;
-            storage.recycled += msg.jettonAmount;
-            storage.save();     // totalSupply inchangé : -montant puis +montant
-            sendMint(config.walletCode, bank, msg.jettonAmount, msg.queryId, msg.sendExcessesTo,
-                     BANK_NOTIFY_VALUE, taggedForwardPayload(OP_RECYCLED_DEPOSIT_TAG));
+            // règle A10 : seul le programme de conversion détruit des ConsoM. Tout autre brûlage est refusé :
+            // le message rebondit et le wallet du membre rétablit son solde (offre et paliers inchangés).
+            throw ERR_BURN_NOT_ALLOWED;
         }
 
         RequestWalletAddress => {
@@ -820,7 +814,6 @@ get fun get_wallet_address(ownerAddress: address): address {
 struct ConsoMStateReply {
     totalSupply: int
     burnedByConversion: int
-    recycled: int
     t0: int
     networkId: int
     pausedUntil: int
@@ -834,7 +827,6 @@ get fun get_consom_state(): ConsoMStateReply {
     return {
         totalSupply: storage.totalSupply,
         burnedByConversion: storage.burnedByConversion,
-        recycled: storage.recycled,
         t0: storage.t0,
         networkId: storage.networkId,
         pausedUntil: storage.pausedUntil,

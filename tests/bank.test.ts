@@ -26,30 +26,23 @@ describe('Genèse de la banque', () => {
         assert.equal(st.depositorStock, consom(3_500_000));
         assert.equal(st.totalShares, consom(3_500_000));
         assert.equal(st.unassignedShares, consom(3_500_000));
-        assert.equal(st.ownerlessStock, 0n);
+        assert.equal(await env.balanceOf(env.bankAddress), consom(3_500_000), 'le wallet de la banque ne contient que la genèse');
         assert.equal(st.isOpen, false, 'fermée pendant 12 mois');
     });
 });
 
 describe('Conversion via la banque', () => {
-    it('brûle le montant calculé par l\'émetteur, au prorata des deux stocks', async () => {
+    it('brûle le montant calculé par l\'émetteur sur le stock des déposants', async () => {
         const env = await withGenesis();
         await env.claim(env.voucher());                                     // le membre a 3 000 ConsoM
-        const burnVoluntary = await env.member.send({                       // 1 000 brûlés volontairement -> stock sans propriétaire
-            to: await env.minter.getWalletAddress(env.member.address), value: toNano('0.2'),
-            body: beginCell().storeUint(Op.Burn, 32).storeUint(0, 64).storeCoins(consom(1000))
-                .storeAddress(env.member.address).storeMaybeRef(null).endCell(),
-        });
-        assert.ok(hasTx(burnVoluntary, { op: BURN_NOTIFICATION, success: true }));
-
         const r = await bankConversion(env, 1_000_000n);                    // 100 000 ConsoM à brûler
         assert.ok(hasTx(r, { to: env.minter.address, op: BURN_NOTIFICATION, success: true }), describeTxs(r));
         const st = await env.bankState();
-        const fromOwnerless = (consom(100_000) * consom(1000)) / consom(3_501_000);
-        assert.equal(st.ownerlessStock, consom(1000) - fromOwnerless);
-        assert.equal(st.depositorStock, consom(3_500_000) - (consom(100_000) - fromOwnerless));
+        assert.equal(st.depositorStock, consom(3_500_000 - 100_000));
         assert.equal(st.totalShares, consom(3_500_000), 'les parts ne changent pas');
-        assert.equal((await env.minter.getState()).burnedByConversion, consom(100_000));
+        const ms = await env.minter.getState();
+        assert.equal(ms.burnedByConversion, consom(100_000), 'le compteur des paliers monte');
+        assert.equal(ms.totalSupply, consom(3_000 + 3_500_000 - 100_000), 'l\'offre baisse');
     });
 
     it('un bon de conversion ne sert qu\'une fois', async () => {
@@ -71,6 +64,17 @@ describe('Conversion via la banque', () => {
         env.blockchain.now = T0 + DAY;
         const next = await bankConversion(env, 10n);
         assert.ok(hasTx(next, { op: BURN_NOTIFICATION, success: true }), 'nouvelle période de 24 h');
+    });
+
+    it('le plafond de 5 % se calcule sur le stock des déposants', async () => {
+        const env = await withGenesis();
+        await env.claim(env.voucher());
+        env.blockchain.now = T0 + 365 * DAY;
+        await env.deposit(env.member, consom(1000));                        // stock des déposants = 3 501 000
+        await bankConversion(env, 10n);                                     // ouvre la période de 24 h
+        const st = await env.bankState();
+        assert.equal(st.depositorStock, consom(3_501_000 - 1));
+        assert.equal(st.dayCap, (consom(3_501_000) * 500n) / 10_000n, '5 % du stock au début de la période');
     });
 
     it('la banque garde ses propres TON : le membre ne récupère que ce qu\'il a envoyé', async () => {
@@ -159,12 +163,16 @@ describe('Conversion avec ses propres ConsoM', () => {
 });
 
 describe('Dépôts et retraits', () => {
-    it('un envoi sans objet rejoint le stock sans propriétaire', async () => {
+    it('un envoi sans objet est refusé : les jetons reviennent à l\'expéditeur', async () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         await env.sendToBank(env.member, consom(100));
-        assert.equal((await env.bankState()).ownerlessStock, consom(100));
-        assert.equal(await env.balanceOf(env.member.address), consom(2900));
+        assert.equal(await env.balanceOf(env.member.address), consom(3000), 'jetons rendus');
+        assert.equal(await env.balanceOf(env.bankAddress), consom(3_500_000), 'rien de plus dans la banque');
+        const st = await env.bankState();
+        assert.equal(st.depositorStock, consom(3_500_000));
+        assert.equal(st.totalShares, consom(3_500_000));
+        assert.equal(st.escrow, 0n);
     });
 
     it('fermée aux dépôts pendant 12 mois : les jetons sont rendus', async () => {

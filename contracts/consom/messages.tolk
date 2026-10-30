@@ -206,6 +206,3 @@ struct (0xc0150020) GenesisFoundersDeposit {
 
 struct (0xc0150030) FoundersDepositTag {
 }
-
-struct (0xc0150031) RecycledDepositTag {
-}

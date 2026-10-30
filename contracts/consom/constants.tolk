@@ -92,7 +92,6 @@ const BURN_PER_POINT_NUMERATOR = 100000000
 // ---------- Frais (TON) ----------
 const MIN_CLAIM_VALUE     = ton("0.25")   // un bon traverse 3 contrats avant la création des jetons
 const MINT_TON_VALUE      = ton("0.05")   // TON joint à une création de jetons (le reste revient au membre)
-const RECYCLE_MIN_VALUE   = ton("0.1")    // TON minimum joint à un brûlage volontaire pour financer sa recréation
 const BANK_NOTIFY_VALUE   = ton("0.02")   // TON transmis à la banque avec un dépôt (notification)
 const MIN_STORAGE_RESERVE = ton("0.05")
 

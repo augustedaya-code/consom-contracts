@@ -409,14 +409,17 @@ describe('Gardien : pause et remplacement de témoin (section 10)', () => {
         assert.ok(hasTx(again, { to: env.minter.address, success: true }));
     });
 
-    it('la pause bloque les nouveaux bons mais pas les brûlages volontaires', async () => {
+    it('la pause bloque les nouveaux bons ; un brûlage direct reste refusé, solde intact', async () => {
         const env = await setup();
         await env.claim(env.voucher());
         await env.minter.sendPause(env.guardian.getSender());
         expectRejected(await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 0n, amount: consom(500) })), env.minter.address, Err.PAUSED);
         assert.equal(await env.balanceOf(env.member.address), consom(3000));
         const burn = await burnFrom(env, env.member, consom(100), toNano('0.2'));
-        assert.ok(hasTx(burn, { to: env.minter.address, op: 0x7bdd97de, success: true }), describeTxs(burn));
+        assert.ok(hasTx(burn, { to: env.minter.address, op: 0x7bdd97de, success: false, exitCode: Err.BURN_NOT_ALLOWED }), describeTxs(burn));
+        assert.equal(await env.balanceOf(env.member.address), consom(3000), 'solde rétabli');
+        assert.equal((await env.minter.getState()).totalSupply, consom(3000));
+        assert.equal((await env.minter.getState()).burnedByConversion, 0n);
     });
 
     it('pendant une pause : création refusée, conversion via la banque refusée, conversion avec ses propres ConsoM acceptée, transfert accepté', async () => {
@@ -522,29 +525,21 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
         assert.equal(await env.minter.getBurnForPoints(100n), consom(10), 'V = 100 : 100 Points demandent 10 ConsoM');
     });
 
-    it('un brûlage volontaire est recréé dans la banque et ne compte pas pour le halving', async () => {
+    it('un brûlage demandé par un membre est refusé : solde, offre et paliers intacts, rien dans la banque', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // le membre a 3 000 ConsoM
         const bank = await env.minter.getBankAddress();
-        const r = await burnFrom(env, env.member, consom(1000), toNano('0.2'));
-        assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: true }), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(2000));
-        assert.equal(await env.balanceOf(bank), consom(1000));
-        assert.equal((await env.bankState()).ownerlessStock, consom(1000), 'stock sans propriétaire');
-        const st = await env.minter.getState();
-        assert.equal(st.totalSupply, consom(3000), 'l\'offre ne baisse pas');
-        assert.equal(st.recycled, consom(1000));
-        assert.equal(st.burnedByConversion, 0n);
-        assert.equal(st.halvingSteps, 0);
-    });
-
-    it('sans assez de TON pour la recréation, le brûlage volontaire est annulé', async () => {
-        const env = await setup();
-        await env.claim(env.voucher());
-        const r = await burnFrom(env, env.member, consom(1000), toNano('0.06'));
-        assert.ok(hasTx(r, { to: env.minter.address, success: false, exitCode: Err.NOT_ENOUGH_TON }), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000), 'solde rétabli');
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000));
+        for (const value of [toNano('0.2'), toNano('1')]) {
+            const r = await burnFrom(env, env.member, consom(1000), value);
+            assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: false, exitCode: Err.BURN_NOT_ALLOWED }), describeTxs(r));
+            assert.equal(await env.balanceOf(env.member.address), consom(3000), 'solde rétabli par le rebond');
+            assert.equal(await env.balanceOf(bank), 0n, 'rien n\'est recréé dans la banque');
+            const st = await env.minter.getState();
+            assert.equal(st.totalSupply, consom(3000), 'l\'offre ne bouge pas');
+            assert.equal(st.burnedByConversion, 0n);
+            assert.equal(st.halvingSteps, 0);
+        }
+        assert.equal((await env.bankState()).depositorStock, 0n);
     });
 
     it('refuse une notification de brûlage qui ne vient pas d\'un wallet ConsoM', async () => {

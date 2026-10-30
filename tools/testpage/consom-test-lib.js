@@ -109,10 +109,6 @@ export function createConsoMTestLib(TON, cfg) {
                 .endCell();
             return { to: walletAddressOf(owner), value: toNano('0.5'), body };
         },
-        voluntaryBurn: (owner, amountConsom) => ({
-            to: walletAddressOf(owner), value: toNano('0.2'),
-            body: beginCell().storeUint(0x595f07bc, 32).storeUint(0, 64).storeCoins(consom(amountConsom)).storeAddress(owner).storeMaybeRef(null).endCell(),
-        }),
         pause: () => ({ to: minter, value: toNano('0.05'), body: beginCell().storeUint(0xc0150010, 32).storeUint(0, 64).endCell() }),
         unpause: () => ({ to: minter, value: toNano('0.05'), body: beginCell().storeUint(0xc0150011, 32).storeUint(0, 64).endCell() }),
     };

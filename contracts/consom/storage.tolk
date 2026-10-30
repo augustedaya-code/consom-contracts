@@ -51,7 +51,6 @@ struct BankRef {
 struct ConsoMStorage {
     totalSupply: coins           // jetons en circulation
     burnedByConversion: coins    // B : total brûlé par les conversions (banque d'échange)
-    recycled: coins              // total recréé dans la banque après des brûlages volontaires
     t0: uint32                   // ouverture du réseau (gravée)
     networkId: int32             // -239 réseau principal, -3 testnet (gravé)
     pausedUntil: uint32          // 0 = pas de pause
