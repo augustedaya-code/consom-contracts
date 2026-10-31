@@ -103,19 +103,27 @@ Un bon est une autorisation signée par au moins deux témoins. N'importe qui pe
 | `minter` | Adresse de l'émetteur : un bon ne vaut que pour ce contrat |
 | `voucher_id` | Identifiant unique sur 64 bits |
 | `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10), réclamation d'un Ancien Contributeur (type 11), contribution du lancement anticipé (type 12) |
-| `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave (jamais l'identifiant en clair) |
+| `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave ou Paystack (jamais l'identifiant en clair). L'empreinte est calculée par les témoins à partir de l'identifiant de la transaction Wave ou Paystack ; le contrôleur indépendant la recalcule à partir des relevés (A6). |
 | `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés (pour un Bonus CHIKA : montant payé en CHIKA) |
 | `member_id` | Empreinte de l'identifiant TonMarché du bénéficiaire |
-| `recipient` | Adresse TON qui recevra les jetons |
+| `recipient` | Adresse TON qui recevra les jetons. Jamais une adresse interdite de réception (voir ci-dessous, A16) |
 | `amount` | Montant demandé, que le contrat recalcule et doit retrouver à l'identique |
 | `valid_until` | Expiration, au plus 7 jours après la signature |
+
+**Adresses interdites de réception (A16).** Le serveur de TonMarché ne peut JAMAIS recevoir de ConsoM créés ; il peut seulement présenter des bons et payer les frais de réseau à la place du membre. Pour que ce soit vrai même si un bon est mal rempli, le contrat grave au déploiement une liste de 0 à 8 « adresses interdites de réception » (wallet relais du serveur, autres wallets du serveur ou de l'équipe technique). Cette liste est gravée, jamais modifiable, lisible par `get_forbidden_recipients`.
+
+- Toute création vers une adresse de la liste est REFUSÉE : pack de prévente, récompenses, parrainage, réclamation d'un Ancien Contributeur, contribution du lancement anticipé, et toute autre création vers `voucher.recipient`.
+- Le refus suit le chemin habituel d'un bon refusé : la réservation est rendue (plafond de la catégorie, parts à attribuer, retenue du lancement anticipé), l'emplacement du budget n'est pas marqué (le même paiement pourra être présenté avec le bon destinataire), le compte membre n'est pas lié, et l'excédent de TON est rendu à celui qui a présenté le bon. La raison est lisible par le serveur dans le message de refus `ClaimRejected` : `reason = 17` (« destinataire interdit »). Comme tout bon refusé, il reste compté dans le plafond du jour (section 3).
+- L'adresse de l'émetteur et l'adresse de la banque sont TOUJOURS interdites comme destinataires d'un bon, qu'elles figurent ou non dans la liste (tous types de bon). Leurs flux internes (genèse, parts, Fondation) ne passent pas par `recipient` et ne changent pas.
+- La part de l'équipe (opération « libérer ») va à l'adresse de l'équipe gravée : une configuration où cette adresse figure dans la liste interdite est refusée au déploiement.
+- Une conversion n'est pas une création : rien ne change pour les conversions. Le relais peut PRÉSENTER des bons (y compris de conversion) et payer les frais ; il ne peut simplement pas en être le destinataire d'une création. La liste ne s'applique pas à un bon de conversion (l'émetteur et la banque restent interdits).
 
 **Parcours d'une réclamation**
 
 1. Le membre, ou le serveur de TonMarché à sa place, envoie le bon et les signatures à l'émetteur (l'« expéditeur »).
-2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents. L'expéditeur n'est pas contrôlé. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
-3. Le budget de paiement vérifie l'emplacement, le recalcul du montant et le `voucher_id`, puis marque l'emplacement comme versé.
-4. Le compte membre vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis accepte ou refuse le bon.
+2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents. L'expéditeur n'est pas contrôlé. Il regarde aussi si `recipient` est interdit de réception (A16) et le signale au premier contrôle qui suit. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
+3. Le budget de paiement refuse un destinataire interdit (avant de marquer quoi que ce soit), puis vérifie l'emplacement, le recalcul du montant et le `voucher_id`, puis marque l'emplacement comme versé.
+4. Le compte membre refuse un destinataire interdit (pour les bons qui ne passent pas par un budget), puis vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis accepte ou refuse le bon.
 5. L'émetteur crée tout le montant dans le wallet du membre.
 
 Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa réservation. Les frais restants sont rendus à l'expéditeur, celui qui a payé (message `excesses`), jamais au membre, dans tous les cas : bon accepté, bon refusé. Si un contrat enfant échoue au point de faire rebondir le message (cas exceptionnel : les contrats enfants répondent toujours), la réservation est libérée mais les TON restent dans l'émetteur. Une réclamation avec trop peu de TON (moins de 0,25) échoue dès l'arrivée chez l'émetteur et le message rebondit à l'expéditeur, sans rien marquer : le bon reste utilisable. Le coût exact d'une réclamation sera mesuré sur le testnet avant d'être affiché dans l'application.
@@ -237,9 +245,11 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 **Témoins**
 
-- Trois clés Ed25519, chacune détenue et déployée par une personne différente. Aucune clé de témoin n'est stockée dans le même service qu'une autre.
+- Trois clés Ed25519 DISTINCTES et non nulles (A3), chacune détenue et déployée par une personne différente. Aucune clé de témoin n'est stockée dans le même service qu'une autre.
 - Chaque témoin interroge Wave lui-même et relit la commande avant de signer. Ils dépendent tous du même compte marchand Wave : ce risque résiduel est couvert par les plafonds ci-dessous.
 - Une signature n'est comptée que si elle vient de deux témoins différents.
+
+**Contrôles au déploiement (A3).** Les paramètres sont gravés par celui qui déploie. Un contrat TON ne peut pas « refuser de naître » : il contrôle donc ses données gravées à CHAQUE message, y compris le tout premier (celui du déploiement). Si elles sont interdites, le message échoue et tous les suivants aussi : rien ne peut jamais être créé et personne ne peut corriger le contrat (aucune fonction d'administration). Sont refusés : deux des trois clés de témoins identiques (code 480) ; une clé de témoin vide, c'est-à-dire zéro (427) ; une adresse de gardien ou d'équipe vide (481, 482) ; un gardien ou une équipe égal à l'émetteur ou à la banque (483, 484 — impossible à construire en pratique, puisque ces adresses dépendent des données gravées ; le contrôle reste par prudence) ; l'adresse de l'équipe dans la liste interdite (485) ; une liste de plus de 8 adresses ou contenant une adresse vide (486). Le script de déploiement et l'interface TypeScript font les mêmes contrôles avant d'envoyer quoi que ce soit, avec un message d'erreur en français. Le remplacement d'un témoin (délai de 7 jours) refuse une clé déjà présente (426) et, pour la même raison, une clé vide (427).
 
 **Gardien** : le Multisig v2 officiel de TON (2 signatures sur 3, audité par Zellic et Trail of Bits), avec trois signataires qui sont trois personnes distinctes, chacune sur un wallet matériel.
 

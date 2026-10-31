@@ -43,7 +43,16 @@ struct Config {
     walletCode: cell         // wallet Jetton (shardé, même principe que Jetton 2.0)
     budgetCode: cell         // contrat « budget de paiement », un par paiement Wave
     memberCode: cell         // contrat « compte membre », un par membre
+    forbidden: Cell<ForbiddenChunk>?   // adresses interdites de réception (A16) : liste de 0 à 8 adresses, gravée, jamais modifiable
     // le code de la banque d'échange est dans BankRef pour rester sous 4 références
+}
+
+// Liste des adresses interdites de réception, en chaîne de cellules de 3 adresses (la première adresse d'une cellule existe toujours)
+struct ForbiddenChunk {
+    a0: address
+    a1: address?
+    a2: address?
+    next: Cell<ForbiddenChunk>?
 }
 
 struct BankRef {

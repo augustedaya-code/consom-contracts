@@ -50,6 +50,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
         bankCode,
         shareCode,
         content: beginCell().storeUint(0x01, 8).storeStringTail('https://tonmarche.example/consom.json').endCell(),
+        forbiddenRecipients: [],
         ...overrides,
     };
     const minter = blockchain.openContract(ConsoMMinter.createFromConfig(config, minterCode));

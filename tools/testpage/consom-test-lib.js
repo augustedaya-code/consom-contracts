@@ -136,6 +136,7 @@ export function createConsoMTestLib(TON, cfg) {
         14: 'mission refusée : il faut d\'abord un achat enregistré',
         15: 'bon de conversion déjà utilisé : préparer un nouveau bon',
         16: 'pas assez de Points valides (jamais enregistrés, déjà convertis, ou plus de 7 jours)',
+        17: 'destinataire interdit : cette adresse ne peut pas recevoir de ConsoM créés (wallet du serveur, émetteur ou banque)',
     };
     const ERROR_TEXT = {
         400: 'l\'émetteur est en pause', 401: 'bon signé pour un autre réseau', 402: 'bon signé pour un autre contrat',

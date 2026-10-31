@@ -82,6 +82,12 @@ fun onInternalMessage(in: InMessage) {
 
     match (msg) {
         CheckClaim => {
+            // A16 : destinataire interdit de réception. Refusé avant tout : l'emplacement n'est pas marqué,
+            // le même paiement pourra être présenté de nouveau avec le bon destinataire.
+            if (msg.recipientForbidden) {
+                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_FORBIDDEN_RECIPIENT);
+                return;
+            }
             val voucher = msg.voucher.load();
             val payment = voucher.payment.load();
             val slot = slotOf(voucher.kind, voucher.level);

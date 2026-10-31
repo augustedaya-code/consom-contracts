@@ -62,6 +62,7 @@ struct (0xc0150002) CheckClaim {
     voucher: Cell<Voucher>
     burnOrder: Cell<BurnOrder>?
     payer: address           // celui qui a présenté le bon et payé les frais : il reçoit l'excédent de TON et les remboursements
+    recipientForbidden: bool // A16 : l'émetteur a vu que voucher.recipient est interdit de réception ; le premier contrôle (budget ou compte membre) refuse
 }
 
 // Budget -> émetteur : l'emplacement de récompense est libre et marqué ; l'émetteur transmet au compte membre.

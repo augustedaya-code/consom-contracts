@@ -60,9 +60,17 @@ export const Err = {
     BAD_SIGNATURE: 405, SAME_WITNESS: 406, BAD_WITNESS_INDEX: 407, NOT_RECIPIENT: 408, UNKNOWN_KIND: 409,
     WINDOW_CLOSED: 410, WRONG_AMOUNT: 411, CATEGORY_CAP: 412, DAILY_CAP: 413, SUPPLY_CAP: 414,
     POINTS_TOO_HIGH: 415, NOT_ENOUGH_TON: 416, BURN_NOT_ALLOWED: 417, NOT_GUARDIAN: 420, PAUSE_TOO_SOON: 421,
-    REPLACE_TOO_SOON: 422, REPLACE_PENDING: 423, NO_PENDING: 424, TIMELOCK: 425, DUPLICATE_KEY: 426,
+    REPLACE_TOO_SOON: 422, REPLACE_PENDING: 423, NO_PENDING: 424, TIMELOCK: 425, DUPLICATE_KEY: 426, ZERO_KEY: 427,
     NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440, GENESIS_NOT_DONE: 441, NOTHING_TO_RELEASE: 442, NO_FOUNDER_SHARES: 443, EARLY_TOTAL: 444,
+    // contrôles au déploiement (un contrat gravé avec des données interdites refuse tout message)
+    DEPLOY_SAME_KEYS: 480, DEPLOY_NO_GUARDIAN: 481, DEPLOY_NO_TEAM: 482, DEPLOY_GUARDIAN_SYSTEM: 483,
+    DEPLOY_TEAM_SYSTEM: 484, DEPLOY_TEAM_FORBIDDEN: 485, DEPLOY_FORBIDDEN_LIST: 486,
 } as const;
+
+// Raisons de refus lisibles par le serveur (ClaimRejected.reason) ajoutées par le lot E4 ; les autres sont dans la spécification
+export const Reject = { FORBIDDEN_RECIPIENT: 17 } as const;
+
+export const MAX_FORBIDDEN_RECIPIENTS = 8;
 
 // Plafonds initiaux (section 3)
 export const INITIAL_CAPS = {
@@ -88,6 +96,9 @@ export type MinterConfig = {
     bankCode: Cell;
     shareCode: Cell;
     content: Cell;
+    // A16 : adresses interdites de réception (0 à 8) — wallet relais du serveur, autres wallets du serveur ou de l'équipe
+    // technique. Gravées au déploiement, jamais modifiables. L'adresse de l'équipe ne peut pas y figurer.
+    forbiddenRecipients: Address[];
     // Total (unités de base) des contributions du lancement anticipé à réclamer : gravé au déploiement, retenu dans la réserve
     // de prévente (la règle des invendus de T0 + 18 mois n'y touche pas). 0 = aucune contribution. Au plus 100 000 000 ConsoM.
     earlyContributionsTotal?: bigint;
@@ -97,6 +108,46 @@ export type MinterConfig = {
 };
 
 const bigFromKey = (key: Buffer) => BigInt('0x' + key.toString('hex'));
+
+// Liste interdite : chaîne de cellules de 3 adresses au plus (ForbiddenChunk dans storage.tolk), null si la liste est vide
+export function forbiddenListToCell(list: Address[]): Cell | null {
+    let next: Cell | null = null;
+    const starts: number[] = [];
+    for (let i = 0; i < list.length; i += 3) starts.push(i);
+    for (const i of starts.reverse()) {
+        const b = beginCell().storeAddress(list[i]).storeAddress(list[i + 1] ?? null).storeAddress(list[i + 2] ?? null).storeMaybeRef(next);
+        next = b.endCell();
+    }
+    return next;
+}
+
+const isZeroAddress = (a: Address) => a.hash.every((byte) => byte === 0);
+
+// Contrôles au déploiement (A3, A16), en français, AVANT d'envoyer quoi que ce soit : une erreur ici arrête le déploiement.
+// Le contrat refait les mêmes contrôles à chaque message (un contrat gravé de travers refuse tout), mais mieux vaut ne jamais le déployer.
+export function assertValidMinterConfig(c: MinterConfig, minter: Address, bank: Address): void {
+    const fail = (why: string): never => { throw new Error(`Déploiement refusé : ${why}`); };
+    if (c.witnessKeys.length !== 3) fail('il faut exactement 3 clés de témoins.');
+    c.witnessKeys.forEach((k, i) => {
+        if (k.length !== 32) fail(`la clé du témoin ${i + 1} doit faire 32 octets.`);
+        if (k.every((byte) => byte === 0)) fail(`la clé du témoin ${i + 1} est vide (zéro).`);
+    });
+    const hex = c.witnessKeys.map((k) => k.toString('hex'));
+    if (new Set(hex).size !== 3) fail('deux des 3 clés de témoins sont identiques : il faut 3 clés distinctes.');
+    if (!c.guardian || isZeroAddress(c.guardian)) fail('l\'adresse du gardien est vide.');
+    if (!c.teamAddress || isZeroAddress(c.teamAddress)) fail('l\'adresse de l\'équipe est vide.');
+    if (c.guardian.equals(minter) || c.guardian.equals(bank)) fail('le gardien ne peut pas être l\'émetteur ni la banque.');
+    if (c.teamAddress.equals(minter) || c.teamAddress.equals(bank)) fail('l\'adresse de l\'équipe ne peut pas être l\'émetteur ni la banque.');
+    if (c.forbiddenRecipients.length > MAX_FORBIDDEN_RECIPIENTS) {
+        fail(`la liste des adresses interdites de réception compte ${c.forbiddenRecipients.length} adresses, 8 au plus.`);
+    }
+    for (const a of c.forbiddenRecipients) {
+        if (!a || isZeroAddress(a)) fail('la liste des adresses interdites de réception contient une adresse vide.');
+        if (a.equals(c.teamAddress)) {
+            fail('l\'adresse de l\'équipe figure dans la liste des adresses interdites de réception : la part de l\'équipe ne pourrait jamais lui être versée.');
+        }
+    }
+}
 
 export function minterConfigToCell(c: MinterConfig): Cell {
     const k = { ...INITIAL_CAPS, ...(c.testCaps ?? {}) };
@@ -129,6 +180,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .storeRef(c.walletCode)
         .storeRef(c.budgetCode)
         .storeRef(c.memberCode)
+        .storeMaybeRef(forbiddenListToCell(c.forbiddenRecipients))
         .endCell();
     const extra = beginCell()
         .storeRef(c.content)
@@ -221,7 +273,10 @@ export class ConsoMMinter implements Contract {
     static createFromConfig(config: MinterConfig, code: Cell, workchain = 0) {
         const data = minterConfigToCell(config);
         const init = { code, data };
-        return new ConsoMMinter(contractAddress(workchain, init), init);
+        const address = contractAddress(workchain, init);
+        const bank = contractAddress(workchain, { code: config.bankCode, data: bankInitData(address, config.t0, config.walletCode, config.shareCode) });
+        assertValidMinterConfig(config, address, bank);
+        return new ConsoMMinter(address, init);
     }
 
     async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
@@ -338,6 +393,19 @@ export class ConsoMMinter implements Contract {
 
     async getBurnForPoints(provider: ContractProvider, points: bigint): Promise<bigint> {
         return (await provider.get('get_burn_for_points', [{ type: 'int', value: points }])).stack.readBigNumber();
+    }
+
+    // A16 : la liste des adresses interdites de réception, exactement comme gravée au déploiement
+    async getForbiddenRecipients(provider: ContractProvider): Promise<Address[]> {
+        const s = (await provider.get('get_forbidden_recipients', [])).stack;
+        const count = s.readNumber();
+        const list: Address[] = [];
+        for (let i = 0; i < MAX_FORBIDDEN_RECIPIENTS; i++) {
+            const a = s.readAddressOpt();
+            if (a) list.push(a);
+        }
+        if (list.length !== count) throw new Error('liste interdite incohérente');
+        return list;
     }
 
     async getWitnessKeys(provider: ContractProvider) {

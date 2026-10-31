@@ -154,6 +154,12 @@ fun onInternalMessage(in: InMessage) {
                 }
                 : previous!;
 
+            // A16 : destinataire interdit de réception (rien n'est enregistré : le compte reste libre pour un bon valable)
+            if (msg.recipientForbidden) {
+                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_FORBIDDEN_RECIPIENT, true);
+                return;
+            }
+
             if (voucher.recipient != state.owner) {
                 reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_WRONG_OWNER, true);
                 return;

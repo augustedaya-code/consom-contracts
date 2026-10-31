@@ -103,6 +103,11 @@ const WITNESS_TIMELOCK        = 7 * ONE_DAY
 const WITNESS_REPLACE_INTERVAL = ONE_MONTH             // un remplacement de témoin par 30 jours
 const WITNESS_COUNT           = 3
 
+// ---------- A16 : adresses interdites de réception ----------
+const MAX_FORBIDDEN_RECIPIENTS = 8   // la liste gravée au déploiement compte de 0 à 8 adresses
+const FORBIDDEN_CHUNK_SIZE     = 3   // adresses par cellule (une cellule TON ne tient que 3 adresses)
+const FORBIDDEN_MAX_CHUNKS     = 3   // 3 cellules de 3 adresses : 9 places pour 8 adresses au plus
+
 // ---------- Section 8 : halving ----------
 // un palier tous les 15 000 000 ConsoM brûlés par les conversions, 16 divisions au plus (17 paliers)
 const HALVING_STEP      = 15000000 * ONE_CONSOM
@@ -145,6 +150,7 @@ const REJECT_ALREADY_DONE       = 13  // membre : bonus ou mission déjà reçu
 const REJECT_NO_PAYMENT         = 14  // membre : mission sans aucun paiement attesté
 const REJECT_STALE_VOUCHER      = 15  // membre : numéro de bon déjà utilisé ou trop ancien
 const REJECT_NOT_ENOUGH_POINTS  = 16  // membre : conversion au-delà des Points encore valides, ou investissement au-delà des Points attestés
+const REJECT_FORBIDDEN_RECIPIENT = 17 // budget ou membre : destinataire interdit de réception (A16) — adresse de la liste gravée, de l'émetteur ou de la banque
 
 // ---------- Emplacements du budget de paiement (bits) ----------
 const SLOT_PRESALE        = 1          // bit 0

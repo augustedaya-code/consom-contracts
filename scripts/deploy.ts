@@ -2,7 +2,11 @@
 //
 // Utilisation (testnet) :
 //   TESTNET_DEPLOYER_MNEMONIC="24 mots"  GUARDIAN_ADDRESS="0Q..."  TEAM_ADDRESS="0Q..."  EARLY_CONTRIBUTIONS_TOTAL="0"  node scripts/deploy.ts testnet
-// Variables facultatives : TONCENTER_API_KEY, T0 (secondes Unix ; par défaut : maintenant).
+// Variables facultatives : TONCENTER_API_KEY, T0 (secondes Unix ; par défaut : maintenant),
+//   FORBIDDEN_RECIPIENTS : adresses interdites de réception (A16), 0 à 8, séparées par des virgules, espaces ou retours à la ligne
+//   (wallet relais du serveur, autres wallets du serveur ou de l'équipe technique). Gravées au déploiement, jamais modifiables.
+//   Vide = aucune : accepté sur le testnet, mais avec un avertissement. Ce script ne lit ni n'affiche jamais de secret autre que
+//   le wallet de déploiement (TESTNET_DEPLOYER_MNEMONIC, qui n'est jamais écrit dans les journaux).
 // Les clés publiques des témoins viennent de deployments/<réseau>.config.json.
 // Le résultat (adresses, empreintes des codes) est écrit dans deployments/<réseau>.json et dans le résumé GitHub.
 import { Address, beginCell, toNano } from '@ton/core';
@@ -22,6 +26,7 @@ export type DeployConfig = {
     guardian: Address;
     teamAddress: Address;    // portefeuille Multisig de l'équipe : gravé au déploiement
     earlyContributionsTotal: bigint;   // total (unités de base) des contributions du lancement anticipé : gravé, retenu dans la réserve de prévente
+    forbiddenRecipients: Address[];    // A16 : 0 à 8 adresses qui ne pourront jamais recevoir de ConsoM créés (gravées, jamais modifiables)
     witnessPublicKeys: [Buffer, Buffer, Buffer];
     content: Cell;
 };
@@ -59,6 +64,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         witnessKeys: cfg.witnessPublicKeys,
         guardian: cfg.guardian,
         teamAddress: cfg.teamAddress,
+        forbiddenRecipients: cfg.forbiddenRecipients,
         earlyContributionsTotal: cfg.earlyContributionsTotal,
         walletCode: codes.walletCode,
         budgetCode: codes.budgetCode,
@@ -66,13 +72,25 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         bankCode: codes.bankCode,
         shareCode: codes.shareCode,
         content: cfg.content,
+        forbiddenRecipients: cfg.forbiddenRecipients,
     };
+    if (cfg.forbiddenRecipients.length === 0) {
+        target.log('⚠ AVERTISSEMENT : la liste des adresses interdites de réception est VIDE. Le wallet relais du serveur pourra recevoir des ConsoM créés. '
+            + 'Acceptable sur le testnet ; sur le réseau principal, la règle A16 exige d\'y inscrire le relais et les autres wallets du serveur.');
+    }
     const minter = target.open(ConsoMMinter.createFromConfig(minterConfig, codes.minterCode));
     const bank = target.open(ExchangeBank.createForMinter(minter.address, cfg.t0, codes.walletCode, codes.shareCode, codes.bankCode));
 
     target.log(`Émetteur : ${minter.address.toString({ testOnly: cfg.network === 'testnet' })}`);
     await minter.sendDeploy(target.sender, toNano('0.3'));
     await target.waitFor('déploiement de l\'émetteur', minter.address);
+
+    // la liste gravée doit être exactement celle demandée (lue sur la chaîne)
+    const engraved = await minter.getForbiddenRecipients();
+    if (engraved.length !== cfg.forbiddenRecipients.length || engraved.some((a, i) => !a.equals(cfg.forbiddenRecipients[i]))) {
+        throw new Error('La liste des adresses interdites lue sur la chaîne diffère de celle demandée : déploiement arrêté.');
+    }
+    target.log(`Adresses interdites de réception gravées : ${engraved.length}`);
 
     const expectedBank = await minter.getBankAddress();
     if (!expectedBank.equals(bank.address)) {
@@ -114,6 +132,12 @@ async function main() {
     // total des contributions du lancement anticipé, en ConsoM entiers : somme de la liste du serveur (0 = aucune)
     const earlyText = (process.env.EARLY_CONTRIBUTIONS_TOTAL ?? '').trim();
     if (!/^\d+$/.test(earlyText) || BigInt(earlyText) > 100_000_000n) throw new Error('EARLY_CONTRIBUTIONS_TOTAL manquant ou invalide (nombre entier de ConsoM, 0 à 100000000).');
+    // A16 : adresses interdites de réception (facultatif sur le testnet)
+    const forbiddenRecipients = (process.env.FORBIDDEN_RECIPIENTS ?? '').split(/[\s,;]+/).map((t) => t.trim()).filter(Boolean).map((t) => Address.parse(t));
+    if (forbiddenRecipients.length > 8) throw new Error('FORBIDDEN_RECIPIENTS : 8 adresses au plus.');
+    if (forbiddenRecipients.length === 0 && process.env.GITHUB_ACTIONS) {
+        console.log('::warning title=Adresses interdites::la liste des adresses interdites de réception est vide (acceptable sur le testnet, pas sur le réseau principal)');
+    }
     const fileCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'deployments', `${network}.config.json`), 'utf-8'));
 
     const client = new TonClient({
@@ -187,6 +211,7 @@ async function main() {
         guardian: Address.parse(guardianText),
         teamAddress: Address.parse(teamText),
         earlyContributionsTotal: BigInt(earlyText) * 1_000_000_000n,
+        forbiddenRecipients,
         witnessPublicKeys: fileCfg.witnessPublicKeys.map((h: string) => Buffer.from(h, 'hex')) as [Buffer, Buffer, Buffer],
         content: jettonContent(fileCfg.metadataUri ?? 'https://tonmarche.example/consom-testnet.json'),
     }, target);
@@ -200,6 +225,7 @@ async function main() {
         guardian: res.guardian.toString({ testOnly: true, bounceable: false }),
         teamAddress: res.teamAddress.toString({ testOnly: true, bounceable: false }),
         earlyContributionsTotal: res.earlyContributionsTotal.toString(),
+        forbiddenRecipients: res.forbiddenRecipients.map((a) => a.toString({ testOnly: true, bounceable: false })),
         witnessPublicKeys: fileCfg.witnessPublicKeys,
         codeHashes: res.codeHashes,
     };
@@ -213,6 +239,8 @@ async function main() {
         `| Banque d'échange | [${out.bank}](https://testnet.tonviewer.com/${out.bank}) |`,
         `| Gardien | ${out.guardian} |`,
         `| Équipe (part gravée) | ${out.teamAddress} |`,
+        '',
+        `Adresses interdites de réception gravées : ${out.forbiddenRecipients.length}${out.forbiddenRecipients.length === 0 ? ' ⚠ liste vide (acceptable sur le testnet seulement)' : ''}`,
         '',
         `T0 : ${new Date(t0 * 1000).toISOString()}`,
         '',

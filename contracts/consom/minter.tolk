@@ -422,6 +422,89 @@ fun ConsoMStorage.currentHalvingSteps(self): int {
 }
 
 // ===================================================================================================
+// Adresses interdites de réception (A16) et contrôles au déploiement (A3)
+// ===================================================================================================
+
+fun isEmptyAddress(a: address): bool {
+    val (workchain, hash) = a.getWorkchainAndHash();
+    return hash == 0;
+}
+
+// Vrai si `who` figure dans la liste gravée au déploiement (au plus 3 cellules : vérifié à chaque message par assertDeploymentValid)
+fun Config.isInForbiddenList(self, who: address): bool {
+    var cell = self.forbidden;
+    while (cell != null) {
+        val chunk = cell!.load();
+        if (chunk.a0 == who) {
+            return true;
+        }
+        if ((chunk.a1 != null) && (chunk.a1! == who)) {
+            return true;
+        }
+        if ((chunk.a2 != null) && (chunk.a2! == who)) {
+            return true;
+        }
+        cell = chunk.next;
+    }
+    return false;
+}
+
+fun forbiddenEntry(entry: address, team: address): int {
+    assert (!isEmptyAddress(entry)) throw ERR_DEPLOY_FORBIDDEN_LIST;
+    assert (entry != team) throw ERR_DEPLOY_TEAM_FORBIDDEN;
+    return 1;
+}
+
+// Contrôles au déploiement. Les données du contrat sont gravées par celui qui le déploie ; le contrat ne peut pas
+// « refuser de naître », mais un contrat dont les données ne respectent pas ces règles refuse TOUT message
+// (les messages rebondissent, rien n'est créé) : il est inutilisable, et personne ne peut le corriger.
+//   - 3 clés de témoins non nulles et deux à deux différentes (A3) ;
+//   - gardien et équipe : non vides, différents de l'émetteur et de la banque ;
+//   - liste interdite : 8 adresses au plus, aucune vide, l'équipe n'y figure pas (A16).
+fun ConsoMStorage.assertDeploymentValid(self) {
+    val witnesses = self.witnesses.load();
+    assert ((witnesses.key0 != 0) && (witnesses.key1 != 0) && (witnesses.key2 != 0)) throw ERR_ZERO_KEY;
+    assert ((witnesses.key0 != witnesses.key1) && (witnesses.key0 != witnesses.key2) && (witnesses.key1 != witnesses.key2)) throw ERR_DEPLOY_SAME_KEYS;
+
+    val config = self.config.load();
+    assert (!isEmptyAddress(config.guardian)) throw ERR_DEPLOY_NO_GUARDIAN;
+    assert (!isEmptyAddress(config.teamAddress)) throw ERR_DEPLOY_NO_TEAM;
+    val bank = self.bankAddress();
+    val me = contract.getAddress();
+    assert ((config.guardian != me) && (config.guardian != bank)) throw ERR_DEPLOY_GUARDIAN_SYSTEM;
+    assert ((config.teamAddress != me) && (config.teamAddress != bank)) throw ERR_DEPLOY_TEAM_SYSTEM;
+
+    var cell = config.forbidden;
+    var chunks = 0;
+    var count = 0;
+    while (cell != null) {
+        chunks += 1;
+        assert (chunks <= FORBIDDEN_MAX_CHUNKS) throw ERR_DEPLOY_FORBIDDEN_LIST;
+        val chunk = cell!.load();
+        count += forbiddenEntry(chunk.a0, config.teamAddress);
+        if (chunk.a1 != null) {
+            count += forbiddenEntry(chunk.a1!, config.teamAddress);
+        }
+        if (chunk.a2 != null) {
+            count += forbiddenEntry(chunk.a2!, config.teamAddress);
+        }
+        cell = chunk.next;
+    }
+    assert (count <= MAX_FORBIDDEN_RECIPIENTS) throw ERR_DEPLOY_FORBIDDEN_LIST;
+}
+
+// A16 : destinataire interdit pour une création. L'émetteur et la banque le sont toujours (tous types de bon) ;
+// la liste gravée s'ajoute pour les créations. Une conversion n'est pas une création : la liste ne s'y applique pas
+// (le serveur peut présenter des bons de conversion et payer les frais, il ne peut juste pas être un destinataire de création).
+fun ConsoMStorage.isRecipientForbidden(self, voucher: Voucher): bool {
+    val recipient = voucher.recipient;
+    if ((recipient == contract.getAddress()) || (recipient == self.bankAddress())) {
+        return true;
+    }
+    return !isConversionBurn(voucher.kind) && self.config.load().isInForbiddenList(recipient);
+}
+
+// ===================================================================================================
 // Création de jetons
 // ===================================================================================================
 
@@ -559,6 +642,8 @@ fun onBouncedMessage(in: InMessageBounced) {
 // ===================================================================================================
 
 fun onInternalMessage(in: InMessage) {
+    // A3 / A16 : un contrat déployé avec des données interdites refuse tout (voir assertDeploymentValid)
+    ConsoMStorage.load().assertDeploymentValid();
     val msg = lazy AllowedMessageToConsoMMinter.fromSlice(in.body);
 
     match (msg) {
@@ -635,6 +720,7 @@ fun onInternalMessage(in: InMessage) {
                         }).toCell()
                         : null,
                     payer: in.senderAddress,
+                    recipientForbidden: storage.isRecipientForbidden(voucher),
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -658,6 +744,7 @@ fun onInternalMessage(in: InMessage) {
                     voucher: msg.voucher,
                     burnOrder: null,
                     payer: msg.payer,
+                    recipientForbidden: false,    // le budget a déjà vérifié le destinataire
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -787,6 +874,7 @@ fun onInternalMessage(in: InMessage) {
                     voucher: msg.voucher,
                     burnOrder: order.toCell(),
                     payer: msg.from,
+                    recipientForbidden: false,    // conversion avec ses propres ConsoM : msg.from == voucher.recipient, jamais l'émetteur ni la banque
                 }
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
         }
@@ -858,6 +946,7 @@ fun onInternalMessage(in: InMessage) {
             assert (msg.index < WITNESS_COUNT) throw ERR_BAD_WITNESS_INDEX;
             assert (witnesses.pending == null) throw ERR_REPLACE_PENDING;
             assert ((witnesses.lastReplaceAt == 0) || (now >= witnesses.lastReplaceAt + WITNESS_REPLACE_INTERVAL)) throw ERR_REPLACE_TOO_SOON;
+            assert (msg.newKey != 0) throw ERR_ZERO_KEY;
             assert (!witnesses.hasKey(msg.newKey)) throw ERR_DUPLICATE_KEY;
             val pending: PendingWitness = {
                 index: msg.index,
@@ -1049,6 +1138,48 @@ get fun get_team_vesting(): TeamVestingReply {
 get fun get_team_address(): address {
     val storage = lazy ConsoMStorage.load();
     return storage.config.load().teamAddress;
+}
+
+// A16 : la liste des adresses interdites de réception, gravée au déploiement (dans l'ordre de gravure ; `none` = place libre)
+struct ForbiddenListReply {
+    count: int
+    a0: address?
+    a1: address?
+    a2: address?
+    a3: address?
+    a4: address?
+    a5: address?
+    a6: address?
+    a7: address?
+}
+
+get fun get_forbidden_recipients(): ForbiddenListReply {
+    val storage = lazy ConsoMStorage.load();
+    var list: ForbiddenListReply = { count: 0, a0: null, a1: null, a2: null, a3: null, a4: null, a5: null, a6: null, a7: null };
+    var cell = storage.config.load().forbidden;
+    var i = 0;
+    while (cell != null) {
+        val chunk = cell!.load();
+        var j = 0;
+        while (j < 3) {
+            val entry: address? = (j == 0) ? chunk.a0 : ((j == 1) ? chunk.a1 : chunk.a2);
+            if ((entry != null) && (i < MAX_FORBIDDEN_RECIPIENTS)) {
+                if (i == 0) { list.a0 = entry; }
+                else if (i == 1) { list.a1 = entry; }
+                else if (i == 2) { list.a2 = entry; }
+                else if (i == 3) { list.a3 = entry; }
+                else if (i == 4) { list.a4 = entry; }
+                else if (i == 5) { list.a5 = entry; }
+                else if (i == 6) { list.a6 = entry; }
+                else { list.a7 = entry; }
+                i += 1;
+            }
+            j += 1;
+        }
+        cell = chunk.next;
+    }
+    list.count = i;
+    return list;
 }
 
 get fun get_witnesses(): Witnesses {

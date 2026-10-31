@@ -17,6 +17,11 @@ on:
         description: "Adresse (testnet) du portefeuille de l'équipe : gravée au déploiement, ne pourra jamais être changée"
         required: true
 
+      forbidden_recipients:
+        description: "Adresses (testnet) interdites de réception, 0 à 8, séparées par des virgules : wallet relais du serveur et autres wallets du serveur ou de l'équipe technique. Gravées au déploiement, jamais modifiables. Vide = aucune (avertissement)"
+        required: false
+        default: ""
+
 permissions:
   contents: write
 
@@ -39,6 +44,7 @@ jobs:
           GUARDIAN_ADDRESS: ${{ inputs.guardian_address }}
           TEAM_ADDRESS: ${{ inputs.team_address }}
           EARLY_CONTRIBUTIONS_TOTAL: ${{ inputs.early_contributions_total }}
+          FORBIDDEN_RECIPIENTS: ${{ inputs.forbidden_recipients }}
         run: npm run deploy:testnet
       - name: Enregistrer les adresses dans le dépôt
         run: |

@@ -64,6 +64,16 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   récompenses 24 mois depuis T0 ; aucune limite pour les conversions et les Anciens Contributeurs), et **recalcule lui-même le montant** (packs de prévente, 5 %, 2,5/1,3/0,7/0,4/0,1 %, 500, 150, 0,04 par CHIKA investi, 0,3 % de bonus CHIKA, 30 % de la part d'un Ancien Contributeur).
   Il réserve le montant sur le plafond de la catégorie et sur le plafond global de 2 000 000 ConsoM par 24 h, puis transmet
   le bon au budget du paiement Wave ou au compte du membre.
+- **Adresses interdites de réception** (règle A16) : le serveur de TonMarché ne peut JAMAIS recevoir de ConsoM créés. Une liste de
+  0 à 8 adresses (wallet relais, autres wallets du serveur ou de l'équipe technique) est gravée au déploiement
+  (`get_forbidden_recipients`) ; l'émetteur et la banque sont toujours interdits en plus. Toute création vers une adresse
+  interdite (prévente, récompenses, Ancien Contributeur, lancement anticipé, ...) est refusée par le budget ou le compte
+  membre avec la raison **17 « destinataire interdit »** : réservation rendue, rien de créé, rien de marqué. Le relais peut
+  toujours présenter des bons et payer les frais ; les conversions ne changent pas.
+- **Contrôles au déploiement** (règle A3) : le contrat vérifie ses données gravées à chaque message, le premier compris. Deux
+  clés de témoins identiques, une clé à zéro, un gardien ou une équipe vide (ou égal à l'émetteur ou à la banque), une équipe
+  présente dans la liste interdite, plus de 8 adresses interdites : le contrat refuse tout (codes 427, 480 à 486) et ne
+  peut plus rien créer. Le script de déploiement et le wrapper font les mêmes contrôles avant d'envoyer quoi que ce soit.
 - **Création** : seulement sur approbation d'un compte membre dont l'adresse est calculée à partir de son code ; jamais plus
   de 250 M (jetons en circulation + brûlés par conversion).
 - **Brûlages** (règle A10) : seul le programme de conversion (la banque d'échange) détruit des ConsoM ; ces brûlages sont
@@ -164,6 +174,32 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
    propriétaire.
 10. Chaque contrat ne renvoie que les TON qu'il vient de recevoir et garde son propre solde (0,01 TON pour un budget,
     un compte membre ou des parts ; 0,05 TON pour la banque).
+
+## Paramètres de déploiement
+
+Tout ce qui suit est GRAVÉ dans le stockage de l'émetteur au déploiement. Le contrat n'a aucun propriétaire et aucune fonction
+d'administration : aucun message ne peut changer ces valeurs, et le code lui-même ne peut pas être remplacé. Le contrat
+contrôle ces valeurs à chaque message (voir « Contrôles au déploiement ») : un déploiement mal paramétré est inutilisable
+et ne peut pas être corrigé, il faut alors en déployer un autre.
+
+| Paramètre | Qui le fournit | Pourquoi il ne pourra plus changer |
+| --- | --- | --- |
+| **3 clés publiques de témoins** (Ed25519, 32 octets chacune, distinctes, non nulles) | Chacune par un témoin différent, qui garde seul sa clé privée (fichier `deployments/<réseau>.config.json`) | Gravées dans le stockage. Aucun administrateur ne peut les changer. **Seule exception :** le gardien peut remplacer UNE clé à la fois, annoncé sur la chaîne, effectif après 7 jours, annulable, une fois par 30 jours ; il ne peut ni ajouter une clé nulle ni dupliquer une clé existante |
+| **Gardien** (adresse du Multisig v2, 2 signatures sur 3) | Les trois signataires du Multisig, qui le créent avant le déploiement | Gravée ; aucune fonction ne la modifie. Le gardien ne peut que mettre en pause (14 jours au plus) et remplacer un témoin sous délai |
+| **Équipe** (adresse du Multisig de l'équipe, reçoit les 5 000 000 de la part de l'équipe) | L'équipe, avant le déploiement | Gravée : personne, pas même le gardien, ne peut rediriger la part de l'équipe. Elle ne doit pas figurer dans la liste interdite (sinon le déploiement échoue) |
+| **Liste des adresses interdites de réception** (0 à 8 adresses) | L'équipe technique : wallet relais du serveur, autres wallets du serveur ou de l'équipe technique | Gravée : la garantie « le serveur ne reçoit jamais de ConsoM créés » (A16) ne doit dépendre de personne. Une liste vide est acceptée par le contrat mais le script de déploiement affiche un avertissement : sur le réseau principal, le relais doit y figurer |
+| **T0** (ouverture du réseau, secondes Unix) | L'équipe technique, au moment du déploiement (variable `T0`, par défaut maintenant) | Toutes les fenêtres (prévente 18 mois, récompenses 24 mois, équipe 12 à 36 mois, Fondation 24 mois) se comptent depuis T0 : le déplacer changerait les droits de chacun |
+| **Réseau** (`networkId` : -239 réseau principal, -3 testnet) | Le script (`testnet` ou `mainnet`) | Un bon signé pour un réseau n'est jamais valable sur l'autre ; le changer permettrait de rejouer des bons |
+| **Total du lancement anticipé** (`earlyContributionsTotal`, en ConsoM entiers, 0 à 100 000 000) | Le serveur de TonMarché : somme de la liste des contributions du réseau d'essai (variable `EARLY_CONTRIBUTIONS_TOTAL`, 0 sur le testnet) | Retenu dans la réserve de prévente pour que la règle des invendus de T0 + 18 mois ne l'efface pas : s'il pouvait changer, on pourrait retenir ou libérer des ConsoM à volonté |
+
+Sont aussi gravés par le déploiement, sans que personne n'ait de choix à faire : les codes compilés du wallet Jetton, du budget de
+paiement, du compte membre, de la banque et des parts d'un déposant, ainsi que le lien des métadonnées du Jetton (empreintes
+des codes dans `deployments/<réseau>.json`).
+
+Pour le testnet (`npm run deploy:testnet`, ou le bouton « Run workflow » du GitHub Action « Déployer sur le testnet ») :
+`GUARDIAN_ADDRESS`, `TEAM_ADDRESS`, `EARLY_CONTRIBUTIONS_TOTAL`, `FORBIDDEN_RECIPIENTS` (facultatif, adresses séparées par des
+virgules), `T0` (facultatif). Les trois clés de témoins viennent de `deployments/testnet.config.json`. Le script ne lit ni
+n'affiche aucun secret autre que le wallet de déploiement, qui ne sort jamais de l'environnement.
 
 ## Coût mesuré (simulateur)
 
