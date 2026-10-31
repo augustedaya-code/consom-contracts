@@ -72,7 +72,6 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         bankCode: codes.bankCode,
         shareCode: codes.shareCode,
         content: cfg.content,
-        forbiddenRecipients: cfg.forbiddenRecipients,
     };
     if (cfg.forbiddenRecipients.length === 0) {
         target.log('⚠ AVERTISSEMENT : la liste des adresses interdites de réception est VIDE. Le wallet relais du serveur pourra recevoir des ConsoM créés. '
@@ -111,8 +110,61 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         guardian: cfg.guardian,
         teamAddress: cfg.teamAddress,
         earlyContributionsTotal: cfg.earlyContributionsTotal,
+        forbiddenRecipients: engraved,   // telle que lue sur la chaîne (et vérifiée identique à la demande)
+        witnessPublicKeys: cfg.witnessPublicKeys.map((k) => k.toString('hex')),
         codeHashes: Object.fromEntries(Object.entries(codes).map(([k, c]) => [k, c.hash().toString('hex')])),
     };
+}
+
+export type DeployResult = Awaited<ReturnType<typeof deployConsoM>>;
+
+// Le contenu de deployments/<réseau>.json, à partir du résultat du déploiement
+export function buildDeploymentRecord(res: DeployResult, deployedAt: Date = new Date()) {
+    const testOnly = res.network === 'testnet';
+    return {
+        network: res.network,
+        deployedAt: deployedAt.toISOString(),
+        t0: res.t0,
+        minter: res.minter.toString({ testOnly }),
+        bank: res.bank.toString({ testOnly }),
+        guardian: res.guardian.toString({ testOnly, bounceable: false }),
+        teamAddress: res.teamAddress.toString({ testOnly, bounceable: false }),
+        earlyContributionsTotal: res.earlyContributionsTotal.toString(),
+        forbiddenRecipients: res.forbiddenRecipients.map((a) => a.toString({ testOnly, bounceable: false })),
+        witnessPublicKeys: res.witnessPublicKeys,
+        codeHashes: res.codeHashes,
+    };
+}
+
+export function renderSummary(out: ReturnType<typeof buildDeploymentRecord>): string {
+    return [
+        `## ConsoM déployé sur le ${out.network}`,
+        '',
+        `| Contrat | Adresse |`,
+        `| --- | --- |`,
+        `| Émetteur | [${out.minter}](https://testnet.tonviewer.com/${out.minter}) |`,
+        `| Banque d'échange | [${out.bank}](https://testnet.tonviewer.com/${out.bank}) |`,
+        `| Gardien | ${out.guardian} |`,
+        `| Équipe (part gravée) | ${out.teamAddress} |`,
+        '',
+        `Adresses interdites de réception gravées : ${out.forbiddenRecipients.length}${out.forbiddenRecipients.length === 0 ? ' ⚠ liste vide (acceptable sur le testnet seulement)' : ''}`,
+        '',
+        `T0 : ${new Date(out.t0 * 1000).toISOString()}`,
+        '',
+        '```json',
+        JSON.stringify(out, null, 2),
+        '```',
+    ].join('\n');
+}
+
+// Fin du script : écrit deployments/<réseau>.json et le résumé (affiché, et ajouté au résumé GitHub s'il existe)
+export function writeDeploymentOutputs(res: DeployResult, dir: string, opts: { summaryFile?: string; log?: (m: string) => void; deployedAt?: Date } = {}) {
+    const out = buildDeploymentRecord(res, opts.deployedAt);
+    fs.writeFileSync(path.join(dir, `${res.network}.json`), JSON.stringify(out, null, 2) + '\n');
+    const summary = renderSummary(out);
+    (opts.log ?? console.log)(summary);
+    if (opts.summaryFile) fs.appendFileSync(opts.summaryFile, summary + '\n');
+    return out;
 }
 
 // ---------- Ligne de commande (testnet / réseau principal) ----------
@@ -216,40 +268,7 @@ async function main() {
         content: jettonContent(fileCfg.metadataUri ?? 'https://tonmarche.example/consom-testnet.json'),
     }, target);
 
-    const out = {
-        network,
-        deployedAt: new Date().toISOString(),
-        t0,
-        minter: res.minter.toString({ testOnly: true }),
-        bank: res.bank.toString({ testOnly: true }),
-        guardian: res.guardian.toString({ testOnly: true, bounceable: false }),
-        teamAddress: res.teamAddress.toString({ testOnly: true, bounceable: false }),
-        earlyContributionsTotal: res.earlyContributionsTotal.toString(),
-        forbiddenRecipients: res.forbiddenRecipients.map((a) => a.toString({ testOnly: true, bounceable: false })),
-        witnessPublicKeys: fileCfg.witnessPublicKeys,
-        codeHashes: res.codeHashes,
-    };
-    fs.writeFileSync(path.join(ROOT, 'deployments', `${network}.json`), JSON.stringify(out, null, 2) + '\n');
-    const summary = [
-        `## ConsoM déployé sur le ${network}`,
-        '',
-        `| Contrat | Adresse |`,
-        `| --- | --- |`,
-        `| Émetteur | [${out.minter}](https://testnet.tonviewer.com/${out.minter}) |`,
-        `| Banque d'échange | [${out.bank}](https://testnet.tonviewer.com/${out.bank}) |`,
-        `| Gardien | ${out.guardian} |`,
-        `| Équipe (part gravée) | ${out.teamAddress} |`,
-        '',
-        `Adresses interdites de réception gravées : ${out.forbiddenRecipients.length}${out.forbiddenRecipients.length === 0 ? ' ⚠ liste vide (acceptable sur le testnet seulement)' : ''}`,
-        '',
-        `T0 : ${new Date(t0 * 1000).toISOString()}`,
-        '',
-        '```json',
-        JSON.stringify(out, null, 2),
-        '```',
-    ].join('\n');
-    console.log(summary);
-    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n');
+    writeDeploymentOutputs(res, path.join(ROOT, 'deployments'), { summaryFile: process.env.GITHUB_STEP_SUMMARY });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
