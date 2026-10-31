@@ -25,6 +25,7 @@ const ERR_REPLACE_PENDING     = 423   // un remplacement est déjà en attente
 const ERR_NO_PENDING          = 424   // aucun remplacement en attente
 const ERR_TIMELOCK            = 425   // délai de 7 jours non écoulé
 const ERR_DUPLICATE_KEY       = 426   // la nouvelle clé est déjà celle d'un témoin
+const ERR_ZERO_KEY            = 427   // clé de témoin vide (zéro) : refusée au déploiement et dans un remplacement
 const ERR_NOT_CHILD           = 430   // message qui ne vient pas d'un budget ou d'un compte membre de cet émetteur
 const ERR_NOT_WALLET          = 431   // notification de brûlage qui ne vient pas d'un wallet ConsoM
 const ERR_NOT_BANK            = 432   // message réservé à la banque d'échange
@@ -32,4 +33,14 @@ const ERR_GENESIS_DONE        = 440   // genèse déjà faite
 const ERR_GENESIS_NOT_DONE    = 441   // réclamation d'un Ancien Contributeur avant la genèse (les parts à attribuer n'existent pas encore)
 const ERR_NOTHING_TO_RELEASE  = 442   // part de l'équipe : rien de nouveau à libérer
 const ERR_NO_FOUNDER_SHARES   = 443   // réclamation d'un Ancien Contributeur : pas assez de parts à attribuer dans la banque
+const ERR_EARLY_TOTAL         = 444   // contributions du lancement anticipé : au-delà du total gravé au déploiement
+
+// Contrôles au déploiement (A3, A16) : un contrat dont les données gravées ne respectent pas ces règles refuse tout message
+const ERR_DEPLOY_SAME_KEYS      = 480   // deux des 3 clés de témoins sont identiques
+const ERR_DEPLOY_NO_GUARDIAN    = 481   // adresse du gardien vide
+const ERR_DEPLOY_NO_TEAM        = 482   // adresse de l'équipe vide
+const ERR_DEPLOY_GUARDIAN_SYSTEM = 483  // le gardien ne peut pas être l'émetteur ni la banque
+const ERR_DEPLOY_TEAM_SYSTEM    = 484   // l'équipe ne peut pas être l'émetteur ni la banque
+const ERR_DEPLOY_TEAM_FORBIDDEN = 485   // l'adresse de l'équipe figure dans la liste des adresses interdites de réception
+const ERR_DEPLOY_FORBIDDEN_LIST = 486   // liste interdite : plus de 8 adresses, ou une adresse vide
 const ERR_UNKNOWN_OP          = 0xFFFF

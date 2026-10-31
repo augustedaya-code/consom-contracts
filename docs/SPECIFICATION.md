@@ -53,7 +53,7 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 
 | Catégorie | Plafond (ConsoM) | Source d'émission | Fenêtre |
 | --- | --- | --- | --- |
-| Prévente | 100 000 000 | Paiement Wave d'un pack | T0 → T0 + 18 mois |
+| Prévente | 100 000 000 | Paiement Wave d'un pack ; contributions du lancement anticipé (voir plus bas) | T0 → T0 + 18 mois (contributions du lancement anticipé : sans limite) |
 | Récompenses d'achat (conversion et investissement) | 55 000 000 | Paiement Wave d'une commande livrée | T0 → T0 + 24 mois |
 | Parrainage | 45 000 000 | Paiement Wave d'une commande d'un filleul | T0 → T0 + 24 mois |
 | Premier achat et missions | 19 900 000 | Membre ayant au moins un paiement | T0 → T0 + 24 mois |
@@ -64,9 +64,13 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 
 **Règles de fin de période**
 
-1. À T0 + 18 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date.
+1. À T0 + 18 mois, la prévente se ferme. Sur son reste R : 50 % sont retirés définitivement, 25 % s'ajoutent au plafond des récompenses d'achat, 25 % à celui du parrainage. Le calcul est fait une seule fois, par le premier message reçu après cette date. R ne comprend pas la retenue des contributions du lancement anticipé encore à réclamer (voir plus bas) : cette retenue reste dans la réserve de prévente.
 2. À T0 + 24 mois, l'émission de nouvelles récompenses s'arrête. Le reste non réservé des catégories Achat, Parrainage, Premier achat et missions, et Bonus CHIKA est retiré définitivement ; `get_caps` affiche 0 pour ces quatre réserves.
 3. « Retiré » veut dire que le plafond est ramené au montant déjà émis ou réservé : rien n'est créé puis brûlé.
+
+**Contributions du lancement anticipé (décision du 30 octobre 2026).** Les contributeurs des 5 mois sur le réseau d'essai reçoivent leurs vrais ConsoM au lancement principal, 1 pour 1, pris dans la réserve de prévente. Comme pour les Anciens Contributeurs, c'est obligatoire et sans choix : 30 % de T sont créés sur l'adresse du contributeur, 70 % de T sont créés dans la banque d'échange (stock des déposants) et autant de PARTS NOUVELLES sont attribuées à son adresse (à la différence des Anciens Contributeurs, ce ne sont pas des parts de la genèse : de nouveaux ConsoM et de nouvelles parts, au prix du moment, donc sans diluer les autres déposants ; au départ, 1 part = 1 ConsoM). Le compte membre devient éligible, comme après une prévente. Le bon signé 2 sur 3 (type 12) porte l'adresse du contributeur (`recipient`), l'identifiant unique de la contribution (empreinte, dans `wave_ref` ; jamais de nom ni de numéro en clair), l'empreinte du membre et le total T de ConsoM de ses packs (`amount`, multiple de 10 unités de base). Le contrat refuse si la réserve de prévente ne suffit pas ; une seule fois par identifiant de contribution (le budget de paiement de cet identifiant garde l'emplacement) ; sans limite de temps (le contributeur a déjà payé) ; pas soumis au plafond de 50 000 par membre ; T compte en entier dans le plafond global de 2 000 000 par 24 h (si la place manque, refus temporaire : le bon peut être présenté le lendemain). La pause du gardien le bloque. Les retraits de ces parts suivent les règles de la banque (fermée 12 mois pour tout le monde, retrait 24 h après la dernière arrivée de parts). Un pack de prévente normal ne change pas : 100 % sur l'adresse.
+
+*Total gravé et retenue.* La règle des invendus de T0 + 18 mois viderait la réserve de prévente avant que toutes les contributions soient réclamées. Le total des contributions (somme de la liste du serveur) est donc gravé au déploiement (`earlyContributionsTotal`) et retenu dans la réserve de prévente : les packs de prévente normaux ne peuvent pas l'entamer, la règle des invendus ne s'y applique pas, et les contributions ne peuvent pas le dépasser (au-delà : refus, code 444). Chaque contribution acceptée diminue la retenue d'autant. Sans total gravé (0), aucune contribution n'est possible.
 
 **Part de l'équipe (A9).** L'adresse qui reçoit les 5 000 000 est un paramètre de déploiement (un portefeuille Multisig de l'équipe) ; elle est gravée dans la configuration et ne peut jamais être changée. Rien n'est libéré avant T0 + 12 mois ; ensuite, chaque période de 30 jours terminée libère 1/24 (soit 208 333,333… ConsoM, arrondi à l'unité de base inférieure), la dernière part prenant le reste pour un total exact ; tout est libéré à T0 + 36 mois. L'opération « libérer la part de l'équipe » peut être appelée par n'importe qui, qui ne paie que les frais : elle crée vers l'adresse de l'équipe la différence entre ce qui est libéré à ce jour et ce qui a déjà été créé, et rien d'autre. Elle puise uniquement dans la réserve équipe, n'est soumise ni à la fenêtre de 24 mois ni au plafond de 50 000 par membre, compte dans le plafond global de 2 000 000 par 24 h (si la place manque, elle crée ce qui rentre et le reste est libéré par un appel suivant) et est bloquée par la pause du gardien. `get_team_vesting` donne le total libéré, le total déjà créé et la prochaine date de libération (0 quand tout est libéré) ; `get_team_address` donne l'adresse gravée.
 
@@ -98,20 +102,28 @@ Un bon est une autorisation signée par au moins deux témoins. N'importe qui pe
 | `network_id` | -239 pour le réseau principal, -3 pour le testnet : un bon de testnet est refusé sur le réseau principal |
 | `minter` | Adresse de l'émetteur : un bon ne vaut que pour ce contrat |
 | `voucher_id` | Identifiant unique sur 64 bits |
-| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10), réclamation d'un Ancien Contributeur (type 11) |
-| `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave (jamais l'identifiant en clair) |
+| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10), réclamation d'un Ancien Contributeur (type 11), contribution du lancement anticipé (type 12) |
+| `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave ou Paystack (jamais l'identifiant en clair). L'empreinte est calculée par les témoins à partir de l'identifiant de la transaction Wave ou Paystack ; le contrôleur indépendant la recalcule à partir des relevés (A6). |
 | `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés (pour un Bonus CHIKA : montant payé en CHIKA) |
 | `member_id` | Empreinte de l'identifiant TonMarché du bénéficiaire |
-| `recipient` | Adresse TON qui recevra les jetons |
+| `recipient` | Adresse TON qui recevra les jetons. Jamais une adresse interdite de réception (voir ci-dessous, A16) |
 | `amount` | Montant demandé, que le contrat recalcule et doit retrouver à l'identique |
 | `valid_until` | Expiration, au plus 7 jours après la signature |
+
+**Adresses interdites de réception (A16).** Le serveur de TonMarché ne peut JAMAIS recevoir de ConsoM créés ; il peut seulement présenter des bons et payer les frais de réseau à la place du membre. Pour que ce soit vrai même si un bon est mal rempli, le contrat grave au déploiement une liste de 0 à 8 « adresses interdites de réception » (wallet relais du serveur, autres wallets du serveur ou de l'équipe technique). Cette liste est gravée, jamais modifiable, lisible par `get_forbidden_recipients`.
+
+- Toute création vers une adresse de la liste est REFUSÉE : pack de prévente, récompenses, parrainage, réclamation d'un Ancien Contributeur, contribution du lancement anticipé, et toute autre création vers `voucher.recipient`.
+- Le refus suit le chemin habituel d'un bon refusé : la réservation est rendue (plafond de la catégorie, parts à attribuer, retenue du lancement anticipé), l'emplacement du budget n'est pas marqué (le même paiement pourra être présenté avec le bon destinataire), le compte membre n'est pas lié, et l'excédent de TON est rendu à celui qui a présenté le bon. La raison est lisible par le serveur dans le message de refus `ClaimRejected` : `reason = 17` (« destinataire interdit »). Comme tout bon refusé, il reste compté dans le plafond du jour (section 3).
+- L'adresse de l'émetteur et l'adresse de la banque sont TOUJOURS interdites comme destinataires d'un bon, qu'elles figurent ou non dans la liste (tous types de bon). Leurs flux internes (genèse, parts, Fondation) ne passent pas par `recipient` et ne changent pas.
+- La part de l'équipe (opération « libérer ») va à l'adresse de l'équipe gravée : une configuration où cette adresse figure dans la liste interdite est refusée au déploiement.
+- Une conversion n'est pas une création : rien ne change pour les conversions. Le relais peut PRÉSENTER des bons (y compris de conversion) et payer les frais ; il ne peut simplement pas en être le destinataire d'une création. La liste ne s'applique pas à un bon de conversion (l'émetteur et la banque restent interdits).
 
 **Parcours d'une réclamation**
 
 1. Le membre, ou le serveur de TonMarché à sa place, envoie le bon et les signatures à l'émetteur (l'« expéditeur »).
-2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents. L'expéditeur n'est pas contrôlé. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
-3. Le budget de paiement vérifie l'emplacement, le recalcul du montant et le `voucher_id`, puis marque l'emplacement comme versé.
-4. Le compte membre vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis accepte ou refuse le bon.
+2. L'émetteur vérifie : pas en pause, fenêtre de la catégorie ouverte, bon non expiré, réseau et adresse corrects, au moins 2 signatures valides de 2 témoins différents. L'expéditeur n'est pas contrôlé. Il regarde aussi si `recipient` est interdit de réception (A16) et le signale au premier contrôle qui suit. Il réserve le montant sur le plafond de la catégorie et sur le compteur journalier global.
+3. Le budget de paiement refuse un destinataire interdit (avant de marquer quoi que ce soit), puis vérifie l'emplacement, le recalcul du montant et le `voucher_id`, puis marque l'emplacement comme versé.
+4. Le compte membre refuse un destinataire interdit (pour les bons qui ne passent pas par un budget), puis vérifie l'adresse liée, l'éligibilité et le plafond de 50 000 par jour, puis accepte ou refuse le bon.
 5. L'émetteur crée tout le montant dans le wallet du membre.
 
 Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa réservation. Les frais restants sont rendus à l'expéditeur, celui qui a payé (message `excesses`), jamais au membre, dans tous les cas : bon accepté, bon refusé. Si un contrat enfant échoue au point de faire rebondir le message (cas exceptionnel : les contrats enfants répondent toujours), la réservation est libérée mais les TON restent dans l'émetteur. Une réclamation avec trop peu de TON (moins de 0,25) échoue dès l'arrivée chez l'émetteur et le message rebondit à l'expéditeur, sans rien marquer : le bon reste utilisable. Le coût exact d'une réclamation sera mesuré sur le testnet avant d'être affiché dans l'application.
@@ -233,9 +245,11 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 **Témoins**
 
-- Trois clés Ed25519, chacune détenue et déployée par une personne différente. Aucune clé de témoin n'est stockée dans le même service qu'une autre.
+- Trois clés Ed25519 DISTINCTES et non nulles (A3), chacune détenue et déployée par une personne différente. Aucune clé de témoin n'est stockée dans le même service qu'une autre.
 - Chaque témoin interroge Wave lui-même et relit la commande avant de signer. Ils dépendent tous du même compte marchand Wave : ce risque résiduel est couvert par les plafonds ci-dessous.
 - Une signature n'est comptée que si elle vient de deux témoins différents.
+
+**Contrôles au déploiement (A3).** Les paramètres sont gravés par celui qui déploie. Un contrat TON ne peut pas « refuser de naître » : il contrôle donc ses données gravées à CHAQUE message, y compris le tout premier (celui du déploiement). Si elles sont interdites, le message échoue et tous les suivants aussi : rien ne peut jamais être créé et personne ne peut corriger le contrat (aucune fonction d'administration). Sont refusés : deux des trois clés de témoins identiques (code 480) ; une clé de témoin vide, c'est-à-dire zéro (427) ; une adresse de gardien ou d'équipe vide (481, 482) ; un gardien ou une équipe égal à l'émetteur ou à la banque (483, 484 — impossible à construire en pratique, puisque ces adresses dépendent des données gravées ; le contrôle reste par prudence) ; l'adresse de l'équipe dans la liste interdite (485) ; une liste de plus de 8 adresses ou contenant une adresse vide (486). Le script de déploiement et l'interface TypeScript font les mêmes contrôles avant d'envoyer quoi que ce soit, avec un message d'erreur en français. Le remplacement d'un témoin (délai de 7 jours) refuse une clé déjà présente (426) et, pour la même raison, une clé vide (427).
 
 **Gardien** : le Multisig v2 officiel de TON (2 signatures sur 3, audité par Zellic et Trail of Bits), avec trois signataires qui sont trois personnes distinctes, chacune sur un wallet matériel.
 
@@ -247,7 +261,7 @@ Le contrat est immuable et n'a pas d'administrateur. Le gardien peut seulement a
 
 La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouverte pendant 7 jours ; elle ne fait courir aucun risque aux membres, puisqu'elle ne touche à aucun solde. Le remplacement de témoin, lui, est le vrai pouvoir sensible : remplacer deux clés donnerait le contrôle des émissions. D'où le délai, la limite d'un remplacement par mois et les plafonds globaux.
 
-**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations d'Anciens Contributeurs, libération de la part de l'équipe, genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts ne sont jamais arrêtés ; un brûlage demandé par un membre est refusé, pause ou non.
+**Ce que la pause arrête** : uniquement les créations (bons d'émission, réclamations d'Anciens Contributeurs, contributions du lancement anticipé, libération de la part de l'équipe, genèse) et les conversions via la banque d'échange. Une conversion avec ses propres ConsoM reste possible pendant une pause. Les transferts ne sont jamais arrêtés ; un brûlage demandé par un membre est refusé, pause ou non.
 
 **Plafonds globaux** (filet de sécurité si deux témoins sont compromis)
 

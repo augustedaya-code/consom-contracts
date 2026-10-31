@@ -26,6 +26,15 @@ async function libFor(env: any) {
 const send = (env: any, msg: any) => env.member.send({ to: msg.to, value: msg.value, body: msg.body });
 
 describe('Page de test', () => {
+    it('la contribution du lancement anticipé est acceptée : 30 % sur l\'adresse, 70 % en parts', async () => {
+        const env = await setup({ earlyContributionsTotal: consom(100_000) });
+        const lib = await libFor(env);
+        const r = await send(env, lib.actions.earlyContribution(env.member.address, 20000));
+        assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), describeTxs(r));
+        assert.equal(await env.balanceOf(env.member.address), consom(6000));
+        assert.equal((await env.shareState(env.member.address))!.shares, consom(14000));
+    });
+
     it('lit le résultat d\'une conversion : part brûlée et part couverte par la Fondation', async () => {
         const env = await setup();
         const lib = await libFor(env);
@@ -109,5 +118,17 @@ describe('Page de test', () => {
         assert.ok(titles.some((t: string) => t.includes('Points enregistrés')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.startsWith('ok Bonus de conversion — Accepté : +50')), titles.join('\n'));
         assert.ok(!titles.some((t: string) => t.includes('compte ouvert')), 'les envois d\'une autre adresse ne sont pas montrés');
+    });
+
+    it('affiche « destinataire interdit » quand un bon est refusé pour cette raison (17)', async () => {
+        const env = await setup();
+        const lib = await libFor(env);
+        const me = env.member.address;
+        const body = core.beginCell().storeUint(0xc0150004, 32).storeUint(0, 64).storeUint(0, 8).storeCoins(0).storeBit(false)
+            .storeUint(1n, 256).storeAddress(me).storeUint(17, 16).storeMaybeRef(null).storeMaybeRef(null).endCell();
+        const rows = lib.describeMinterTxs([{ utime: 1, in_msg: { source: { address: env.minter.address.toRawString() }, raw_body: body.toBoc().toString('hex') }, compute_phase: { exit_code: 0 } }], me);
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].status, 'refused');
+        assert.ok(rows[0].detail.includes('destinataire interdit'), rows[0].detail);
     });
 });

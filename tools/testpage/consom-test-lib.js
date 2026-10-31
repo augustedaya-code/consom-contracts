@@ -7,7 +7,7 @@ export function createConsoMTestLib(TON, cfg) {
     const { Address, beginCell, Cell, contractAddress, toNano } = TON;
     const ONE = 1_000_000_000n;
     const consom = (n) => BigInt(Math.round(Number(n) * 1e9));
-    const KIND = { PRESALE: 0, PURCHASE_RECORD: 1, REFERRAL: 2, FIRST_PURCHASE: 3, CONVERSION: 4, MISSION_TG: 5, MISSION_FB: 6, INVESTMENT: 7, BANK_CONVERSION: 8, OWN_CONVERSION: 9, CHIKA_BONUS: 10, FOUNDER_CLAIM: 11 };
+    const KIND = { PRESALE: 0, PURCHASE_RECORD: 1, REFERRAL: 2, FIRST_PURCHASE: 3, CONVERSION: 4, MISSION_TG: 5, MISSION_FB: 6, INVESTMENT: 7, BANK_CONVERSION: 8, OWN_CONVERSION: 9, CHIKA_BONUS: 10, FOUNDER_CLAIM: 11, EARLY_CONTRIBUTION: 12 };
     const PACKS = { essentiel: [3000n, 3500n], populaire: [20000n, 17500n], grande: [50000n, 38000n] };
 
     const minter = Address.parse(cfg.minter);
@@ -70,11 +70,11 @@ export function createConsoMTestLib(TON, cfg) {
         return [0, 1].map((i) => beginCell().storeUint(i, 8).storeBuffer(TON.sign(v.hash(), witnesses[i].secretKey)).endCell());
     }
 
-    function claimMessage(owner, o) {
+    function claimMessage(owner, o, value) {
         const v = voucher(owner, o);
         const [a, b] = signatures(v);
         const body = beginCell().storeUint(0xc0150001, 32).storeUint(0, 64).storeRef(v).storeRef(a).storeRef(b).endCell();
-        return { to: minter, value: toNano('0.35'), body };
+        return { to: minter, value: value ?? toNano('0.35'), body };
     }
 
     // ---------- Actions de la page ----------
@@ -93,6 +93,8 @@ export function createConsoMTestLib(TON, cfg) {
             const rate = [0n, 250n, 130n, 70n, 40n, 10n][level];
             return claimMessage(owner, { kind: KIND.REFERRAL, level, points: BigInt(points), waveAmount: BigInt(points) * 2n, amount: BigInt(points) * ONE * rate / 10000n });
         },
+        // Contribution du lancement anticipé : 30 % sur l'adresse, 70 % en parts de la banque (le total gravé au déploiement doit le permettre)
+        earlyContribution: (owner, totalConsom) => claimMessage(owner, { kind: KIND.EARLY_CONTRIBUTION, amount: BigInt(totalConsom) * ONE }, toNano('0.5')),
         bankConversion: (owner, points) => claimMessage(owner, { kind: KIND.BANK_CONVERSION, points: BigInt(points) }),
         // Conversion avec ses propres ConsoM : transfert vers la banque avec le bon signé (l'excédent est rendu)
         ownConversion: (owner, points, sendConsom) => {
@@ -134,6 +136,7 @@ export function createConsoMTestLib(TON, cfg) {
         14: 'mission refusée : il faut d\'abord un achat enregistré',
         15: 'bon de conversion déjà utilisé : préparer un nouveau bon',
         16: 'pas assez de Points valides (jamais enregistrés, déjà convertis, ou plus de 7 jours)',
+        17: 'destinataire interdit : cette adresse ne peut pas recevoir de ConsoM créés (wallet du serveur, émetteur ou banque)',
     };
     const ERROR_TEXT = {
         400: 'l\'émetteur est en pause', 401: 'bon signé pour un autre réseau', 402: 'bon signé pour un autre contrat',
@@ -147,7 +150,7 @@ export function createConsoMTestLib(TON, cfg) {
     };
     const KIND_TEXT = ['Prévente', 'Enregistrement d\'achat', 'Parrainage', 'Bonus de 1er achat', 'Bonus de conversion',
         'Mission Telegram', 'Mission Facebook', 'Bonus d\'investissement', 'Conversion via la banque', 'Conversion avec ses ConsoM',
-        'Bonus CHIKA', 'Réclamation d\'Ancien Contributeur'];
+        'Bonus CHIKA', 'Réclamation d\'Ancien Contributeur', 'Contribution du lancement anticipé'];
     const fmtConsom = (nano) => (Number(nano) / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
 
     function describeMinterTxs(txs, owner) {

@@ -17,6 +17,7 @@ struct Caps {
     dayStart: uint32         // début de la période de 24 h en cours
     dayMinted: coins         // émis (ou réservé) depuis dayStart
     founderShares: coins     // parts de la banque encore à attribuer aux Anciens Contributeurs (3 500 000 après la genèse)
+    earlyHold: coins         // total gravé des contributions du lancement anticipé encore à réclamer : retenu dans la réserve de prévente
 }
 
 // Remplacement de témoin en attente (délai public de 7 jours)
@@ -42,7 +43,16 @@ struct Config {
     walletCode: cell         // wallet Jetton (shardé, même principe que Jetton 2.0)
     budgetCode: cell         // contrat « budget de paiement », un par paiement Wave
     memberCode: cell         // contrat « compte membre », un par membre
+    forbidden: Cell<ForbiddenChunk>?   // adresses interdites de réception (A16) : liste de 0 à 8 adresses, gravée, jamais modifiable
     // le code de la banque d'échange est dans BankRef pour rester sous 4 références
+}
+
+// Liste des adresses interdites de réception, en chaîne de cellules de 3 adresses (la première adresse d'une cellule existe toujours)
+struct ForbiddenChunk {
+    a0: address
+    a1: address?
+    a2: address?
+    next: Cell<ForbiddenChunk>?
 }
 
 struct BankRef {

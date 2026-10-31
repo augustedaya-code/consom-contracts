@@ -62,6 +62,9 @@ fun categoryOf(kind: int): int {
     if (kind == KIND_FOUNDER_CLAIM) {
         return CAT_FOUNDERS;
     }
+    if (kind == KIND_EARLY_CONTRIBUTION) {
+        return CAT_EARLY;
+    }
     if (kind == KIND_INVESTMENT) {
         return CAT_PURCHASE;    // l'investissement est payé par la réserve Achats
     }
@@ -71,7 +74,7 @@ fun categoryOf(kind: int): int {
 // Les bons liés à un paiement Wave passent d'abord par le budget de ce paiement ;
 // les autres vont directement au compte du membre.
 fun usesPaymentBudget(kind: int): bool {
-    return (kind == KIND_PRESALE) || (kind == KIND_PURCHASE_RECORD) || (kind == KIND_REFERRAL) || (kind == KIND_FIRST_PURCHASE) || (kind == KIND_CHIKA_BONUS);
+    return (kind == KIND_PRESALE) || (kind == KIND_PURCHASE_RECORD) || (kind == KIND_REFERRAL) || (kind == KIND_FIRST_PURCHASE) || (kind == KIND_CHIKA_BONUS) || (kind == KIND_EARLY_CONTRIBUTION);
 }
 
 fun referralRateBp(level: int): int {
@@ -152,6 +155,13 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
         }
         return requested;
     }
+    if (kind == KIND_EARLY_CONTRIBUTION) {
+        // `requested` est le total T des packs de la contribution ; `waveRef` identifie la contribution (anti-doublon par le budget)
+        if ((requested <= 0) || (requested > CAP_PRESALE) || (requested % FOUNDER_UNIT != 0) || (payment.waveRef == 0)) {
+            return -1;
+        }
+        return requested;
+    }
     return -1;
 }
 
@@ -208,8 +218,8 @@ fun burnForPoints(points: int, steps: int): int {
 // ===================================================================================================
 
 fun Caps.remainingOf(self, category: int): int {
-    if (category == CAT_PRESALE) {
-        return self.presale;
+    if ((category == CAT_PRESALE) || (category == CAT_EARLY)) {
+        return self.presale;    // les contributions du lancement anticipé sont prises dans la réserve de prévente
     }
     if (category == CAT_PURCHASE) {
         return self.purchase;
@@ -233,7 +243,7 @@ fun Caps.remainingOf(self, category: int): int {
 }
 
 fun Caps.setRemaining(mutate self, category: int, value: coins) {
-    if (category == CAT_PRESALE) {
+    if ((category == CAT_PRESALE) || (category == CAT_EARLY)) {
         self.presale = value;
     } else if (category == CAT_PURCHASE) {
         self.purchase = value;
@@ -256,10 +266,13 @@ fun Caps.setRemaining(mutate self, category: int, value: coins) {
 // 25 % vont aux récompenses d'achat et 25 % au parrainage. Appliquée une seule fois.
 fun Caps.settlePresaleIfDue(mutate self, t0: int) {
     if (!self.presaleSettled && (blockchain.now() >= t0 + PRESALE_WINDOW)) {
-        val quarter = self.presale / 4;
+        // la retenue gravée pour les contributions du lancement anticipé encore à réclamer reste dans la réserve de prévente :
+        // la règle des invendus ne s'applique qu'au reste
+        val spare = self.presale - min(self.presale, self.earlyHold);
+        val quarter = spare / 4;
         self.purchase += quarter;
         self.referral += quarter;
-        self.presale = 0;
+        self.presale -= spare;
         self.presaleSettled = true;
     }
 }
@@ -293,6 +306,9 @@ fun ConsoMStorage.releaseReservation(mutate self, category: int, reserved: coins
     caps.setRemaining(category, caps.remainingOf(category) + reserved);
     if (category == CAT_FOUNDERS) {
         caps.founderShares += founderSharesFor(reserved);    // les parts réservées avec la partie directe sont rendues aussi
+    }
+    if (category == CAT_EARLY) {
+        caps.earlyHold += reserved;                           // la retenue prise avec la réservation est rendue aussi
     }
     self.caps = caps.toCell();
 }
@@ -374,7 +390,7 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
     var windowEnd = storage.t0 + REWARDS_WINDOW;
     if (voucher.kind == KIND_PRESALE) {
         windowEnd = storage.t0 + PRESALE_WINDOW;
-    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM)) {
+    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM) || (voucher.kind == KIND_EARLY_CONTRIBUTION)) {
         windowEnd = MAX_UINT32;
     }
     if ((now < storage.t0) || (now >= windowEnd)) {
@@ -406,6 +422,89 @@ fun ConsoMStorage.currentHalvingSteps(self): int {
 }
 
 // ===================================================================================================
+// Adresses interdites de réception (A16) et contrôles au déploiement (A3)
+// ===================================================================================================
+
+fun isEmptyAddress(a: address): bool {
+    val (workchain, hash) = a.getWorkchainAndHash();
+    return hash == 0;
+}
+
+// Vrai si `who` figure dans la liste gravée au déploiement (au plus 3 cellules : vérifié à chaque message par assertDeploymentValid)
+fun Config.isInForbiddenList(self, who: address): bool {
+    var cell = self.forbidden;
+    while (cell != null) {
+        val chunk = cell!.load();
+        if (chunk.a0 == who) {
+            return true;
+        }
+        if ((chunk.a1 != null) && (chunk.a1! == who)) {
+            return true;
+        }
+        if ((chunk.a2 != null) && (chunk.a2! == who)) {
+            return true;
+        }
+        cell = chunk.next;
+    }
+    return false;
+}
+
+fun forbiddenEntry(entry: address, team: address): int {
+    assert (!isEmptyAddress(entry)) throw ERR_DEPLOY_FORBIDDEN_LIST;
+    assert (entry != team) throw ERR_DEPLOY_TEAM_FORBIDDEN;
+    return 1;
+}
+
+// Contrôles au déploiement. Les données du contrat sont gravées par celui qui le déploie ; le contrat ne peut pas
+// « refuser de naître », mais un contrat dont les données ne respectent pas ces règles refuse TOUT message
+// (les messages rebondissent, rien n'est créé) : il est inutilisable, et personne ne peut le corriger.
+//   - 3 clés de témoins non nulles et deux à deux différentes (A3) ;
+//   - gardien et équipe : non vides, différents de l'émetteur et de la banque ;
+//   - liste interdite : 8 adresses au plus, aucune vide, l'équipe n'y figure pas (A16).
+fun ConsoMStorage.assertDeploymentValid(self) {
+    val witnesses = self.witnesses.load();
+    assert ((witnesses.key0 != 0) && (witnesses.key1 != 0) && (witnesses.key2 != 0)) throw ERR_ZERO_KEY;
+    assert ((witnesses.key0 != witnesses.key1) && (witnesses.key0 != witnesses.key2) && (witnesses.key1 != witnesses.key2)) throw ERR_DEPLOY_SAME_KEYS;
+
+    val config = self.config.load();
+    assert (!isEmptyAddress(config.guardian)) throw ERR_DEPLOY_NO_GUARDIAN;
+    assert (!isEmptyAddress(config.teamAddress)) throw ERR_DEPLOY_NO_TEAM;
+    val bank = self.bankAddress();
+    val me = contract.getAddress();
+    assert ((config.guardian != me) && (config.guardian != bank)) throw ERR_DEPLOY_GUARDIAN_SYSTEM;
+    assert ((config.teamAddress != me) && (config.teamAddress != bank)) throw ERR_DEPLOY_TEAM_SYSTEM;
+
+    var cell = config.forbidden;
+    var chunks = 0;
+    var count = 0;
+    while (cell != null) {
+        chunks += 1;
+        assert (chunks <= FORBIDDEN_MAX_CHUNKS) throw ERR_DEPLOY_FORBIDDEN_LIST;
+        val chunk = cell!.load();
+        count += forbiddenEntry(chunk.a0, config.teamAddress);
+        if (chunk.a1 != null) {
+            count += forbiddenEntry(chunk.a1!, config.teamAddress);
+        }
+        if (chunk.a2 != null) {
+            count += forbiddenEntry(chunk.a2!, config.teamAddress);
+        }
+        cell = chunk.next;
+    }
+    assert (count <= MAX_FORBIDDEN_RECIPIENTS) throw ERR_DEPLOY_FORBIDDEN_LIST;
+}
+
+// A16 : destinataire interdit pour une création. L'émetteur et la banque le sont toujours (tous types de bon) ;
+// la liste gravée s'ajoute pour les créations. Une conversion n'est pas une création : la liste ne s'y applique pas
+// (le serveur peut présenter des bons de conversion et payer les frais, il ne peut juste pas être un destinataire de création).
+fun ConsoMStorage.isRecipientForbidden(self, voucher: Voucher): bool {
+    val recipient = voucher.recipient;
+    if ((recipient == contract.getAddress()) || (recipient == self.bankAddress())) {
+        return true;
+    }
+    return !isConversionBurn(voucher.kind) && self.config.load().isInForbiddenList(recipient);
+}
+
+// ===================================================================================================
 // Création de jetons
 // ===================================================================================================
 
@@ -419,6 +518,12 @@ fun taggedForwardPayload(tag: int): slice {
 
 const OP_FOUNDERS_DEPOSIT_TAG = 0xc0150030
 const OP_FOUNDATION_DEPOSIT_TAG = 0xc0150031
+const OP_EARLY_DEPOSIT_TAG = 0xc0150034
+
+// Charge utile d'un transfert vers la banque : étiquette, puis l'adresse à qui attribuer les parts
+fun earlyForwardPayload(owner: address): slice {
+    return beginCell().storeBool(false).storeUint(OP_EARLY_DEPOSIT_TAG, 32).storeAddress(owner).endCell().beginParse();
+}
 
 // Garde-fou d'offre : jetons en circulation + jetons brûlés par les conversions <= 250 M.
 // (Seuls les brûlages de conversion sortent de la circulation ; ils sont comptés dans B, jamais recréés.)
@@ -537,6 +642,8 @@ fun onBouncedMessage(in: InMessageBounced) {
 // ===================================================================================================
 
 fun onInternalMessage(in: InMessage) {
+    // A3 / A16 : un contrat déployé avec des données interdites refuse tout (voir assertDeploymentValid)
+    ConsoMStorage.load().assertDeploymentValid();
     val msg = lazy AllowedMessageToConsoMMinter.fromSlice(in.body);
 
     match (msg) {
@@ -557,6 +664,10 @@ fun onInternalMessage(in: InMessage) {
                 assert (storage.genesisDone) throw ERR_GENESIS_NOT_DONE;
                 assert (in.valueCoins >= MIN_FOUNDER_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;
             }
+            val isEarly = voucher.kind == KIND_EARLY_CONTRIBUTION;
+            if (isEarly) {
+                assert (in.valueCoins >= MIN_EARLY_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;    // deux créations dont une dans la banque
+            }
 
             // réservation sur le plafond de la catégorie et sur le plafond journalier global.
             // Anciens Contributeurs : seuls les 30 % créés sont réservés (et comptent dans le plafond du jour) ;
@@ -567,8 +678,14 @@ fun onInternalMessage(in: InMessage) {
             caps.settlePresaleIfDue(storage.t0);
             caps.rollDay();
             if (reserved > 0) {
-                assert (caps.remainingOf(category) >= reserved) throw ERR_CATEGORY_CAP;
+                // un pack de prévente ne touche pas à la retenue des contributions du lancement anticipé
+                val available: int = (category == CAT_PRESALE) ? (caps.presale - min(caps.presale, caps.earlyHold)) : caps.remainingOf(category);
+                assert (available >= reserved) throw ERR_CATEGORY_CAP;
                 assert (caps.dayMinted + reserved <= GLOBAL_DAILY_CAP) throw ERR_DAILY_CAP;
+                if (isEarly) {
+                    assert (caps.earlyHold >= reserved) throw ERR_EARLY_TOTAL;
+                    caps.earlyHold -= reserved;
+                }
                 if (isFounderClaim) {
                     val shares = voucher.amount - reserved;
                     assert (caps.founderShares >= shares) throw ERR_NO_FOUNDER_SHARES;
@@ -603,6 +720,7 @@ fun onInternalMessage(in: InMessage) {
                         }).toCell()
                         : null,
                     payer: in.senderAddress,
+                    recipientForbidden: storage.isRecipientForbidden(voucher),
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -626,6 +744,7 @@ fun onInternalMessage(in: InMessage) {
                     voucher: msg.voucher,
                     burnOrder: null,
                     payer: msg.payer,
+                    recipientForbidden: false,    // le budget a déjà vérifié le destinataire
                 }
             });
             checkMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -659,6 +778,23 @@ fun onInternalMessage(in: InMessage) {
                         to: msg.recipient,
                     }
                 }).send(SEND_MODE_REGULAR);
+            }
+            if (msg.category == CAT_EARLY) {
+                // le dernier message reçoit le reste de la valeur reçue (voir MINTER_GAS_MARGIN)
+                // contribution du lancement anticipé : 30 % créés sur l'adresse, 70 % créés dans la banque avec de nouvelles parts
+                val direct = founderDirectPart(msg.reserved);
+                val bankPart = msg.reserved - direct;
+                sendMintFunded(config.walletCode, storage.bankAddress(), bankPart as coins, msg.queryId, msg.payer,
+                               EARLY_BANK_FWD_VALUE, earlyForwardPayload(msg.recipient), EARLY_BANK_MINT_VALUE);
+                sendMintFunded(config.walletCode, msg.recipient, direct as coins, msg.queryId, msg.payer, 0, emptyForwardPayload(),
+                               max(in.valueCoins - EARLY_BANK_MINT_VALUE - MINTER_GAS_MARGIN, 0) as coins);
+                return;
+            }
+            if (msg.category == CAT_FOUNDERS) {
+                // la banque a reçu BANK_ASSIGN_VALUE : l'Ancien Contributeur reçoit le reste de la valeur reçue
+                sendMintFunded(config.walletCode, msg.recipient, msg.reserved, msg.queryId, msg.payer, 0, emptyForwardPayload(),
+                               max(in.valueCoins - BANK_ASSIGN_VALUE - MINTER_GAS_MARGIN, 0) as coins);
+                return;
             }
             // les jetons vont au bénéficiaire du bon ; l'excédent de TON revient à celui qui a présenté le bon (et payé)
             sendMint(config.walletCode, msg.recipient, msg.reserved, msg.queryId, msg.payer, 0, emptyForwardPayload());
@@ -738,6 +874,7 @@ fun onInternalMessage(in: InMessage) {
                     voucher: msg.voucher,
                     burnOrder: order.toCell(),
                     payer: msg.from,
+                    recipientForbidden: false,    // conversion avec ses propres ConsoM : msg.from == voucher.recipient, jamais l'émetteur ni la banque
                 }
             }).send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
         }
@@ -809,6 +946,7 @@ fun onInternalMessage(in: InMessage) {
             assert (msg.index < WITNESS_COUNT) throw ERR_BAD_WITNESS_INDEX;
             assert (witnesses.pending == null) throw ERR_REPLACE_PENDING;
             assert ((witnesses.lastReplaceAt == 0) || (now >= witnesses.lastReplaceAt + WITNESS_REPLACE_INTERVAL)) throw ERR_REPLACE_TOO_SOON;
+            assert (msg.newKey != 0) throw ERR_ZERO_KEY;
             assert (!witnesses.hasKey(msg.newKey)) throw ERR_DUPLICATE_KEY;
             val pending: PendingWitness = {
                 index: msg.index,
@@ -855,6 +993,7 @@ fun onInternalMessage(in: InMessage) {
         GenesisFoundersDeposit => {
             var storage = lazy ConsoMStorage.load();
             assert (!storage.genesisDone) throw ERR_GENESIS_DONE;
+            assert (in.valueCoins >= MIN_GENESIS_VALUE) throw ERR_NOT_ENOUGH_TON;
             assert (!storage.isPaused()) throw ERR_PAUSED;
             var caps = storage.caps.load();
             caps.setRemaining(CAT_FOUNDERS, caps.founders - FOUNDERS_BANK_DEPOSIT);
@@ -869,8 +1008,9 @@ fun onInternalMessage(in: InMessage) {
             // la réserve de la Fondation entre dans la banque, dans un stock à part (jamais mélangé à celui des déposants)
             sendMintFunded(storage.config.load().walletCode, bank, FOUNDATION_RESERVE, msg.queryId, in.senderAddress,
                            BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDATION_DEPOSIT_TAG), FOUNDATION_MINT_VALUE);
-            sendMint(storage.config.load().walletCode, bank, FOUNDERS_BANK_DEPOSIT, msg.queryId, in.senderAddress,
-                     BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG));
+            sendMintFunded(storage.config.load().walletCode, bank, FOUNDERS_BANK_DEPOSIT, msg.queryId, in.senderAddress,
+                           BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG),
+                           max(in.valueCoins - FOUNDATION_MINT_VALUE - MINTER_GAS_MARGIN, 0) as coins);
         }
 
         // ---------- Part de l'équipe (A9) ----------
@@ -998,6 +1138,48 @@ get fun get_team_vesting(): TeamVestingReply {
 get fun get_team_address(): address {
     val storage = lazy ConsoMStorage.load();
     return storage.config.load().teamAddress;
+}
+
+// A16 : la liste des adresses interdites de réception, gravée au déploiement (dans l'ordre de gravure ; `none` = place libre)
+struct ForbiddenListReply {
+    count: int
+    a0: address?
+    a1: address?
+    a2: address?
+    a3: address?
+    a4: address?
+    a5: address?
+    a6: address?
+    a7: address?
+}
+
+get fun get_forbidden_recipients(): ForbiddenListReply {
+    val storage = lazy ConsoMStorage.load();
+    var list: ForbiddenListReply = { count: 0, a0: null, a1: null, a2: null, a3: null, a4: null, a5: null, a6: null, a7: null };
+    var cell = storage.config.load().forbidden;
+    var i = 0;
+    while (cell != null) {
+        val chunk = cell!.load();
+        var j = 0;
+        while (j < 3) {
+            val entry: address? = (j == 0) ? chunk.a0 : ((j == 1) ? chunk.a1 : chunk.a2);
+            if ((entry != null) && (i < MAX_FORBIDDEN_RECIPIENTS)) {
+                if (i == 0) { list.a0 = entry; }
+                else if (i == 1) { list.a1 = entry; }
+                else if (i == 2) { list.a2 = entry; }
+                else if (i == 3) { list.a3 = entry; }
+                else if (i == 4) { list.a4 = entry; }
+                else if (i == 5) { list.a5 = entry; }
+                else if (i == 6) { list.a6 = entry; }
+                else { list.a7 = entry; }
+                i += 1;
+            }
+            j += 1;
+        }
+        cell = chunk.next;
+    }
+    list.count = i;
+    return list;
 }
 
 get fun get_witnesses(): Witnesses {
