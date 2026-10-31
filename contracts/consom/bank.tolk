@@ -35,6 +35,7 @@ const OWN_CONVERSION_MIN_VALUE = ton("0.2")   // TON joint au transfert pour fai
 
 const OP_FOUNDERS_TAG  = 0xc0150030
 const OP_FOUNDATION_TAG = 0xc0150031   // création de la réserve de la Fondation, à la genèse
+const OP_EARLY_TAG      = 0xc0150034   // création des 70 % d'une contribution du lancement anticipé (suivie de l'adresse du contributeur)
 const OP_DEPOSIT_TAG   = 0xc0150032
 const OP_OWN_CONV_TAG  = 0xc0150033
 
@@ -197,6 +198,29 @@ fun onInternalMessage(in: InMessage) {
                     assert ((state.foundationStock == 0) && (amount == FOUNDATION_RESERVE)) throw ERR_UNKNOWN_DEPOSIT;
                     state.foundationStock = amount;
                     storage.saveBankState(state);
+                    return;
+                }
+                if (tag == OP_EARLY_TAG) {
+                    // contribution du lancement anticipé : de NOUVEAUX ConsoM entrent dans le stock des déposants et de NOUVELLES
+                    // parts sont attribuées à l'adresse du contributeur, au même prix qu'un dépôt (les autres déposants ne sont
+                    // pas dilués). Ce n'est pas un dépôt de membre : la fermeture de 12 mois ne s'applique qu'aux retraits.
+                    var p = rest;
+                    val owner = p.loadAddress();
+                    val earlyShares = ((state.totalShares == 0) || (state.depositorStock == 0))
+                        ? amount as int
+                        : mulDivFloor(amount, state.totalShares, state.depositorStock);
+                    state.refreshFoundation(storage.t0);
+                    state.depositorStock += amount;
+                    state.totalShares += earlyShares;
+                    state.noteStockChange();
+                    storage.saveBankState(state);
+                    keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
+                    createMessage({
+                        bounce: BounceMode.NoBounce,
+                        dest: calcDeployedShare(storage.shareCode, owner),
+                        value: 0,
+                        body: AddShares { queryId: msg.queryId, shares: earlyShares as coins, at: blockchain.now() }
+                    }).send(SEND_MODE_CARRY_ALL_BALANCE);
                     return;
                 }
                 assert (tag == OP_FOUNDERS_TAG) throw ERR_UNKNOWN_DEPOSIT;

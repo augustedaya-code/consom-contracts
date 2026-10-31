@@ -194,6 +194,10 @@ fun onInternalMessage(in: InMessage) {
                 }
                 state.flags = state.flags | FLAG_FOUNDER_CLAIM;
                 state.referralEligible = true;
+            } else if (kind == KIND_EARLY_CONTRIBUTION) {
+                // contribution du lancement anticipé : compte comme une prévente (le budget a déjà vérifié l'unicité de la contribution)
+                state.referralEligible = true;
+                state.hasPayment = true;
             } else if (kind == KIND_FIRST_PURCHASE) {
                 if ((state.flags & FLAG_FIRST_PURCHASE) != 0) {
                     reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_ALREADY_DONE, false);
@@ -247,8 +251,8 @@ fun onInternalMessage(in: InMessage) {
                 state.investmentBonus += msg.reserved;
             }
 
-            // ---------- plafond de 50 000 par 24 h (hors prévente et Anciens Contributeurs) ; tout est versé tout de suite ----------
-            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM)) {
+            // ---------- plafond de 50 000 par 24 h (hors prévente, Anciens Contributeurs et contributions du lancement anticipé) ; tout est versé tout de suite ----------
+            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM) && (kind != KIND_EARLY_CONTRIBUTION)) {
                 state.rollDay();
                 if (state.dayReceived + msg.reserved > MEMBER_DAILY_CAP) {
                     // passager : le bon pourra être réclamé de nouveau s'il n'a pas expiré

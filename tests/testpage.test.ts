@@ -26,6 +26,15 @@ async function libFor(env: any) {
 const send = (env: any, msg: any) => env.member.send({ to: msg.to, value: msg.value, body: msg.body });
 
 describe('Page de test', () => {
+    it('la contribution du lancement anticipé est acceptée : 30 % sur l\'adresse, 70 % en parts', async () => {
+        const env = await setup({ earlyContributionsTotal: consom(100_000) });
+        const lib = await libFor(env);
+        const r = await send(env, lib.actions.earlyContribution(env.member.address, 20000));
+        assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), describeTxs(r));
+        assert.equal(await env.balanceOf(env.member.address), consom(6000));
+        assert.equal((await env.shareState(env.member.address))!.shares, consom(14000));
+    });
+
     it('lit le résultat d\'une conversion : part brûlée et part couverte par la Fondation', async () => {
         const env = await setup();
         const lib = await libFor(env);

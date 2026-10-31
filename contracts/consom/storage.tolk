@@ -17,6 +17,7 @@ struct Caps {
     dayStart: uint32         // début de la période de 24 h en cours
     dayMinted: coins         // émis (ou réservé) depuis dayStart
     founderShares: coins     // parts de la banque encore à attribuer aux Anciens Contributeurs (3 500 000 après la genèse)
+    earlyHold: coins         // total gravé des contributions du lancement anticipé encore à réclamer : retenu dans la réserve de prévente
 }
 
 // Remplacement de témoin en attente (délai public de 7 jours)

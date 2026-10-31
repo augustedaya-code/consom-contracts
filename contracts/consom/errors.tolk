@@ -32,4 +32,5 @@ const ERR_GENESIS_DONE        = 440   // genèse déjà faite
 const ERR_GENESIS_NOT_DONE    = 441   // réclamation d'un Ancien Contributeur avant la genèse (les parts à attribuer n'existent pas encore)
 const ERR_NOTHING_TO_RELEASE  = 442   // part de l'équipe : rien de nouveau à libérer
 const ERR_NO_FOUNDER_SHARES   = 443   // réclamation d'un Ancien Contributeur : pas assez de parts à attribuer dans la banque
+const ERR_EARLY_TOTAL         = 444   // contributions du lancement anticipé : au-delà du total gravé au déploiement
 const ERR_UNKNOWN_OP          = 0xFFFF

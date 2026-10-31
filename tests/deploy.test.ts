@@ -16,7 +16,7 @@ describe('Script de déploiement', () => {
         const team = await blockchain.treasury('team');
         const keys = [1, 2, 3].map((i) => keyPairFromSeed(Buffer.alloc(32, i)).publicKey) as [Buffer, Buffer, Buffer];
         const res = await deployConsoM({
-            network: 'testnet', t0: 1_800_000_000, guardian: guardian.address, teamAddress: team.address, witnessPublicKeys: keys,
+            network: 'testnet', t0: 1_800_000_000, guardian: guardian.address, teamAddress: team.address, earlyContributionsTotal: 0n, witnessPublicKeys: keys,
             content: jettonContent('https://example.com/consom.json'),
         }, {
             open: (c) => blockchain.openContract(c) as any,

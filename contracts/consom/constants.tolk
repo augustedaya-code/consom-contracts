@@ -32,6 +32,9 @@ const CAT_FOUNDERS = 4
 const CAT_TEAM     = 5
 const CAT_CHIKA    = 6
 const CAT_FOUNDATION = 7
+// Contributions du lancement anticipé : même réserve que la prévente (CAT_PRESALE), mais suivie à part par l'émetteur
+// pour que la règle des invendus et la retenue gravée (earlyHold) s'y appliquent correctement
+const CAT_EARLY    = 8
 
 // ---------- Section 5 : types de bon ----------
 const KIND_PRESALE         = 0   // pack de prévente                  -> budget de paiement
@@ -46,7 +49,8 @@ const KIND_BANK_CONVERSION = 8   // conversion via la banque : la banque brûle 
 const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive par la banque, jamais par ClaimVoucher
 const KIND_CHIKA_BONUS     = 10  // bonus de 0,3 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
 const KIND_FOUNDER_CLAIM   = 11  // réclamation d'un Ancien Contributeur -> compte membre, réserve Anciens Contributeurs
-const KIND_MAX             = 11
+const KIND_EARLY_CONTRIBUTION = 12  // contribution du lancement anticipé (réseau d'essai) -> budget (une fois par contribution), réserve de prévente
+const KIND_MAX             = 12
 
 // ---------- Section 6 : montants des récompenses ----------
 const FIRST_PURCHASE_REWARD = 500 * ONE_CONSOM
@@ -114,6 +118,14 @@ const MIN_STORAGE_RESERVE = ton("0.05")
 const TEAM_RELEASE_MIN_VALUE   = ton("0.1")    // TON joint à « libérer la part de l'équipe » (l'excédent revient à l'appelant)
 const FOUNDATION_MINT_VALUE    = ton("0.1")    // TON joint à la création de la réserve de la Fondation, à la genèse
 const BANK_RESULT_VALUE        = ton("0.01")   // TON joint au résultat d'une conversion envoyé à celui qui a présenté le bon
+// Un message envoyé avec une valeur fixe NE diminue PAS la valeur « restante » du message reçu : un second message qui emporte le
+// reste (mode 64) la dépenserait une deuxième fois, sur le solde de l'émetteur. Quand l'émetteur envoie deux messages, le dernier
+// reçoit donc une valeur calculée (reçu - déjà envoyé - marge) ; la marge couvre le calcul de l'émetteur, le reste lui revient.
+const MINTER_GAS_MARGIN        = ton("0.03")
+const MIN_GENESIS_VALUE        = ton("0.25")   // genèse : deux créations dans la banque
+const EARLY_BANK_MINT_VALUE    = ton("0.15")   // TON joint à la création des 70 % dans la banque (contribution du lancement anticipé)
+const EARLY_BANK_FWD_VALUE     = ton("0.1")    // dont transmis à la banque, qui crédite les parts (et déploie le contrat « parts »)
+const MIN_EARLY_CLAIM_VALUE    = ton("0.45")   // une contribution traverse budget et compte membre, puis crée deux montants
 const BANK_ASSIGN_VALUE        = ton("0.05")   // TON transmis à la banque pour attribuer les parts d'un Ancien Contributeur
 const MIN_FOUNDER_CLAIM_VALUE  = ton("0.35")   // réclamation d'un Ancien Contributeur : MIN_CLAIM_VALUE + BANK_ASSIGN_VALUE
 
@@ -139,6 +151,7 @@ const SLOT_PRESALE        = 1          // bit 0
 const SLOT_PURCHASE       = 2          // bit 1
 const SLOT_FIRST_PURCHASE = 4          // bit 2
 const SLOT_CHIKA_BONUS    = 256        // bit 8
+const SLOT_EARLY          = 512        // bit 9 : contribution du lancement anticipé (une fois par contribution)
 // parrainage niveau L : bit (2 + L), soit 8, 16, 32, 64, 128
 
 // TON conservé par chaque budget de paiement et compte membre pour payer ses frais de stockage
