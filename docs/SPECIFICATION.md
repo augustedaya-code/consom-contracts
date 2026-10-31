@@ -160,11 +160,11 @@ Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM 
 
 ## 7. Prévente
 
-Un paiement Wave de prévente donne exactement les ConsoM d'un pack, crédités immédiatement, et active le droit au parrainage du membre. Les packs sont gravés dans l'émetteur : le contrat refuse un bon dont le montant payé est inférieur au prix du pack ou dont la quantité diffère.
+Un paiement Wave de prévente donne exactement les ConsoM d'un pack, crédités immédiatement, et active le droit au parrainage du membre. Les packs sont gravés dans l'émetteur (décision du 31 octobre 2026 : le pack Essentiel passe de 3 000 ConsoM pour 3 500 FCFA à 5 000 ConsoM pour 4 500 FCFA ; les deux autres packs ne changent pas) : le contrat refuse un bon dont le montant payé est inférieur au prix du pack ou dont la quantité diffère.
 
 | Pack | ConsoM | Prix (FCFA) | Prix unitaire (FCFA) | Commission au parrain (Points, hors chaîne) |
 | --- | --- | --- | --- | --- |
-| Essentiel | 3 000 | 3 500 | 1,17 | 500 |
+| Essentiel | 5 000 | 4 500 | 0,90 | 1 000 |
 | Offre populaire | 20 000 | 17 500 | 0,875 | 5 000 |
 | Grande offre | 50 000 | 38 000 | 0,76 | 10 000 |
 

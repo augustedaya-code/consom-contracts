@@ -62,7 +62,7 @@ describe('A16 : création vers une adresse interdite de réception', () => {
         refusedForbidden(await env.claim(make(relay.address)));
         assert.equal((await env.budgetState(waveRef))?.slots ?? 0, 0, 'emplacement non marqué');
         assert.ok(approved(await env.claim(make(env.member.address))), 'avec le bon destinataire, le même paiement passe');
-        assert.equal(await env.balanceOf(env.member.address), consom(3_500));
+        assert.equal(await env.balanceOf(env.member.address), consom(5_500));
     });
 
     it('pack de prévente vers le relais : refusé, réserve de prévente rendue', async () => {
@@ -136,7 +136,7 @@ describe('A16 : création vers une adresse interdite de réception', () => {
     it('une adresse interdite ne bloque pas les autres : un membre normal reste servi', async () => {
         const { env } = await withRelay();
         assert.ok(approved(await env.claim(env.voucher())));
-        assert.equal(await env.balanceOf(env.member.address), consom(3_000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5_000));
     });
 });
 
@@ -145,7 +145,7 @@ describe('A16 : le relais peut présenter des bons et payer les frais', () => {
         const { env, relay } = await withRelay();
         const r = await env.claim(env.voucher(), { from: relay });
         assert.ok(approved(r), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(3_000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5_000));
         assert.equal(await env.balanceOf(relay.address), 0n, 'le relais ne reçoit aucun ConsoM');
     });
 
@@ -156,7 +156,7 @@ describe('A16 : le relais peut présenter des bons et payer les frais', () => {
         assert.ok(approved(await env.claim(mission, { from: relay })));
         const founder = env.voucher({ kind: Kind.FOUNDER_CLAIM, amount: consom(100_000), waveRef: 0n, waveAmount: 0n, points: 0n, memberId: 9n });
         assert.ok(approved(await env.claim(founder, { from: relay })));
-        assert.equal(await env.balanceOf(env.member.address), consom(3_000 + 150 + 30_000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5_000 + 150 + 30_000));
         assert.equal((await env.shareState(env.member.address))!.shares, consom(70_000));
         assert.equal(await env.balanceOf(relay.address), 0n);
         assert.equal(await env.shareState(relay.address), null);

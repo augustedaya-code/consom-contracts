@@ -64,7 +64,7 @@ describe('Page de test', () => {
             assert.ok(hasTx(r, { op, success: true }), `${label}\n${describeTxs(r)}`);
         };
         await ok('prévente', lib.actions.presale(me, 'essentiel'));
-        assert.equal(await env.balanceOf(me), consom(3000));
+        assert.equal(await env.balanceOf(me), consom(5000));
         await ok('achat', lib.actions.purchaseRecord(me, 1000));
         await ok('1er achat', lib.actions.firstPurchase(me));
         await ok('mission Telegram', lib.actions.missionTelegram(me));
@@ -113,7 +113,7 @@ describe('Page de test', () => {
         record(await send(env, lib.actions.conversionReward(me, 1000)));      // accepté : +50
         const rows = lib.describeMinterTxs(minterTxs, me);
         const titles = rows.map((r: any) => `${r.status} ${r.title} | ${r.detail}`);
-        assert.ok(titles.some((t: string) => t.startsWith('ok') && t.includes('Prévente — Accepté : +3')), titles.join('\n'));
+        assert.ok(titles.some((t: string) => t.startsWith('ok') && t.includes('Prévente — Accepté : +5')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.startsWith('refused Bonus de conversion — Refusé') && t.includes('pas assez de Points')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.includes('Points enregistrés')), titles.join('\n'));
         assert.ok(titles.some((t: string) => t.startsWith('ok Bonus de conversion — Accepté : +50')), titles.join('\n'));

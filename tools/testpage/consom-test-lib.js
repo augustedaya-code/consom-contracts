@@ -8,7 +8,7 @@ export function createConsoMTestLib(TON, cfg) {
     const ONE = 1_000_000_000n;
     const consom = (n) => BigInt(Math.round(Number(n) * 1e9));
     const KIND = { PRESALE: 0, PURCHASE_RECORD: 1, REFERRAL: 2, FIRST_PURCHASE: 3, CONVERSION: 4, MISSION_TG: 5, MISSION_FB: 6, INVESTMENT: 7, BANK_CONVERSION: 8, OWN_CONVERSION: 9, CHIKA_BONUS: 10, FOUNDER_CLAIM: 11, EARLY_CONTRIBUTION: 12 };
-    const PACKS = { essentiel: [3000n, 3500n], populaire: [20000n, 17500n], grande: [50000n, 38000n] };
+    const PACKS = { essentiel: [5000n, 4500n], populaire: [20000n, 17500n], grande: [50000n, 38000n] };
 
     const minter = Address.parse(cfg.minter);
     const bank = Address.parse(cfg.bank);
