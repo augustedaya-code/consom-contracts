@@ -181,6 +181,30 @@ describe('Anciens Contributeurs : réclamation', () => {
     });
 });
 
+describe('Anciens Contributeurs : frais', () => {
+    it('n\'épuise pas l\'émetteur : il ne perd que des frais de calcul', async () => {
+        const env = await withGenesis();
+        const before = (await env.blockchain.getContract(env.minter.address)).balance;
+        await env.claim(founderVoucher(env, consom(100_000), 777n));
+        const after = (await env.blockchain.getContract(env.minter.address)).balance;
+        assert.ok(after >= before - toNano('0.002'), `l'émetteur a perdu ${before - after} nanoTON`);
+    });
+
+    it('la genèse n\'épuise pas l\'émetteur non plus', async () => {
+        const env = await setup();
+        const before = (await env.blockchain.getContract(env.minter.address)).balance;
+        await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
+        const after = (await env.blockchain.getContract(env.minter.address)).balance;
+        assert.ok(after >= before - toNano('0.002'), `l'émetteur a perdu ${before - after} nanoTON`);
+    });
+
+    it('la genèse exige assez de TON pour ses deux créations dans la banque', async () => {
+        const env = await setup();
+        refusedWith(await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.2')), env.minter.address, Err.NOT_ENOUGH_TON);
+        assert.equal((await env.minter.getState()).genesisDone, false);
+    });
+});
+
 describe('Anciens Contributeurs : montants et réserves', () => {
     it('refuse une part totale nulle, trop grande, ou qui ne tombe pas juste (multiple de 10 unités)', async () => {
         const env = await withGenesis();

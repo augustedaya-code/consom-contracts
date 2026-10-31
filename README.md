@@ -5,8 +5,8 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 
 > **État : en développement, testnet uniquement.** L'émetteur, le budget de paiement, le compte membre et la banque
 > d'échange sont écrits et testés ensemble, avec la part de l'équipe (calendrier gravé) et la réclamation des Anciens
-> Contributeurs, puis la réserve de la Fondation. Restent à écrire : les préventes payées avant T0, le changement d'adresse
-> liée et l'enregistrement du parrain.
+> Contributeurs, la réserve de la Fondation et les contributions du lancement anticipé. Restent à écrire : les préventes payées
+> avant T0, le changement d'adresse liée et l'enregistrement du parrain.
 
 ## Contenu
 
@@ -83,6 +83,12 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   d'autre. Puisée dans la réserve équipe seule ; ni fenêtre de 24 mois, ni plafond de 50 000 ; elle compte dans le plafond
   global du jour (si la place manque, elle crée ce qui rentre et le reste attend le prochain appel) ; la pause la bloque.
   Lectures : `get_team_vesting` (libéré, créé, prochaine date) et `get_team_address`.
+- **Contributions du lancement anticipé** (décision du 30 octobre 2026) : bon signé 2 sur 3 (type 12) avec l'adresse, l'identifiant
+  unique de la contribution (empreinte) et le total T. Pris dans la réserve de prévente : 30 % de T créés sur l'adresse, 70 %
+  créés dans la banque avec de NOUVELLES parts attribuées à l'adresse (prix du moment). Compte éligible, une seule fois par
+  contribution, sans limite de temps, hors plafond de 50 000 par membre, T compte dans le plafond global du jour. Le total
+  de toutes les contributions est gravé au déploiement (`earlyContributionsTotal`) et retenu dans la réserve de prévente, pour que
+  la règle des invendus de T0 + 18 mois ne l'efface pas.
 - **Anciens Contributeurs** (règle A8, 5 000 000) : bon signé 2 sur 3 « réclamation d'un Ancien Contributeur » (adresse,
   empreinte de l'identifiant, part totale T). Le contrat en crée 30 % pour l'adresse (réserve Anciens Contributeurs) et lui
   attribue 70 % en parts de la banque, prises dans les parts à attribuer de la genèse (rien n'est créé pour cette partie) ;
@@ -131,6 +137,10 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 - Seuls ses brûlages comptent pour le halving, et elle ne brûle que sur ordre de l'émetteur.
 
 ## Choix d'implémentation à connaître
+
+0. Quand l'émetteur envoie deux messages pour un même bon (Ancien Contributeur, contribution du lancement anticipé, genèse), le
+   second reçoit une valeur calculée (reçu − déjà envoyé − 0,03 TON de marge) : un message à valeur fixe ne réduit pas la valeur
+   « restante » du message reçu, et le prendre en mode « tout le reste » ferait payer le premier par le solde de l'émetteur.
 
 1. Le montant de chaque récompense est recalculé par l'émetteur (et non par le budget, comme l'indiquait la spécification) :
    c'est plus simple et plus sûr. Le budget et le compte membre gardent le contrôle des emplacements déjà versés,

@@ -1,7 +1,7 @@
 // Déploiement de ConsoM : émetteur, banque d'échange, puis dépôt de genèse des Anciens Contributeurs.
 //
 // Utilisation (testnet) :
-//   TESTNET_DEPLOYER_MNEMONIC="24 mots"  GUARDIAN_ADDRESS="0Q..."  TEAM_ADDRESS="0Q..."  node scripts/deploy.ts testnet
+//   TESTNET_DEPLOYER_MNEMONIC="24 mots"  GUARDIAN_ADDRESS="0Q..."  TEAM_ADDRESS="0Q..."  EARLY_CONTRIBUTIONS_TOTAL="0"  node scripts/deploy.ts testnet
 // Variables facultatives : TONCENTER_API_KEY, T0 (secondes Unix ; par défaut : maintenant).
 // Les clés publiques des témoins viennent de deployments/<réseau>.config.json.
 // Le résultat (adresses, empreintes des codes) est écrit dans deployments/<réseau>.json et dans le résumé GitHub.
@@ -21,6 +21,7 @@ export type DeployConfig = {
     t0: number;
     guardian: Address;
     teamAddress: Address;    // portefeuille Multisig de l'équipe : gravé au déploiement
+    earlyContributionsTotal: bigint;   // total (unités de base) des contributions du lancement anticipé : gravé, retenu dans la réserve de prévente
     witnessPublicKeys: [Buffer, Buffer, Buffer];
     content: Cell;
 };
@@ -58,6 +59,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         witnessKeys: cfg.witnessPublicKeys,
         guardian: cfg.guardian,
         teamAddress: cfg.teamAddress,
+        earlyContributionsTotal: cfg.earlyContributionsTotal,
         walletCode: codes.walletCode,
         budgetCode: codes.budgetCode,
         memberCode: codes.memberCode,
@@ -90,6 +92,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         bank: bank.address,
         guardian: cfg.guardian,
         teamAddress: cfg.teamAddress,
+        earlyContributionsTotal: cfg.earlyContributionsTotal,
         codeHashes: Object.fromEntries(Object.entries(codes).map(([k, c]) => [k, c.hash().toString('hex')])),
     };
 }
@@ -108,6 +111,9 @@ async function main() {
     if (!guardianText) throw new Error('GUARDIAN_ADDRESS manquant (adresse Tonkeeper du gardien de test).');
     const teamText = (process.env.TEAM_ADDRESS ?? '').trim();
     if (!teamText) throw new Error('TEAM_ADDRESS manquant (adresse du portefeuille Multisig de l\'équipe, gravée au déploiement).');
+    // total des contributions du lancement anticipé, en ConsoM entiers : somme de la liste du serveur (0 = aucune)
+    const earlyText = (process.env.EARLY_CONTRIBUTIONS_TOTAL ?? '').trim();
+    if (!/^\d+$/.test(earlyText) || BigInt(earlyText) > 100_000_000n) throw new Error('EARLY_CONTRIBUTIONS_TOTAL manquant ou invalide (nombre entier de ConsoM, 0 à 100000000).');
     const fileCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'deployments', `${network}.config.json`), 'utf-8'));
 
     const client = new TonClient({
@@ -180,6 +186,7 @@ async function main() {
         t0,
         guardian: Address.parse(guardianText),
         teamAddress: Address.parse(teamText),
+        earlyContributionsTotal: BigInt(earlyText) * 1_000_000_000n,
         witnessPublicKeys: fileCfg.witnessPublicKeys.map((h: string) => Buffer.from(h, 'hex')) as [Buffer, Buffer, Buffer],
         content: jettonContent(fileCfg.metadataUri ?? 'https://tonmarche.example/consom-testnet.json'),
     }, target);
@@ -192,6 +199,7 @@ async function main() {
         bank: res.bank.toString({ testOnly: true }),
         guardian: res.guardian.toString({ testOnly: true, bounceable: false }),
         teamAddress: res.teamAddress.toString({ testOnly: true, bounceable: false }),
+        earlyContributionsTotal: res.earlyContributionsTotal.toString(),
         witnessPublicKeys: fileCfg.witnessPublicKeys,
         codeHashes: res.codeHashes,
     };

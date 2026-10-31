@@ -23,9 +23,10 @@ export const Kind = {
     OWN_CONVERSION: 9,
     CHIKA_BONUS: 10,
     FOUNDER_CLAIM: 11,
+    EARLY_CONTRIBUTION: 12,
 } as const;
 
-export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6, FOUNDATION: 7 } as const;
+export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6, FOUNDATION: 7, EARLY: 8 } as const;
 
 export const Op = {
     ClaimVoucher: 0xc0150001,
@@ -60,7 +61,7 @@ export const Err = {
     WINDOW_CLOSED: 410, WRONG_AMOUNT: 411, CATEGORY_CAP: 412, DAILY_CAP: 413, SUPPLY_CAP: 414,
     POINTS_TOO_HIGH: 415, NOT_ENOUGH_TON: 416, BURN_NOT_ALLOWED: 417, NOT_GUARDIAN: 420, PAUSE_TOO_SOON: 421,
     REPLACE_TOO_SOON: 422, REPLACE_PENDING: 423, NO_PENDING: 424, TIMELOCK: 425, DUPLICATE_KEY: 426,
-    NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440, GENESIS_NOT_DONE: 441, NOTHING_TO_RELEASE: 442, NO_FOUNDER_SHARES: 443,
+    NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440, GENESIS_NOT_DONE: 441, NOTHING_TO_RELEASE: 442, NO_FOUNDER_SHARES: 443, EARLY_TOTAL: 444,
 } as const;
 
 // Plafonds initiaux (section 3)
@@ -87,6 +88,9 @@ export type MinterConfig = {
     bankCode: Cell;
     shareCode: Cell;
     content: Cell;
+    // Total (unités de base) des contributions du lancement anticipé à réclamer : gravé au déploiement, retenu dans la réserve
+    // de prévente (la règle des invendus de T0 + 18 mois n'y touche pas). 0 = aucune contribution. Au plus 100 000 000 ConsoM.
+    earlyContributionsTotal?: bigint;
     // TESTS UNIQUEMENT : état de départ différent (plafonds, offre, brûlages) pour tester les limites
     testCaps?: Partial<typeof INITIAL_CAPS>;
     testState?: { totalSupply?: bigint; burnedByConversion?: bigint };
@@ -110,6 +114,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .storeUint(0, 32)       // dayStart
         .storeCoins(0)          // dayMinted
         .storeCoins(0)          // founderShares (rempli par la genèse)
+        .storeCoins(c.earlyContributionsTotal ?? 0n)   // earlyHold
         .endCell();
     const witnesses = beginCell()
         .storeUint(bigFromKey(c.witnessKeys[0]), 256)
@@ -318,6 +323,7 @@ export class ConsoMMinter implements Contract {
             dayStart: s.readNumber(),
             dayMinted: s.readBigNumber(),
             founderShares: s.readBigNumber(),
+            earlyHold: s.readBigNumber(),
         };
     }
 

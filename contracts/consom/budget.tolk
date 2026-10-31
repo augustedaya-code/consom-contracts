@@ -39,6 +39,9 @@ fun slotOf(kind: int, level: int): int {
     if (kind == KIND_CHIKA_BONUS) {
         return SLOT_CHIKA_BONUS;
     }
+    if (kind == KIND_EARLY_CONTRIBUTION) {
+        return SLOT_EARLY;
+    }
     if (kind == KIND_REFERRAL) {
         return 1 << (2 + level);    // niveau 1 à 5 : bits 3 à 7 (déjà vérifié par l'émetteur)
     }
