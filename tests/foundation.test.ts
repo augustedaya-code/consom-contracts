@@ -119,11 +119,11 @@ describe('Réserve de la Fondation : intouchable avant l\'ouverture', () => {
 
     it('un envoi qui se fait passer pour la création de la Fondation est refusé et rendu', async () => {
         const env = await withGenesis();
-        await env.claim(env.voucher());                      // 3 000 ConsoM pour le membre
+        await env.claim(env.voucher());                      // 5 000 ConsoM pour le membre
         env.blockchain.now = T0 + 400 * DAY;
         const payload = beginCell().storeUint(0xc0150031, 32).endCell();
         await env.sendToBank(env.member, consom(1000), payload);
-        assert.equal(await env.balanceOf(env.member.address), consom(3000), 'jetons rendus');
+        assert.equal(await env.balanceOf(env.member.address), consom(5000), 'jetons rendus');
         assert.equal((await env.foundationState()).stock, FOUNDATION, 'stock de la Fondation inchangé');
         assert.equal((await env.bankState()).depositorStock, DEPOSITORS, 'stock des déposants inchangé');
     });

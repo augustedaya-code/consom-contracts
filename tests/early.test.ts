@@ -120,11 +120,11 @@ describe('Contribution du lancement anticipé : 30 % sur l\'adresse, 70 % en par
     });
 
     it('un pack de prévente normal ne change pas : 100 % sur l\'adresse, et il ne touche pas à la retenue', async () => {
-        const env = await withGenesis({ testCaps: { presale: TOTAL + consom(5_000) } });
-        assert.ok(approved(await env.claim(env.voucher())), 'pack de 3 000 : il reste 5 000 hors retenue');
-        assert.equal(await env.balanceOf(env.member.address), consom(3_000), '100 % sur l\'adresse');
+        const env = await withGenesis({ testCaps: { presale: TOTAL + consom(8_000) } });
+        assert.ok(approved(await env.claim(env.voucher())), 'pack de 5 000 : il reste 3 000 hors retenue');
+        assert.equal(await env.balanceOf(env.member.address), consom(5_000), '100 % sur l\'adresse');
         assert.equal(await env.shareState(env.member.address), null, 'aucune part');
-        refusedWith(await env.claim(env.voucher()), env.minter.address, Err.CATEGORY_CAP);      // 2 000 hors retenue : refusé
+        refusedWith(await env.claim(env.voucher()), env.minter.address, Err.CATEGORY_CAP);      // 3 000 hors retenue : refusé
         assert.equal((await env.minter.getCaps()).earlyHold, TOTAL);
     });
 });

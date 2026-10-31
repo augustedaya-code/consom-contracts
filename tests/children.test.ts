@@ -44,7 +44,7 @@ describe('Budget de paiement', () => {
         await env.claim(presale);
         const r = await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveRef: presale.waveRef, waveAmount: presale.waveAmount }));
         assert.equal(rejectReason(r), Reject.PRESALE_EXCLUSIVE, describeTxs(r));
-        const purchase = env.voucher({ kind: Kind.PURCHASE_RECORD, points: 100n, waveAmount: 3500n, amount: 0n });
+        const purchase = env.voucher({ kind: Kind.PURCHASE_RECORD, points: 100n, waveAmount: 4500n, amount: 0n });
         await env.claim(purchase);
         const r2 = await env.claim(env.voucher({ waveRef: purchase.waveRef, points: 100n }));
         assert.equal(rejectReason(r2), Reject.PRESALE_EXCLUSIVE, describeTxs(r2));
@@ -119,7 +119,7 @@ describe('Compte membre', () => {
             const r = await env.claim(env.voucher(c));
             assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `type ${c.kind}\n${describeTxs(r)}`);
         }
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 50 + 40 + 3 + 500 + 150 + 150));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000 + 50 + 40 + 3 + 500 + 150 + 150));
     });
 
     it('le pack de prévente lui-même ne demande aucune condition', async () => {
@@ -134,7 +134,7 @@ describe('Compte membre', () => {
         await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n }));
         const r = await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(500), waveAmount: 1000n }));
         assert.equal(rejectReason(r), Reject.ALREADY_DONE, describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 500));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000 + 500));
     });
 
     it('les missions exigent la prévente et ne se reçoivent qu\'une fois', async () => {
@@ -195,7 +195,7 @@ describe('Compte membre', () => {
         env.blockchain.now = T0 + 7 * DAY;
         assert.equal(rejectReason(await convert(400n)), Reject.NOT_ENOUGH_POINTS, 'J+7 : les 400 Points restants ont expiré');
         assert.equal((await env.memberState(1n))!.availablePoints, 0n);
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 30));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000 + 30));
     });
 
     it('une conversion utilise d\'abord les Points les plus proches de l\'expiration', async () => {
@@ -225,7 +225,7 @@ describe('Compte membre', () => {
         env.blockchain.now = T0 + DAY + 1;
         const next = await env.claim(env.voucher(referral(240_000n)));
         assert.ok(hasTx(next, { op: Op.MintApproved, success: true }), 'le lendemain : accepté');
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 45_000 + 6_000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000 + 45_000 + 6_000));
     });
 
     it('le budget et le compte membre gardent 0,01 TON pour leurs frais de stockage', async () => {

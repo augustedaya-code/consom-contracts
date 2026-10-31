@@ -56,20 +56,20 @@ describe('Déploiement et lecture', () => {
 });
 
 describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
-    it('prévente : le pack Essentiel crée 3 000 ConsoM, sans vesting', async () => {
+    it('prévente : le pack Essentiel crée 5 000 ConsoM, sans vesting', async () => {
         const env = await setup();
         const r = await env.claim(env.voucher());
         assert.ok(hasTx(r, { to: env.minter.address, op: Op.MintApproved, success: true }), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000));
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000));
-        assert.equal((await env.minter.getCaps()).presale, INITIAL_CAPS.presale - consom(3000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000));
+        assert.equal((await env.minter.getState()).totalSupply, consom(5000));
+        assert.equal((await env.minter.getCaps()).presale, INITIAL_CAPS.presale - consom(5000));
     });
 
     it('accepte n\'importe quelle paire de témoins différents (0+2, 1+2)', async () => {
         const env = await setup();
         await env.claim(env.voucher(), { signers: [0, 2] });
         await env.claim(env.voucher(), { signers: [2, 1] });
-        assert.equal(await env.balanceOf(env.member.address), consom(6000));
+        assert.equal(await env.balanceOf(env.member.address), consom(10000));
     });
 
     it('parrainage niveau 1 : 2,5 % des Points, versés en entier', async () => {
@@ -77,7 +77,7 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         await env.claim(env.voucher());   // la prévente rend le membre éligible au parrainage
         const amount = consom(25);   // 2,5 % de 1 000 Points
         await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount }));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000) + amount);
+        assert.equal(await env.balanceOf(env.member.address), consom(5000) + amount);
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - amount);
     });
 
@@ -135,7 +135,7 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         assert.ok(hasTx(a, { op: Op.MintApproved, success: true }), describeTxs(a));
         const b = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 33n, waveAmount: 0n, amount: 1_650_000_000n }));
         assert.ok(hasTx(b, { op: Op.MintApproved, success: true }), describeTxs(b));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000) + consom(100) + 1_650_000_000n);
+        assert.equal(await env.balanceOf(env.member.address), consom(5000) + consom(100) + 1_650_000_000n);
         const old = await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 100n, waveAmount: 0n, amount: consom(35) }));
         expectRejected(old, env.minter.address, Err.WRONG_AMOUNT);   // l'ancien taux (35 %) n'est plus accepté
     });
@@ -154,8 +154,8 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n }));
         await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) }));
         await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 0n, amount: consom(500) }));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000 + 550));
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000 + 550));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000 + 550));
+        assert.equal((await env.minter.getState()).totalSupply, consom(5000 + 550));
     });
 });
 
@@ -218,6 +218,27 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
         expectRejected(await env.claim(env.voucher({ amount: consom(50000), waveAmount: 37999n })), env.minter.address, Err.WRONG_AMOUNT);
     });
 
+    it('prévente : pack Essentiel payé 4 500 -> 5 000 ConsoM ; 4 499 -> refusé ; ancien pack (3 000 pour 3 500) -> refusé', async () => {
+        const env = await setup();
+        expectRejected(await env.claim(env.voucher({ amount: consom(5000), waveAmount: 4499n })), env.minter.address, Err.WRONG_AMOUNT);
+        expectRejected(await env.claim(env.voucher({ amount: consom(3000), waveAmount: 3500n })), env.minter.address, Err.WRONG_AMOUNT);
+        expectRejected(await env.claim(env.voucher({ amount: consom(3000), waveAmount: 4500n })), env.minter.address, Err.WRONG_AMOUNT);
+        assert.equal(await env.balanceOf(env.member.address), 0n, 'rien créé par les refus');
+        const ok = await env.claim(env.voucher({ amount: consom(5000), waveAmount: 4500n }));
+        assert.ok(hasTx(ok, { to: env.minter.address, op: Op.MintApproved, success: true }), describeTxs(ok));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000));
+    });
+
+    it('prévente : les packs Populaire (20 000 / 17 500) et Grande offre (50 000 / 38 000) sont inchangés', async () => {
+        for (const [qty, price] of [[20000, 17500n], [50000, 38000n]] as const) {
+            const env = await setup();
+            expectRejected(await env.claim(env.voucher({ amount: consom(qty), waveAmount: price - 1n })), env.minter.address, Err.WRONG_AMOUNT);
+            const ok = await env.claim(env.voucher({ amount: consom(qty), waveAmount: price }));
+            assert.ok(hasTx(ok, { to: env.minter.address, op: Op.MintApproved, success: true }), describeTxs(ok));
+            assert.equal(await env.balanceOf(env.member.address), consom(qty));
+        }
+    });
+
     it('refuse des Points supérieurs à 0,5 par franc payé (P_max)', async () => {
         const env = await setup();
         const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1001n, waveAmount: 2000n, amount: (1001n * consom(1) * 250n) / 10000n });
@@ -252,7 +273,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
         const again = await env.claim({ ...v, voucherId: v.voucherId + 1000n });   // même paiement, même niveau
         assert.ok(hasTx(again, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(again));
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(25));
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000 + 25));
+        assert.equal((await env.minter.getState()).totalSupply, consom(5000 + 25));
     });
 
     it('libère la réservation quand le compte membre refuse', async () => {
@@ -338,7 +359,7 @@ describe('Fenêtres et plafonds (sections 3 et 10)', () => {
         await env.claim(env.voucher());   // 3 000 vendus
         env.blockchain.now = T0 + PRESALE_END - 1;
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 10n, waveAmount: 20n, amount: 0n }));
-        const rest = INITIAL_CAPS.presale - consom(3000);
+        const rest = INITIAL_CAPS.presale - consom(5000);
         const early = await env.minter.getCaps();
         assert.equal(early.presale, rest, 'pas encore appliquée une seconde avant 18 mois');
         assert.equal(early.presaleSettled, false);
@@ -370,9 +391,9 @@ describe('Fenêtres et plafonds (sections 3 et 10)', () => {
             const r = await env.claim(env.voucher({ amount: consom(50000), waveAmount: 38000n }), { value: toNano('0.5') });
             assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `achat ${i}\n${describeTxs(r)}`);
         }
-        expectRejected(await env.claim(env.voucher({ amount: consom(3000) })), env.minter.address, Err.DAILY_CAP);
+        expectRejected(await env.claim(env.voucher({ amount: consom(5000) })), env.minter.address, Err.DAILY_CAP);
         env.blockchain.now = T0 + DAY;
-        const r = await env.claim(env.voucher({ amount: consom(3000) }));
+        const r = await env.claim(env.voucher({ amount: consom(5000) }));
         assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), 'nouvelle période de 24 h');
     });
 
@@ -414,18 +435,18 @@ describe('Gardien : pause et remplacement de témoin (section 10)', () => {
         await env.claim(env.voucher());
         await env.minter.sendPause(env.guardian.getSender());
         expectRejected(await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 0n, amount: consom(500) })), env.minter.address, Err.PAUSED);
-        assert.equal(await env.balanceOf(env.member.address), consom(3000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000));
         const burn = await burnFrom(env, env.member, consom(100), toNano('0.2'));
         assert.ok(hasTx(burn, { to: env.minter.address, op: 0x7bdd97de, success: false, exitCode: Err.BURN_NOT_ALLOWED }), describeTxs(burn));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000), 'solde rétabli');
-        assert.equal((await env.minter.getState()).totalSupply, consom(3000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000), 'solde rétabli');
+        assert.equal((await env.minter.getState()).totalSupply, consom(5000));
         assert.equal((await env.minter.getState()).burnedByConversion, 0n);
     });
 
     it('pendant une pause : création refusée, conversion via la banque refusée, conversion avec ses propres ConsoM acceptée, transfert accepté', async () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
-        await env.claim(env.voucher());   // le membre a 3 000 ConsoM
+        await env.claim(env.voucher());   // le membre a 5 000 ConsoM
         await env.minter.sendPause(env.guardian.getSender());
 
         // création (prévente, récompense) : refusée
@@ -440,14 +461,14 @@ describe('Gardien : pause et remplacement de témoin (section 10)', () => {
         assert.ok(hasTx(own, { to: env.minter.address, op: Op.VerifyOwnConversion, success: true }), describeTxs(own));
         assert.ok(hasTx(own, { to: env.minter.address, op: 0x7bdd97de, success: true }), describeTxs(own));
         assert.equal((await env.minter.getState()).burnedByConversion, consom(10));
-        assert.equal(await env.balanceOf(env.member.address), consom(2990));
+        assert.equal(await env.balanceOf(env.member.address), consom(4990));
 
         // transfert de ConsoM : accepté
         const { jettonTransferBody } = await import('../wrappers/ConsoMMinter.ts');
         const wallet = await env.minter.getWalletAddress(env.member.address);
         await env.member.send({ to: wallet, value: toNano('0.2'), body: jettonTransferBody({ amount: consom(100), to: env.stranger.address, responseTo: env.member.address, forwardTon: 0n }) });
         assert.equal(await env.balanceOf(env.stranger.address), consom(100));
-        assert.equal(await env.balanceOf(env.member.address), consom(2890));
+        assert.equal(await env.balanceOf(env.member.address), consom(4890));
     });
 
     it('remplace un témoin seulement après 7 jours, une fois par 30 jours', async () => {
@@ -527,15 +548,15 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
 
     it('un brûlage demandé par un membre est refusé : solde, offre et paliers intacts, rien dans la banque', async () => {
         const env = await setup();
-        await env.claim(env.voucher());   // le membre a 3 000 ConsoM
+        await env.claim(env.voucher());   // le membre a 5 000 ConsoM
         const bank = await env.minter.getBankAddress();
         for (const value of [toNano('0.2'), toNano('1')]) {
             const r = await burnFrom(env, env.member, consom(1000), value);
             assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: false, exitCode: Err.BURN_NOT_ALLOWED }), describeTxs(r));
-            assert.equal(await env.balanceOf(env.member.address), consom(3000), 'solde rétabli par le rebond');
+            assert.equal(await env.balanceOf(env.member.address), consom(5000), 'solde rétabli par le rebond');
             assert.equal(await env.balanceOf(bank), 0n, 'rien n\'est recréé dans la banque');
             const st = await env.minter.getState();
-            assert.equal(st.totalSupply, consom(3000), 'l\'offre ne bouge pas');
+            assert.equal(st.totalSupply, consom(5000), 'l\'offre ne bouge pas');
             assert.equal(st.burnedByConversion, 0n);
             assert.equal(st.halvingSteps, 0);
         }

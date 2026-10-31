@@ -34,7 +34,7 @@ describe('Genèse de la banque', () => {
 describe('Conversion via la banque', () => {
     it('brûle le montant calculé par l\'émetteur sur le stock des déposants', async () => {
         const env = await withGenesis();
-        await env.claim(env.voucher());                                     // le membre a 3 000 ConsoM
+        await env.claim(env.voucher());                                     // le membre a 5 000 ConsoM
         const r = await bankConversion(env, 1_000_000n);                    // 100 000 ConsoM à brûler
         assert.ok(hasTx(r, { to: env.minter.address, op: BURN_NOTIFICATION, success: true }), describeTxs(r));
         const st = await env.bankState();
@@ -42,7 +42,7 @@ describe('Conversion via la banque', () => {
         assert.equal(st.totalShares, consom(3_500_000), 'les parts ne changent pas');
         const ms = await env.minter.getState();
         assert.equal(ms.burnedByConversion, consom(100_000), 'le compteur des paliers monte');
-        assert.equal(ms.totalSupply, consom(3_000 + 3_600_000 - 100_000), 'l\'offre baisse');
+        assert.equal(ms.totalSupply, consom(5_000 + 3_600_000 - 100_000), 'l\'offre baisse');
     });
 
     it('un bon de conversion ne sert qu\'une fois', async () => {
@@ -112,11 +112,11 @@ describe('Conversion via la banque', () => {
 describe('Conversion avec ses propres ConsoM', () => {
     it('brûle le montant requis et rend l\'excédent', async () => {
         const env = await withGenesis();
-        await env.claim(env.voucher());                                     // 3 000 ConsoM
+        await env.claim(env.voucher());                                     // 5 000 ConsoM
         const r = await env.ownConversion(ownVoucher(env, 100n), consom(20)); // 10 requis, 20 envoyés
         assert.ok(hasTx(r, { to: env.minter.address, op: Op.VerifyOwnConversion, success: true }), describeTxs(r));
         assert.ok(hasTx(r, { to: env.minter.address, op: BURN_NOTIFICATION, success: true }), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(2990));
+        assert.equal(await env.balanceOf(env.member.address), consom(4990));
         assert.equal((await env.minter.getState()).burnedByConversion, consom(10));
         assert.equal((await env.bankState()).escrow, 0n);
     });
@@ -125,7 +125,7 @@ describe('Conversion avec ses propres ConsoM', () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         await env.ownConversion(ownVoucher(env, 100n), consom(5));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000));
         assert.equal((await env.minter.getState()).burnedByConversion, 0n);
         assert.equal((await env.bankState()).escrow, 0n);
     });
@@ -134,11 +134,11 @@ describe('Conversion avec ses propres ConsoM', () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         await env.ownConversion(ownVoucher(env, 100n), consom(10), [1, 1]);    // deux fois le même témoin
-        assert.equal(await env.balanceOf(env.member.address), consom(3000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000));
         const v = ownVoucher(env, 100n);
         await env.ownConversion(v, consom(10));
         await env.ownConversion(v, consom(10));                                 // même bon
-        assert.equal(await env.balanceOf(env.member.address), consom(2990));
+        assert.equal(await env.balanceOf(env.member.address), consom(4990));
         assert.equal((await env.minter.getState()).burnedByConversion, consom(10));
     });
 
@@ -157,7 +157,7 @@ describe('Conversion avec ses propres ConsoM', () => {
         await env.minter.sendPause(env.guardian.getSender());
         const r = await env.ownConversion(ownVoucher(env, 100n), consom(10));
         assert.ok(hasTx(r, { op: BURN_NOTIFICATION, success: true }), describeTxs(r));
-        assert.equal(await env.balanceOf(env.member.address), consom(2990));
+        assert.equal(await env.balanceOf(env.member.address), consom(4990));
         assert.equal((await env.minter.getState()).burnedByConversion, consom(10));
     });
 });
@@ -167,7 +167,7 @@ describe('Dépôts et retraits', () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         await env.sendToBank(env.member, consom(100));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000), 'jetons rendus');
+        assert.equal(await env.balanceOf(env.member.address), consom(5000), 'jetons rendus');
         assert.equal(await env.balanceOf(env.bankAddress), consom(3_600_000), 'rien de plus dans la banque');
         const st = await env.bankState();
         assert.equal(st.depositorStock, consom(3_500_000));
@@ -179,7 +179,7 @@ describe('Dépôts et retraits', () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         await env.deposit(env.member, consom(1000));
-        assert.equal(await env.balanceOf(env.member.address), consom(3000));
+        assert.equal(await env.balanceOf(env.member.address), consom(5000));
         assert.equal((await env.bankState()).depositorStock, consom(3_500_000));
     });
 
@@ -190,7 +190,7 @@ describe('Dépôts et retraits', () => {
         await env.deposit(env.member, consom(1000));
         const share = await env.shareState(env.member.address);
         assert.equal(share!.shares, consom(1000), 'au départ, 1 part = 1 ConsoM');
-        assert.equal(await env.balanceOf(env.member.address), consom(2000));
+        assert.equal(await env.balanceOf(env.member.address), consom(4000));
 
         const early = await env.withdraw(env.member);
         assert.ok(hasTx(early, { success: false, exitCode: 472 }), 'retrait avant 24 h refusé');
@@ -201,7 +201,7 @@ describe('Dépôts et retraits', () => {
         const r = await env.withdraw(env.member);
         assert.ok(hasTx(r, { to: env.bankAddress, op: Op.WithdrawShares, success: true }), describeTxs(r));
         const expected = (consom(1000) * (consom(3_501_000) - consom(100_000))) / consom(3_501_000);
-        assert.equal(await env.balanceOf(env.member.address), consom(2000) + expected);
+        assert.equal(await env.balanceOf(env.member.address), consom(4000) + expected);
         assert.equal((await env.shareState(env.member.address))!.shares, 0n);
     });
 
