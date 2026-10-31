@@ -148,6 +148,18 @@ struct (0xc0150047) AssignFounderShares {
     to: address
 }
 
+// Banque -> celui qui a présenté le bon de conversion (le serveur ou le membre) : le RÉSULTAT de chaque conversion via la banque.
+// Il dit quelle part a été couverte par la banque (brûlée) et laquelle par la réserve de la Fondation (non brûlée),
+// pour que le serveur verse les 10 % de frais aux bons bénéficiaires : déposants pour `burned`, Fondation pour `coveredByFoundation`.
+// Toujours envoyé, accepté ou refusé ; `queryId` est celui du ClaimVoucher d'origine.
+struct (0xc0150060) ConversionResult {
+    queryId: uint64
+    status: uint8                 // 1 = conversion acceptée, 0 = refusée (rien n'est brûlé, rien n'est couvert)
+    required: coins               // ConsoM que la conversion demandait au taux du moment (unités de base)
+    burned: coins                 // part couverte par la banque : brûlée, prise sur le stock des déposants
+    coveredByFoundation: coins    // part couverte par la réserve de la Fondation : rien n'est brûlé, son stock ne bouge pas
+}
+
 // Banque -> parts d'un déposant : ajout de parts après un dépôt
 struct (0xc0150044) AddShares {
     queryId: uint64

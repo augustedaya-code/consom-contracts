@@ -26,6 +26,18 @@ async function libFor(env: any) {
 const send = (env: any, msg: any) => env.member.send({ to: msg.to, value: msg.value, body: msg.body });
 
 describe('Page de test', () => {
+    it('lit le résultat d\'une conversion : part brûlée et part couverte par la Fondation', async () => {
+        const env = await setup();
+        const lib = await libFor(env);
+        const r = await send(env, lib.actions.bankConversion(env.member.address, 1000));
+        const tx = r.transactions.find((t: any) => t.inMessage?.body.beginParse().remainingBits >= 32 && t.inMessage.body.beginParse().loadUint(32) === 0xc0150060);
+        const d = lib.describeConversionResult(tx.inMessage.body);
+        assert.equal(d.status, 'ok');
+        assert.equal(d.burned, consom(100));
+        assert.equal(d.covered, 0n);
+        assert.equal(lib.describeConversionResult(core.beginCell().storeUint(0x1234, 32).endCell()), null);
+    });
+
     it('calcule les mêmes adresses que les contrats', async () => {
         const env = await setup();
         const lib = await libFor(env);
