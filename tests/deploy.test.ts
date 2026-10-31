@@ -3,7 +3,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { Blockchain } from '@ton/sandbox';
 import { keyPairFromSeed } from '@ton/crypto';
-import { deployConsoM, jettonContent } from '../scripts/deploy.ts';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { deployConsoM, jettonContent, writeDeploymentOutputs } from '../scripts/deploy.ts';
 import { consom } from '../wrappers/ConsoMMinter.ts';
 import { ExchangeBank } from '../wrappers/ExchangeBank.ts';
 
@@ -37,6 +40,22 @@ describe('Script de déploiement', () => {
         assert.equal(engraved.length, 1);
         assert.ok(engraved[0].equals(relay.address), 'la liste interdite est gravée au déploiement');
         assert.equal(logs.some((m) => m.includes('AVERTISSEMENT')), false, 'pas d\'avertissement quand la liste est renseignée');
+
+        // toute la fin du script : fichier deployments/<réseau>.json et résumé, sur ce déploiement simulé
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'consom-deploy-'));
+        const summaryFile = path.join(dir, 'summary.md');
+        const printed: string[] = [];
+        const out = writeDeploymentOutputs(res, dir, { summaryFile, log: (m) => printed.push(m) });
+        const written = JSON.parse(fs.readFileSync(path.join(dir, 'testnet.json'), 'utf-8'));
+        assert.deepEqual(written, out);
+        assert.equal(written.minter, res.minter.toString({ testOnly: true }));
+        assert.equal(written.bank, res.bank.toString({ testOnly: true }));
+        assert.deepEqual(written.forbiddenRecipients, [relay.address.toString({ testOnly: true, bounceable: false })]);
+        assert.deepEqual(written.witnessPublicKeys, keys.map((k) => k.toString('hex')));
+        assert.equal(Object.keys(written.codeHashes).length, 6);
+        assert.ok(fs.readFileSync(summaryFile, 'utf-8').includes(written.minter));
+        assert.ok(printed[0].includes('Adresses interdites de réception gravées : 1'));
+        fs.rmSync(dir, { recursive: true });
     });
 
     it('liste interdite vide : le déploiement va au bout mais avertit clairement', async () => {

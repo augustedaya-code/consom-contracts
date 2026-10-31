@@ -51,5 +51,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add deployments/testnet.json
-          git commit -m "Déploiement testnet : adresses des contrats"
-          git push
+          if git diff --cached --quiet; then
+            echo "Aucun changement dans deployments/testnet.json : rien à enregistrer."
+          else
+            git commit -m "Déploiement testnet : adresses des contrats"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
