@@ -162,7 +162,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:4px;max-width:68ch}
       <p class="note">Toi en tant que parrain (il faut avoir fait une prévente). Niveau 1 = 2,5 %, 2 = 1,3 %, 3 = 0,7 %, 4 = 0,4 %, 5 = 0,1 %.</p>
       <div class="row">
         <label>Points du filleul<input id="refPoints" type="number" min="1" value="1000"></label>
-        <label>Niveau<select id="refLevel"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+        <label>Niveau<select id="refLevel"><option>1</option><option>2</option></select></label>
         <button data-act="referral">Préparer</button>
       </div>
     </div>
@@ -280,7 +280,7 @@ const CFG = /*CFG*/;
     firstPurchase: () => ({ t: 'Bonus de 1er achat', d: '500 ConsoM, une seule fois.', m: lib.actions.firstPurchase(owner) }),
     purchaseRecord: () => ({ t: 'Enregistrement de ' + num('recPoints') + ' Points', d: 'Aucun ConsoM créé : seul ton compte membre change.', m: lib.actions.purchaseRecord(owner, num('recPoints')) }),
     conversionReward: () => ({ t: 'Bonus de conversion (5 %) — ' + num('convPoints') + ' Points', d: 'Attendu : ' + (num('convPoints') * 0.05).toLocaleString('fr-FR') + ' ConsoM.', m: lib.actions.conversionReward(owner, num('convPoints')) }),
-    referral: () => ({ t: 'Parrainage niveau ' + $('refLevel').value, d: 'Refusé (raison visible sur l\'explorateur) si tu n\'as pas fait de prévente.', m: lib.actions.referral(owner, num('refPoints'), Number($('refLevel').value)) }),
+    referral: () => ({ t: 'Parrainage niveau ' + $('refLevel').value, d: 'Niveau 1 : 5 % des Points. Niveau 2 : refusé (erreur 418, niveaux 2 à 5 supprimés). Refusé aussi si tu n\'as pas fait de prévente.', m: lib.actions.referral(owner, num('refPoints'), Number($('refLevel').value)) }),
     missionTelegram: () => ({ t: 'Mission Telegram', d: '150 ConsoM, une seule fois.', m: lib.actions.missionTelegram(owner) }),
     missionFacebook: () => ({ t: 'Mission Facebook', d: '150 ConsoM, une seule fois.', m: lib.actions.missionFacebook(owner) }),
     bankConversion: () => ({ t: 'Conversion via la banque — ' + num('bankPoints') + ' Points', d: 'La banque brûle environ ' + (num('bankPoints') * 0.1).toLocaleString('fr-FR') + ' ConsoM de son stock. Tes ConsoM ne bougent pas.', m: lib.actions.bankConversion(owner, num('bankPoints')) }),

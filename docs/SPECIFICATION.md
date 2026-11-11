@@ -85,7 +85,7 @@ Aucun ConsoM ne peut être créé sans un paiement Wave préalable, attesté par
 **Le budget de paiement.** La première émission qui cite un paiement Wave crée son contrat « Budget de paiement », dont l'adresse dépend de l'empreinte de l'identifiant Wave. Un même paiement ne peut donc exister qu'une fois. Le budget enregistre ce que les témoins ont attesté et refuse ensuite toute récompense qui ne correspond pas aux règles :
 
 - `points` : les Points de la commande, plafonnés à `montant_fcfa × P_max`, où P\_max = 0,5 Point par franc, gravé au déploiement (les Points valent 25 % ou 50 % de la marge d'un produit, et la marge est toujours inférieure au prix) ;
-- un emplacement par récompense versée à l'achat : parrainage niveaux 1 à 5, bonus de 1er achat, Bonus CHIKA ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 5 % à la conversion.
+- un emplacement par récompense versée à l'achat : parrainage (parrain direct, niveau 1 seulement depuis le lot E13), bonus de 1er achat, Bonus CHIKA ; chacun ne peut être versé qu'une fois, et son montant est calculé par le contrat à partir de `points` (section 6), pas pris dans le bon. Les Points de la commande s'ajoutent aussi au compteur de Points récompensables du compte de l'acheteur, qui borne sa récompense de 5 % à la conversion.
 
 **Ce que le budget protège, et ce qu'il ne protège pas.** Il bloque une erreur de calcul de l'application, la réutilisation d'un paiement et toute récompense hors règle. Il ne protège pas contre deux témoins compromis, qui pourraient attester un faux paiement. Contre ce cas, les protections sont le plafond journalier global, le plafond par membre et la pause (section 10).
 
@@ -102,7 +102,7 @@ Un bon est une autorisation signée par au moins deux témoins. N'importe qui pe
 | `network_id` | -239 pour le réseau principal, -3 pour le testnet : un bon de testnet est refusé sur le réseau principal |
 | `minter` | Adresse de l'émetteur : un bon ne vaut que pour ce contrat |
 | `voucher_id` | Identifiant unique sur 64 bits |
-| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 à 5), 1er achat, mission, investissement, Bonus CHIKA (type 10), réclamation d'un Ancien Contributeur (type 11), contribution du lancement anticipé (type 12) |
+| `kind` | Prévente, conversion (5 %), parrainage (niveau 1 seulement ; un bon de niveau 2 à 5 est refusé, erreur 418), 1er achat, mission, investissement, Bonus CHIKA (type 10), réclamation d'un Ancien Contributeur (type 11), contribution du lancement anticipé (type 12) |
 | `wave_ref` | Empreinte SHA-256 de l'identifiant de transaction Wave ou Paystack (jamais l'identifiant en clair). L'empreinte est calculée par les témoins à partir de l'identifiant de la transaction Wave ou Paystack ; le contrôleur indépendant la recalcule à partir des relevés (A6). |
 | `wave_amount`, `points` | Montant payé en FCFA et Points de la commande, tels qu'attestés (pour un Bonus CHIKA : montant payé en CHIKA) |
 | `member_id` | Empreinte de l'identifiant TonMarché du bénéficiaire |
@@ -130,16 +130,13 @@ Si une étape refuse, le message rebondit jusqu'à l'émetteur, qui libère sa r
 
 ## 6. Règles de récompense
 
-Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM : 5 % répartis sur cinq niveaux de parrainage dès l'achat, et 5 % à l'acheteur quand il convertit ses Points avant leur expiration. 1 Point donne droit à 1 ConsoM au taux indiqué ; le contrat calcule chaque montant avec un arrondi à l'unité de base inférieure.
+Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM : 5 % au parrain direct (niveau 1) dès l'achat, et 5 % à l'acheteur quand il convertit ses Points avant leur expiration. Décision du 11 novembre 2026 (lot E13) : les niveaux 2 à 5 ne reçoivent plus rien (avant : 2,5 / 1,3 / 0,7 / 0,4 / 0,1 %) ; un bon de parrainage d'un autre niveau que 1 est refusé par l'émetteur (erreur 418), il n'est pas payé à 0. 1 Point donne droit à 1 ConsoM au taux indiqué ; le contrat calcule chaque montant avec un arrondi à l'unité de base inférieure.
 
 | Récompense | Montant | Bénéficiaire | Catégorie | Limite |
 | --- | --- | --- | --- | --- |
 | Achat | 5 % des Points convertis | L'acheteur | Achats | Versé à chaque conversion ; total ≤ 5 % des Points de ses commandes attestées |
-| Parrainage niveau 1 | 2,5 % des Points | Parrain direct, s'il est éligible | Parrainage | Une fois par paiement |
-| Niveau 2 | 1,3 % | Idem, niveau 2 | Parrainage | Idem |
-| Niveau 3 | 0,7 % | Idem, niveau 3 | Parrainage | Idem |
-| Niveau 4 | 0,4 % | Idem, niveau 4 | Parrainage | Idem |
-| Niveau 5 | 0,1 % | Idem, niveau 5 | Parrainage | Idem |
+| Parrainage niveau 1 | 5 % des Points | Parrain direct, s'il est éligible | Parrainage | Une fois par paiement |
+| Niveaux 2 à 5 | Rien : bon refusé (erreur 418) | — | — | Supprimés le 11 novembre 2026 (lot E13) |
 | 1er achat | 500 ConsoM | L'acheteur | Missions | Une fois par membre |
 | Telegram | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
 | Facebook | 150 ConsoM | Membre avec au moins un paiement | Missions | Une fois par membre |
@@ -152,7 +149,7 @@ Une commande livrée et payée peut donner au plus 10 % de ses Points en ConsoM 
 
 **Parrainage.** Il est versé dès que l'achat du filleul est attesté, sans attendre que le filleul convertisse.
 
-**Éligibilité au parrainage.** Seul un membre ayant acheté en prévente ou un Ancien Contributeur peut recevoir une récompense de parrainage. Le compte membre porte ce droit, activé par une attestation de prévente ou par la genèse. Le parrain d'un membre est enregistré dans son compte ; seule l'équipe peut le changer, par bon signé 2 sur 3, et le changement ne vaut que pour les achats suivants. Si le parrain d'un niveau n'est pas éligible, son emplacement est perdu : il n'est ni versé à un autre, ni reporté.
+**Éligibilité au parrainage.** Seul un membre ayant acheté en prévente ou un Ancien Contributeur peut recevoir une récompense de parrainage. Le compte membre porte ce droit, activé par une attestation de prévente ou par la genèse. Le parrain d'un membre est enregistré dans son compte ; seule l'équipe peut le changer, par bon signé 2 sur 3, et le changement ne vaut que pour les achats suivants. Si le parrain direct n'est pas éligible, son emplacement est perdu : il n'est ni versé à un autre, ni reporté.
 
 **Versement.** Toute récompense (achat, parrainage, missions) est versée en entier, immédiatement. Il n'y a pas d'étalement : les ConsoM vendus restent dans le système, et le seul moyen de les retirer est la conversion de Points. Les Anciens Contributeurs et l'équipe ont leurs propres règles.
 
@@ -298,7 +295,7 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 | 2 | Émission maximale par 24 h, tout compris | Tranché : 2 000 000 ConsoM, à recalibrer après le testnet |
 | 3 | Brûlage maximal de la banque par 24 h | Tranché : 5 % du stock de la banque par 24 h ; au-delà, les conversions via la banque attendent la période suivante (section 9) |
 | 4 | Délai entre livraison et signature d'une récompense d'achat | Tranché : 48 h ; en cas de problème, l'acheteur écrit à l'équipe |
-| 5 | Vérification du parrainage | Tranché : parrain enregistré dans le compte membre, modifiable par l'équipe seule (bon signé 2 sur 3, pour les achats suivants) ; niveau 1 vérifié par le contrat, niveaux 2 à 5 attestés |
+| 5 | Vérification du parrainage | Tranché : parrain enregistré dans le compte membre, modifiable par l'équipe seule (bon signé 2 sur 3, pour les achats suivants) ; niveau 1 vérifié par le contrat ; niveaux 2 à 5 supprimés (lot E13, 11 novembre 2026 : bon refusé) |
 | 6 | Lien membre ↔ adresse TON | Tranché : fixé par la première réclamation ; changement par bon signé 2 sur 3, effectif après 7 jours |
 | 7 | Nombre maximal de paliers de halving n\_max | Tranché (livre blanc v5.0) : 16 divisions au plus (17 paliers), un palier tous les 15 000 000 ConsoM brûlés |
 | 8 | Unité du bonus d'investissement | Tranché (livre blanc v5.0) : 1 CHIKA investi = 0,04 ConsoM, payé par la réserve Achats |
@@ -323,6 +320,7 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 - Bonus de 1er achat : 500 ConsoM au lieu de 300.
 - Récompense (5 % depuis le livre blanc v5.0) versée à la conversion des Points, et non à l'achat ; des Points expirés ne donnent rien.
 - Parrainage versé dès l'achat attesté du filleul.
+- 11 novembre 2026 (lot E13) : parrain direct 5 % (au lieu de 2,5 %), plus rien aux niveaux 2 à 5 ; l'acheteur reste à 5 %.
 - Seuls les brûlages de conversion comptent pour le halving.
 - Brûlage hors conversion : refusé, rien n'est recréé (règle A10). Plus de stock sans propriétaire dans la banque.
 - Commissions de prévente au parrain : 500, 5 000 et 10 000 Points.
