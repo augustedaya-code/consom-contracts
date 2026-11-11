@@ -1,13 +1,26 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-10-31",
-  "t0": "à compléter",
-  "minter": "kQBy6EeCHWOh6Eq18udtYO_w6edDA3Xz6whkQH-yR0Solgrs",
-  "bank": "kQD2oian55HNCxnSpxqMnYZbaHFD9jFvqIWZ8xLIxth_wZoU",
-  "guardian": "à compléter",
-  "teamAddress": "à compléter",
-  "earlyContributionsTotal": "à compléter",
-  "forbiddenRecipients": "à compléter",
-  "witnessPublicKeys": "à compléter",
-  "codeHashes": "à compléter"
+  "deployedAt": "2026-11-11T18:57:46.985Z",
+  "t0": 1794423404,
+  "minter": "kQC1mldrWFq0hAD-oUwm0hr0QoLq-GMNJ4Jqwzfo7XHUUIyy",
+  "bank": "kQAixcw7Y4NOgAxP8jhPYvih0Y4bCtGRTjp8qtBb64DxEQkB",
+  "guardian": "0QDNWpl9uJ_EiIGRuh-ZcJd9fAaBlP7y888AgdgpjITBT1FT",
+  "teamAddress": "0QBjGtDkdgJY1XCy8g-I2dwFxH25_jhtv8epEtPDNfGfMBsc",
+  "earlyContributionsTotal": "0",
+  "forbiddenRecipients": [
+    "0QD7_7UwE-HhrunlLLV6fUxLs9aH7oWanYtdvJoZ9zBSqFwA"
+  ],
+  "witnessPublicKeys": [
+    "6e7e956297de1f76d118f3f0c894a0c53776180aebc5cd1af68fe526291667f3",
+    "0b93744a37e250d2977d81d67ce846d04765921f53146fb35ab1b927d37fbc24",
+    "9fd6e71b40a751b56d0e255c2bf8d649dfffaba7245904ca995037d93228c66a"
+  ],
+  "codeHashes": {
+    "minterCode": "2ecdcd585b7ab875eb79ebb7f3f4770d7dd2d95e90a1b90e461d40b23e30ca85",
+    "walletCode": "7bfa53bce90ce26cd368ec2989eba2bd15d286104742f0e04659f485a03012ba",
+    "budgetCode": "57a5db85990f7eb219f1c08a9f6439ae6ddb73914bf6516ff7f634538948185c",
+    "memberCode": "a206df31bff3fc8a58bffc5be5fb6d9c99f632de948b6c17e68afaeff7d94c35",
+    "bankCode": "e0daeb5bbd2f6c33efc79613aac71aac27293388e3d63a22657a682801a500d0",
+    "shareCode": "d1d858f0931c3b6782bd80507019147fd74f07b36763690643e9a7b330d07138"
+  }
 }
