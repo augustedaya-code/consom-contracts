@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { beginCell, toNano } from '@ton/core';
 import { setup, hasTx, describeTxs, rejectReason, T0, DAY } from './helpers.ts';
-import { consom, Kind, Op, withdrawRequestBody } from '../wrappers/ConsoMMinter.ts';
+import { consom, Kind, Op, withdrawRequestBody, NETWORK_MAINNET } from '../wrappers/ConsoMMinter.ts';
 
 const BURN_NOTIFICATION = 0x7bdd97de;
 
@@ -175,9 +175,12 @@ describe('Dépôts et retraits', () => {
         assert.equal(st.escrow, 0n);
     });
 
-    it('fermée aux dépôts pendant 12 mois : les jetons sont rendus', async () => {
-        const env = await withGenesis();
+    // lot E14 : la fermeture ne vaut plus que sur le réseau principal, entre T0 + 30 jours et T0 + 12 mois (voir placement.test.ts)
+    it('réseau principal : fermée aux dépôts de T0 + 30 jours à T0 + 12 mois, les jetons sont rendus', async () => {
+        const env = await setup({ networkId: NETWORK_MAINNET });
+        await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
         await env.claim(env.voucher());
+        env.blockchain.now = T0 + 31 * DAY;
         await env.deposit(env.member, consom(1000));
         assert.equal(await env.balanceOf(env.member.address), consom(5000));
         assert.equal((await env.bankState()).depositorStock, consom(3_500_000));

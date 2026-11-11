@@ -82,8 +82,16 @@ fun BankInit.myWallet(self): address {
     return calcAddressOfJettonWallet(contract.getAddress(), self.minter, self.walletCode);
 }
 
+// Retraits : jamais avant T0 + 12 mois (réseau d'essai comme réseau principal)
 fun BankInit.isOpen(self): bool {
     return blockchain.now() >= self.t0 + BANK_CLOSED_PERIOD;
+}
+
+// Dépôts (lot E14) : acceptés de T0 à T0 + depositWindow, puis de nouveau à partir de T0 + 12 mois.
+// Réseau principal : 30 jours après le lancement, fermés ensuite jusqu'à 12 mois. Réseau d'essai : toujours ouverts dès T0.
+fun BankInit.depositsOpen(self): bool {
+    val now = blockchain.now();
+    return (now >= self.t0) && ((now < self.t0 + self.depositWindow) || self.isOpen());
 }
 
 
@@ -260,8 +268,8 @@ fun onInternalMessage(in: InMessage) {
             }
 
             if ((tag == OP_DEPOSIT_TAG) && (in.valueCoins >= BANK_OP_MIN_VALUE)) {
-                if (!storage.isOpen()) {
-                    // banque fermée aux dépôts pendant 12 mois : les jetons sont rendus
+                if (!storage.depositsOpen()) {
+                    // banque fermée aux dépôts (réseau principal : de T0 + 30 jours à T0 + 12 mois) : les jetons sont rendus
                     keepReserve(in.valueCoins, BANK_STORAGE_RESERVE);
                     sendJettons(storage.myWallet(), msg.queryId, amount, from, SEND_MODE_CARRY_ALL_BALANCE, 0);
                     return;
@@ -419,7 +427,10 @@ struct BankStateReply {
     escrow: int
     dayCap: int
     dayBurned: int
-    isOpen: bool
+    isOpen: bool          // retraits possibles (T0 + 12 mois atteint)
+    depositsOpen: bool    // dépôts acceptés maintenant (lot E14)
+    depositsUntil: int    // fin de la première fenêtre de dépôt (T0 + 30 jours sur le réseau principal, T0 + 12 mois sur le réseau d'essai)
+    withdrawalsFrom: int  // date à partir de laquelle les retraits (et les dépôts) sont ouverts pour toujours : T0 + 12 mois
 }
 
 get fun get_bank_state(): BankStateReply {
@@ -433,6 +444,9 @@ get fun get_bank_state(): BankStateReply {
         dayCap: state.dayCap,
         dayBurned: state.dayBurned,
         isOpen: storage.isOpen(),
+        depositsOpen: storage.depositsOpen(),
+        depositsUntil: storage.t0 + storage.depositWindow,
+        withdrawalsFrom: storage.t0 + BANK_CLOSED_PERIOD,
     }
 }
 

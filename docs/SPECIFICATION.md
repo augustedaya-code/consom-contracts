@@ -221,8 +221,8 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 **Règles**
 
-1. De T0 à T0 + 12 mois : aucun dépôt, aucun retrait, y compris pour les Anciens Contributeurs. Seuls les brûlages de conversion sont possibles.
-2. Après T0 + 12 mois : tout détenteur peut déposer en transférant des ConsoM à la banque. Un retrait est possible 24 h après le dernier dépôt du même déposant.
+1. Retraits (décision du 11 novembre 2026, lot E14) : aucun retrait avant T0 + 12 mois, y compris pour les Anciens Contributeurs, sur le réseau d'essai comme sur le réseau principal. Ensuite, un retrait est possible 24 h après le dernier dépôt du même déposant.
+2. Dépôts (lot E14) : tout détenteur peut déposer en transférant des ConsoM à la banque, pendant une première fenêtre qui commence à T0, puis de nouveau pour toujours à partir de T0 + 12 mois. La première fenêtre est de **30 jours sur le réseau principal** (T0 = jour du lancement) : entre T0 + 30 jours et T0 + 12 mois, un dépôt est rendu. Sur le **réseau d'essai** (phase de test), elle dure 12 mois : les dépôts sont donc ouverts dès T0, sans interruption. Cette durée n'est pas un paramètre libre : la banque la reçoit à sa création, calculée par l'émetteur à partir du réseau gravé (`network_id`), et elle fait partie de l'adresse de la banque ; `get_bank_state` la publie (`depositsOpen`, `depositsUntil`, `withdrawalsFrom`). Un dépôt donne des parts, qui comptent pour la part des frais dès leur arrivée.
 3. La banque ne brûle que sur ordre de l'émetteur, après un bon de conversion signé par 2 témoins sur 3. Chaque bon ne sert qu'une fois : le compte du membre refuse un numéro de bon déjà utilisé ou plus ancien.
 4. Le montant brûlé n'est jamais pris dans le bon : l'émetteur le calcule à partir des Points attestés et du taux courant (section 8), puis le transmet à la banque.
 5. La banque publie le nombre de parts de chaque déposant ; l'application s'en sert pour répartir les 10 % de frais en FECA.
@@ -230,7 +230,7 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 **Précisions de mise en œuvre**
 
-- Un dépôt doit être accompagné d'au moins 0,05 TON. Pendant les 12 premiers mois, les jetons d'un dépôt sont rendus.
+- Un dépôt doit être accompagné d'au moins 0,05 TON. Hors des fenêtres de dépôt (règle 2), les jetons d'un dépôt sont rendus.
 - Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion avec ses propres ConsoM, ni genèse), ou sans assez de TON pour être traités, sont refusés : les jetons retournent à l'expéditeur et le stock de la banque ne change pas. Si le transfert ne portait pas assez de TON pour être rendu, les jetons restent dans le wallet de la banque sans entrer dans aucun stock.
 - Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur reçoit les siennes par sa réclamation (bon type 11, section 3), sur ordre de l'émetteur seul : le total des parts et le stock ne changent pas.
 - Chaque déposant a un petit contrat qui retient ses parts et la date de son dernier dépôt.
@@ -284,6 +284,12 @@ Le testnet sert à prouver ce contrat exact, pas à créer des soldes : les jeto
 - [ ] Instantané de genèse publié et vérifiable par chaque membre
 - [ ] Revue juridique terminée pour la prévente
 - [ ] Clés des témoins et du gardien remises à des personnes distinctes
+
+**Phase de test et banque d'échange (décision du 11 novembre 2026, lot E14).** Phase de test de 6 mois sur le réseau d'essai (avec la prévente), puis audit, puis réseau principal ; le même code sert aux deux.
+
+- *Phase de test.* Chaque membre PEUT placer ses ConsoM de test dans la banque (rien d'automatique pour les gains) ; aucun retrait ; les parts comptent pour la part des frais. Anciens Contributeurs : la genèse met leurs 70 % dans la banque dès le début du test et le serveur présente au même moment le bon type 11 de chacun (30 % dans le portefeuille, 70 % en parts) ; ils peuvent ajouter, pas retirer avant T0 + 12 mois.
+- *Recréation au réseau principal.* Avant le lancement, le serveur fige et publie la liste des placements du réseau d'essai : une ligne par membre (adresse, empreinte du membre, valeur de son placement = parts × stock / total des parts de la banque de test au moment du gel, Anciens Contributeurs exclus car recréés par la genèse et leur bon type 11), et pour chaque réserve d'origine (prévente, achats, parrainage, 1er achat et missions, Bonus CHIKA, 30 % libres des Anciens Contributeurs) le total placé qui en vient. Ces six totaux sont gravés au déploiement du réseau principal (`get_test_placements`, contrôle 487). À la genèse, chacun est retiré de SA réserve et leur somme entre dans la banque comme parts à recréer (comme les 3 500 000 des Anciens Contributeurs) : ce sont les mêmes ConsoM que ceux reçus pendant le test, aucun n'est créé en plus et aucune réserve nouvelle n'existe. Puis, pour chaque ligne, un bon signé 2 sur 3 « placement de la phase de test » (type 13 : `recipient`, empreinte du membre, `amount` = valeur du placement) fait attribuer par la banque autant de parts au membre (1 part = 1 ConsoM à la genèse) ; rien n'est créé à ce moment ; une seule fois par membre ; hors plafond de 50 000 par membre et hors plafond du jour (comme la genèse) ; refus au-delà des parts à recréer (445) ou avant la genèse (441) ; destinataire interdit : refus 17, parts rendues. Ces parts suivent les règles de la banque (aucun retrait avant T0 + 12 mois).
+- *Lancement.* T0 du réseau principal est le jour du lancement, gravé : les 30 jours de dépôt et les 12 mois sans retrait en partent, pour tout le monde (Anciens Contributeurs compris). Rien d'autre ne change (taux, réserves, plafonds, paliers, témoins, gardien, Fondation, conversion).
 
 ## 12. Décisions ouvertes et écarts
 

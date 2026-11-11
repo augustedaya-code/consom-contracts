@@ -15,7 +15,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { compileTolk } from './compile.ts';
 import { ConsoMMinter, NETWORK_MAINNET, NETWORK_TESTNET } from '../wrappers/ConsoMMinter.ts';
-import type { MinterConfig } from '../wrappers/ConsoMMinter.ts';
+import type { MinterConfig, TestPlacements } from '../wrappers/ConsoMMinter.ts';
 import { ExchangeBank } from '../wrappers/ExchangeBank.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -26,6 +26,9 @@ export type DeployConfig = {
     guardian: Address;
     teamAddress: Address;    // portefeuille Multisig de l'équipe : gravé au déploiement
     earlyContributionsTotal: bigint;   // total (unités de base) des contributions du lancement anticipé : gravé, retenu dans la réserve de prévente
+    // Lot E14 : placements de la phase de test à recréer dans la banque (réseau principal seulement, liste publiée avant le
+    // lancement) ; absent sur le réseau d'essai
+    testPlacements?: TestPlacements;
     forbiddenRecipients: Address[];    // A16 : 0 à 8 adresses qui ne pourront jamais recevoir de ConsoM créés (gravées, jamais modifiables)
     witnessPublicKeys: [Buffer, Buffer, Buffer];
     content: Cell;
@@ -66,6 +69,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         teamAddress: cfg.teamAddress,
         forbiddenRecipients: cfg.forbiddenRecipients,
         earlyContributionsTotal: cfg.earlyContributionsTotal,
+        testPlacements: cfg.testPlacements,
         walletCode: codes.walletCode,
         budgetCode: codes.budgetCode,
         memberCode: codes.memberCode,
@@ -77,8 +81,11 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
         target.log('⚠ AVERTISSEMENT : la liste des adresses interdites de réception est VIDE. Le wallet relais du serveur pourra recevoir des ConsoM créés. '
             + 'Acceptable sur le testnet ; sur le réseau principal, la règle A16 exige d\'y inscrire le relais et les autres wallets du serveur.');
     }
+    if (cfg.network === 'testnet' && cfg.testPlacements) {
+        throw new Error('Les placements de la phase de test ne se recréent que sur le réseau principal.');
+    }
     const minter = target.open(ConsoMMinter.createFromConfig(minterConfig, codes.minterCode));
-    const bank = target.open(ExchangeBank.createForMinter(minter.address, cfg.t0, codes.walletCode, codes.shareCode, codes.bankCode));
+    const bank = target.open(ExchangeBank.createForMinter(minter.address, cfg.t0, minterConfig.networkId, codes.walletCode, codes.shareCode, codes.bankCode));
 
     target.log(`Émetteur : ${minter.address.toString({ testOnly: cfg.network === 'testnet' })}`);
     await minter.sendDeploy(target.sender, toNano('0.3'));
@@ -99,7 +106,7 @@ export async function deployConsoM(cfg: DeployConfig, target: DeployTarget) {
     await bank.sendDeploy(target.sender, toNano('0.2'));
     await target.waitFor('déploiement de la banque', bank.address);
 
-    await minter.sendGenesis(target.sender, toNano('0.3'));
+    await minter.sendGenesis(target.sender, toNano(cfg.testPlacements ? '0.4' : '0.3'));
     await target.waitFor('dépôt de genèse des Anciens Contributeurs');
 
     return {

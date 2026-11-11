@@ -18,6 +18,20 @@ struct Caps {
     dayMinted: coins         // émis (ou réservé) depuis dayStart
     founderShares: coins     // parts de la banque encore à attribuer aux Anciens Contributeurs (3 500 000 après la genèse)
     earlyHold: coins         // total gravé des contributions du lancement anticipé encore à réclamer : retenu dans la réserve de prévente
+    placementShares: coins   // lot E14 : parts de la banque encore à attribuer aux placements de la phase de test (remplies par la genèse)
+}
+
+// Lot E14 : placements de la phase de test à recréer dans la banque du réseau principal, par réserve d'origine (unités de base).
+// Gravés au déploiement à partir de la liste publiée avant le lancement ; 0 partout sur le réseau d'essai. À la genèse, chaque
+// montant est retiré de SA réserve et le total est créé dans la banque comme parts à attribuer (même méthode que les
+// Anciens Contributeurs). Ce sont les mêmes ConsoM que ceux reçus pendant le test : aucune réserve supplémentaire.
+struct TestPlacements {
+    presale: coins           // packs de prévente (et contributions du lancement anticipé)
+    purchase: coins          // récompenses d'achat, conversion 5 %, investissement
+    referral: coins          // parrainage
+    missions: coins          // 1er achat et missions
+    chika: coins             // Bonus CHIKA
+    founders: coins          // les 30 % libres d'un Ancien Contributeur qu'il a placés lui-même
 }
 
 // Remplacement de témoin en attente (délai public de 7 jours)
@@ -77,6 +91,7 @@ struct ConsoMStorage {
 struct StorageExtra {
     content: cell                // métadonnées du Jetton (TEP-64)
     bank: Cell<BankRef>
+    placements: Cell<TestPlacements>?   // lot E14 : placements de la phase de test à recréer (null = aucun, réseau d'essai)
 }
 
 fun ConsoMStorage.load() {

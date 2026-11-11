@@ -35,6 +35,7 @@ const ERR_GENESIS_NOT_DONE    = 441   // réclamation d'un Ancien Contributeur a
 const ERR_NOTHING_TO_RELEASE  = 442   // part de l'équipe : rien de nouveau à libérer
 const ERR_NO_FOUNDER_SHARES   = 443   // réclamation d'un Ancien Contributeur : pas assez de parts à attribuer dans la banque
 const ERR_EARLY_TOTAL         = 444   // contributions du lancement anticipé : au-delà du total gravé au déploiement
+const ERR_NO_PLACEMENT_SHARES = 445   // placement de la phase de test : pas assez de parts à recréer (lot E14)
 
 // Contrôles au déploiement (A3, A16) : un contrat dont les données gravées ne respectent pas ces règles refuse tout message
 const ERR_DEPLOY_SAME_KEYS      = 480   // deux des 3 clés de témoins sont identiques
@@ -44,4 +45,5 @@ const ERR_DEPLOY_GUARDIAN_SYSTEM = 483  // le gardien ne peut pas être l'émett
 const ERR_DEPLOY_TEAM_SYSTEM    = 484   // l'équipe ne peut pas être l'émetteur ni la banque
 const ERR_DEPLOY_TEAM_FORBIDDEN = 485   // l'adresse de l'équipe figure dans la liste des adresses interdites de réception
 const ERR_DEPLOY_FORBIDDEN_LIST = 486   // liste interdite : plus de 8 adresses, ou une adresse vide
+const ERR_DEPLOY_PLACEMENTS     = 487   // placements de la phase de test : une réserve ne peut pas les couvrir (lot E14)
 const ERR_UNKNOWN_OP          = 0xFFFF

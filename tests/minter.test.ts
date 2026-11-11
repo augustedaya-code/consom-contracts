@@ -273,7 +273,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse un type de bon inconnu', async () => {
         const env = await setup();
-        expectRejected(await env.claim(env.voucher({ kind: 13 })), env.minter.address, Err.UNKNOWN_KIND);
+        expectRejected(await env.claim(env.voucher({ kind: 14 })), env.minter.address, Err.UNKNOWN_KIND);   // 13 = placement de la phase de test (lot E14)
         // une conversion avec ses propres ConsoM n'est jamais acceptée directement (elle arrive par la banque)
         expectRejected(await env.claim(env.voucher({ kind: Kind.OWN_CONVERSION, points: 100n, waveAmount: 0n, amount: 0n })), env.minter.address, Err.UNKNOWN_KIND);
     });

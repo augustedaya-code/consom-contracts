@@ -19,6 +19,7 @@ const FLAG_FIRST_PURCHASE = 1
 const FLAG_MISSION_TG     = 2
 const FLAG_MISSION_FB     = 4
 const FLAG_FOUNDER_CLAIM  = 8     // réclamation d'Ancien Contributeur déjà faite (une seule par identifiant)
+const FLAG_TEST_PLACEMENT = 16    // lot E14 : placement de la phase de test déjà recréé (un seul par membre)
 
 struct MemberState {
     owner: address                  // adresse liée, fixée par la première réclamation
@@ -200,6 +201,13 @@ fun onInternalMessage(in: InMessage) {
                 }
                 state.flags = state.flags | FLAG_FOUNDER_CLAIM;
                 state.referralEligible = true;
+            } else if (kind == KIND_TEST_PLACEMENT) {
+                // lot E14 : le placement de la phase de test (une seule ligne par membre dans la liste publiée) est recréé une fois
+                if ((state.flags & FLAG_TEST_PLACEMENT) != 0) {
+                    reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_ALREADY_DONE, false);
+                    return;
+                }
+                state.flags = state.flags | FLAG_TEST_PLACEMENT;
             } else if (kind == KIND_EARLY_CONTRIBUTION) {
                 // contribution du lancement anticipé : compte comme une prévente (le budget a déjà vérifié l'unicité de la contribution)
                 state.referralEligible = true;
@@ -258,7 +266,7 @@ fun onInternalMessage(in: InMessage) {
             }
 
             // ---------- plafond de 50 000 par 24 h (hors prévente, Anciens Contributeurs et contributions du lancement anticipé) ; tout est versé tout de suite ----------
-            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM) && (kind != KIND_EARLY_CONTRIBUTION)) {
+            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM) && (kind != KIND_EARLY_CONTRIBUTION) && (kind != KIND_TEST_PLACEMENT)) {
                 state.rollDay();
                 if (state.dayReceived + msg.reserved > MEMBER_DAILY_CAP) {
                     // passager : le bon pourra être réclamé de nouveau s'il n'a pas expiré
