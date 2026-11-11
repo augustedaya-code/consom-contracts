@@ -17,6 +17,8 @@ struct ChildInit {
 struct BankInit {
     minter: address
     t0: uint32
+    depositWindow: uint32    // lot E14 : durée (secondes) après T0 pendant laquelle les dépôts sont acceptés ; fixée par
+                             // l'émetteur selon le réseau gravé (bankDepositWindow), elle fait partie de l'adresse de la banque
     walletCode: cell         // pour calculer l'adresse de son propre wallet ConsoM
     shareCode: cell          // code des contrats « parts d'un déposant »
     state: cell?
@@ -47,10 +49,19 @@ fun calcChildAddress(code: cell, key: uint256): address {
     return calcDeployedChild(code, key).calculateAddress()
 }
 
-fun calcBankAddress(bankCode: cell, shareCode: cell, walletCode: cell, t0: int): address {
+// Lot E14 (décision du 11 novembre 2026) : fenêtre de dépôt de la banque, déduite du réseau gravé (jamais un paramètre libre).
+//   - réseau principal : 30 jours après le lancement (T0), puis fermée jusqu'à T0 + 12 mois ;
+//   - réseau d'essai (phase de test) : 12 mois, c'est-à-dire ouverte aux dépôts dès T0 et sans interruption.
+// Dans les deux cas, aucun retrait avant T0 + 12 mois.
+fun bankDepositWindow(networkId: int): int {
+    return (networkId == NETWORK_MAINNET) ? BANK_MAINNET_DEPOSIT_WINDOW : BANK_CLOSED_PERIOD;
+}
+
+fun calcBankAddress(bankCode: cell, shareCode: cell, walletCode: cell, t0: int, networkId: int): address {
     val init: BankInit = {
         minter: contract.getAddress(),
         t0,
+        depositWindow: bankDepositWindow(networkId),
         walletCode,
         shareCode,
         state: null,

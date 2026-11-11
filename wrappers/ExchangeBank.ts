@@ -13,8 +13,8 @@ export class ExchangeBank implements Contract {
     }
 
     // Les données initiales doivent être exactement celles que l'émetteur utilise pour calculer l'adresse de la banque
-    static createForMinter(minter: Address, t0: number, walletCode: Cell, shareCode: Cell, bankCode: Cell, workchain = 0) {
-        const init = { code: bankCode, data: bankInitData(minter, t0, walletCode, shareCode) };
+    static createForMinter(minter: Address, t0: number, networkId: number, walletCode: Cell, shareCode: Cell, bankCode: Cell, workchain = 0) {
+        const init = { code: bankCode, data: bankInitData(minter, t0, networkId, walletCode, shareCode) };
         return new ExchangeBank(contractAddress(workchain, init), init);
     }
 
@@ -28,6 +28,7 @@ export class ExchangeBank implements Contract {
             depositorStock: s.readBigNumber(), totalShares: s.readBigNumber(),
             unassignedShares: s.readBigNumber(), escrow: s.readBigNumber(), dayCap: s.readBigNumber(),
             dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
+            depositsOpen: s.readBoolean(), depositsUntil: s.readNumber(), withdrawalsFrom: s.readNumber(),
         };
     }
 

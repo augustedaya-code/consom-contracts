@@ -106,9 +106,9 @@ describe('Bonus CHIKA', () => {
         assert.equal(await env.balanceOf(env.member.address), consom(5000) + consom(6));
     });
 
-    it('refuse un type de bon inconnu (le suivant, 13)', async () => {
+    it('refuse un type de bon inconnu (le suivant, 14 : le 13 est le placement de la phase de test, lot E14)', async () => {
         const env = await setup();
-        const r = await env.claim(env.voucher({ kind: 13, amount: 0n }));
+        const r = await env.claim(env.voucher({ kind: 14, amount: 0n }));
         assert.ok(hasTx(r, { to: env.minter.address, success: false, exitCode: Err.UNKNOWN_KIND }), describeTxs(r));
     });
 });
