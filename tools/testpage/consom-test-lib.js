@@ -89,8 +89,9 @@ export function createConsoMTestLib(TON, cfg) {
         firstPurchase: (owner) => claimMessage(owner, { kind: KIND.FIRST_PURCHASE, amount: 500n * ONE, waveAmount: 1000n }),
         missionTelegram: (owner) => claimMessage(owner, { kind: KIND.MISSION_TG, amount: 150n * ONE }),
         missionFacebook: (owner) => claimMessage(owner, { kind: KIND.MISSION_FB, amount: 150n * ONE }),
+        // Parrain direct (niveau 1) : 5 % des Points (lot E13). Un autre niveau est préparé avec le montant 0 : l'émetteur le refuse (erreur 418).
         referral: (owner, points, level) => {
-            const rate = [0n, 250n, 130n, 70n, 40n, 10n][level];
+            const rate = level === 1 ? 500n : 0n;
             return claimMessage(owner, { kind: KIND.REFERRAL, level, points: BigInt(points), waveAmount: BigInt(points) * 2n, amount: BigInt(points) * ONE * rate / 10000n });
         },
         // Contribution du lancement anticipé : 30 % sur l'adresse, 70 % en parts de la banque (le total gravé au déploiement doit le permettre)

@@ -61,7 +61,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 
 - **Bons d'émission** : vérifie 2 signatures Ed25519 de 2 témoins différents, le réseau (-239 / -3), l'adresse de l'émetteur,
   l'expiration (7 jours au plus), la fenêtre de la catégorie (prévente 18 mois,
-  récompenses 24 mois depuis T0 ; aucune limite pour les conversions et les Anciens Contributeurs), et **recalcule lui-même le montant** (packs de prévente, 5 %, 2,5/1,3/0,7/0,4/0,1 %, 500, 150, 0,04 par CHIKA investi, 0,3 % de bonus CHIKA, 30 % de la part d'un Ancien Contributeur).
+  récompenses 24 mois depuis T0 ; aucune limite pour les conversions et les Anciens Contributeurs), et **recalcule lui-même le montant** (packs de prévente, 5 % à l'acheteur, 5 % au parrain direct — niveaux 2 à 5 refusés, erreur 418 —, 500, 150, 0,04 par CHIKA investi, 0,3 % de bonus CHIKA, 30 % de la part d'un Ancien Contributeur).
   Il réserve le montant sur le plafond de la catégorie et sur le plafond global de 2 000 000 ConsoM par 24 h, puis transmet
   le bon au budget du paiement Wave ou au compte du membre.
 - **Adresses interdites de réception** (règle A16) : le serveur de TonMarché ne peut JAMAIS recevoir de ConsoM créés. Une liste de
@@ -109,7 +109,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 ## Ce que font le budget de paiement et le compte membre
 
 - **Budget de paiement** (un par paiement Wave) : un emplacement par récompense (prévente, enregistrement d'achat, 1er achat,
-  parrainage niveaux 1 à 5), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
+  parrainage du parrain direct), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
   un paiement de prévente ne donne que son pack.
 - **Compte membre** (un par membre) : adresse liée à la première réclamation ; droit au parrainage ouvert par une prévente ;
   Points attestés, convertibles 7 jours (au-delà, perdus), qui bornent la récompense de 5 % à la conversion ; total des

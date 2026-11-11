@@ -77,21 +77,10 @@ fun usesPaymentBudget(kind: int): bool {
     return (kind == KIND_PRESALE) || (kind == KIND_PURCHASE_RECORD) || (kind == KIND_REFERRAL) || (kind == KIND_FIRST_PURCHASE) || (kind == KIND_CHIKA_BONUS) || (kind == KIND_EARLY_CONTRIBUTION);
 }
 
+// Seul le parrain direct (niveau 1) est récompensé (lot E13) ; tout autre niveau est refusé par checkVoucher (erreur 418).
 fun referralRateBp(level: int): int {
-    if (level == 1) {
+    if (level == REFERRAL_MAX_LEVEL) {
         return REFERRAL_L1_BP;
-    }
-    if (level == 2) {
-        return REFERRAL_L2_BP;
-    }
-    if (level == 3) {
-        return REFERRAL_L3_BP;
-    }
-    if (level == 4) {
-        return REFERRAL_L4_BP;
-    }
-    if (level == 5) {
-        return REFERRAL_L5_BP;
     }
     return -1;
 }
@@ -395,6 +384,11 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
     }
     if ((now < storage.t0) || (now >= windowEnd)) {
         return ERR_WINDOW_CLOSED;
+    }
+
+    // parrainage : seul le parrain direct (niveau 1) est récompensé ; un bon de niveau 0, 2, 3, 4, 5 ou plus est refusé
+    if ((voucher.kind == KIND_REFERRAL) && (voucher.level != REFERRAL_MAX_LEVEL)) {
+        return ERR_REFERRAL_LEVEL;
     }
 
     // montant recalculé par le contrat

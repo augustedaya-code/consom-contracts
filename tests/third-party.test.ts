@@ -103,7 +103,7 @@ describe('Réclamation par un tiers', () => {
         // refus passager (plafond de 50 000 par 24 h) : l'emplacement est libéré puis les frais rendus au tiers
         await env.claim(env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1_800_000n, waveAmount: 3_600_000n, amount: 0n }));
         await env.claim(env.voucher());
-        const ref = () => env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1_800_000n, waveAmount: 3_600_000n, amount: consom(45_000), validUntil: T0 + 3 * DAY });
+        const ref = () => env.voucher({ kind: Kind.REFERRAL, level: 1, points: 900_000n, waveAmount: 1_800_000n, amount: consom(45_000), validUntil: T0 + 3 * DAY });
         await env.claim(ref(), { from: server });
         const r3 = await env.claim(ref(), { from: server });
         assert.equal(rejectReason(r3), 12, describeTxs(r3));

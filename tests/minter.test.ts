@@ -72,25 +72,52 @@ describe('Bons d\'émission : parcours accepté (sections 5 à 7)', () => {
         assert.equal(await env.balanceOf(env.member.address), consom(10000));
     });
 
-    it('parrainage niveau 1 : 2,5 % des Points, versés en entier', async () => {
+    it('parrainage (lot E13) : le parrain direct reçoit 5 % des Points de son invité, versés en entier', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // la prévente rend le membre éligible au parrainage
-        const amount = consom(25);   // 2,5 % de 1 000 Points
-        await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount }));
+        const amount = consom(50);   // 5 % de 1 000 Points (avant le lot E13 : 2,5 %, soit 25)
+        const r = await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount }));
+        assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), describeTxs(r));
         assert.equal(await env.balanceOf(env.member.address), consom(5000) + amount);
         assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - amount);
+        // l'ancien montant (2,5 %) est refusé : le contrat recalcule lui-même 5 %
+        const old = await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) }));
+        expectRejected(old, env.minter.address, Err.WRONG_AMOUNT);
     });
 
-    it('les cinq niveaux de parrainage suivent 2,5 / 1,3 / 0,7 / 0,4 / 0,1 %', async () => {
+    it('parrainage (lot E13) : un bon de niveau 2 à 5 (ou 0, ou 6) est REFUSÉ, ni payé ni payé à 0', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // éligibilité au parrainage
-        const expected = [consom(25), consom(13), consom(7), consom(4), consom(1)];   // sur 1 000 Points
-        for (let level = 1; level <= 5; level++) {
-            const amount = expected[level - 1];
-            const r = await env.claim(env.voucher({ kind: Kind.REFERRAL, level, points: 1000n, waveAmount: 2000n, amount }));
-            assert.ok(hasTx(r, { op: Op.MintApproved, success: true }), `niveau ${level}\n${describeTxs(r)}`);
+        const oldRates = [0n, 0n, 130n, 70n, 40n, 10n];   // anciens taux des niveaux 2 à 5
+        for (const level of [2, 3, 4, 5]) {
+            for (const amount of [(1000n * consom(1) * oldRates[level]) / 10000n, 0n]) {   // ancien montant, ou 0
+                const v = env.voucher({ kind: Kind.REFERRAL, level, points: 1000n, waveAmount: 2000n, amount });
+                expectRejected(await env.claim(v), env.minter.address, Err.REFERRAL_LEVEL);
+            }
         }
-        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(50));  // 5 % de 1 000
+        for (const level of [0, 6]) {
+            expectRejected(await env.claim(env.voucher({ kind: Kind.REFERRAL, level, points: 1000n, waveAmount: 2000n, amount: 0n })), env.minter.address, Err.REFERRAL_LEVEL);
+        }
+        assert.equal(await env.balanceOf(env.member.address), consom(5000), 'rien créé par les refus');
+        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral, 'réserve Parrainage intacte');
+        assert.equal((await env.minter.getState()).totalSupply, consom(5000));
+    });
+
+    it('parrainage (lot E13) : un achat de 1 000 Points coûte au plus 50 à la réserve Achats et 50 à la réserve Parrainage', async () => {
+        const env = await setup();
+        await env.becomeEligible();
+        const purchase = env.voucher({ kind: Kind.PURCHASE_RECORD, points: 1000n, waveAmount: 2000n, amount: 0n });
+        await env.claim(purchase);
+        // parrain direct : 5 % sur le même paiement
+        await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(50), waveRef: purchase.waveRef }));
+        // acheteur : 5 % à la conversion (inchangé)
+        await env.claim(env.voucher({ kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) }));
+        const caps = await env.minter.getCaps();
+        assert.equal(caps.purchase, INITIAL_CAPS.purchase - consom(50));
+        assert.equal(caps.referral, INITIAL_CAPS.referral - consom(50));
+        // le niveau 2 du même paiement est refusé
+        expectRejected(await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 2, points: 1000n, waveAmount: 2000n, amount: consom(13), waveRef: purchase.waveRef })), env.minter.address, Err.REFERRAL_LEVEL);
+        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(50));
     });
 
     it('conversion : 5 % des Points convertis ; 1er achat : 500 ; missions : 150 ; investissement : 0,04 par CHIKA', async () => {
@@ -206,9 +233,8 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse un montant différent de celui que le contrat recalcule', async () => {
         const env = await setup();
-        const ref = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) + 1n });
+        const ref = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(50) + 1n });
         expectRejected(await env.claim(ref), env.minter.address, Err.WRONG_AMOUNT);
-        expectRejected(await env.claim(env.voucher({ kind: Kind.REFERRAL, level: 6, points: 1000n, waveAmount: 2000n, amount: 0n })), env.minter.address, Err.WRONG_AMOUNT);
         expectRejected(await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, amount: consom(300) })), env.minter.address, Err.WRONG_AMOUNT);
     });
 
@@ -241,7 +267,7 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
 
     it('refuse des Points supérieurs à 0,5 par franc payé (P_max)', async () => {
         const env = await setup();
-        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1001n, waveAmount: 2000n, amount: (1001n * consom(1) * 250n) / 10000n });
+        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1001n, waveAmount: 2000n, amount: (1001n * consom(1) * 500n) / 10000n });
         expectRejected(await env.claim(v), env.minter.address, Err.POINTS_TOO_HIGH);
     });
 
@@ -268,12 +294,12 @@ describe('Bons d\'émission : refus (sections 5 et 10)', () => {
     it('libère la réservation quand le budget de paiement refuse', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // éligibilité
-        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) });
+        const v = env.voucher({ kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(50) });
         await env.claim(v);
         const again = await env.claim({ ...v, voucherId: v.voucherId + 1000n });   // même paiement, même niveau
         assert.ok(hasTx(again, { to: env.minter.address, op: Op.ClaimRejected, success: true }), describeTxs(again));
-        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(25));
-        assert.equal((await env.minter.getState()).totalSupply, consom(5000 + 25));
+        assert.equal((await env.minter.getCaps()).referral, INITIAL_CAPS.referral - consom(50));
+        assert.equal((await env.minter.getState()).totalSupply, consom(5000 + 50));
     });
 
     it('libère la réservation quand le compte membre refuse', async () => {
@@ -323,7 +349,7 @@ describe('Fenêtres et plafonds (sections 3 et 10)', () => {
         env.blockchain.now = T0 + REWARDS_END;
         const cases = [
             { kind: Kind.PURCHASE_RECORD, points: 100n, waveAmount: 200n, amount: 0n },
-            { kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(25) },
+            { kind: Kind.REFERRAL, level: 1, points: 1000n, waveAmount: 2000n, amount: consom(50) },
             { kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 1000n, amount: consom(500) },
             { kind: Kind.CONVERSION, points: 1000n, waveAmount: 0n, amount: consom(50) },
             { kind: Kind.MISSION_TG, points: 0n, waveAmount: 0n, amount: consom(150) },

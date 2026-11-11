@@ -10,9 +10,9 @@ const Reject = {
     DAILY_CAP: 12, ALREADY_DONE: 13, NO_PAYMENT: 14, STALE_VOUCHER: 15, NOT_ENOUGH_POINTS: 16,
 };
 
-const referral = (points: bigint, level = 1) => {
-    const rate = [0n, 250n, 130n, 70n, 40n, 10n][level];
-    return { kind: Kind.REFERRAL, level, points, waveAmount: points * 2n, amount: (points * consom(1) * rate) / 10000n };
+// parrain direct (niveau 1) : 5 % des Points (lot E13) ; les niveaux 2 à 5 sont refusés par l'émetteur
+const referral = (points: bigint) => {
+    return { kind: Kind.REFERRAL, level: 1, points, waveAmount: points * 2n, amount: (points * consom(1) * 500n) / 10000n };
 };
 
 describe('Budget de paiement', () => {
@@ -23,10 +23,10 @@ describe('Budget de paiement', () => {
         await env.claim(v);
         const r = await env.claim({ ...v, voucherId: 999n });
         assert.equal(rejectReason(r), Reject.SLOT_USED, describeTxs(r));
-        // les autres niveaux du même paiement restent possibles (autres parrains)
-        const r2 = await env.claim(env.voucher({ ...referral(1000n, 2), waveRef: v.waveRef, memberId: 1n }));
+        // les autres récompenses du même paiement restent possibles (ici le bonus de 1er achat)
+        const r2 = await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 1000n, waveAmount: 2000n, amount: consom(500), waveRef: v.waveRef, memberId: 1n }));
         assert.ok(hasTx(r2, { op: Op.MintApproved, success: true }), describeTxs(r2));
-        assert.equal((await env.budgetState(v.waveRef))!.slots, 8 | 16);
+        assert.equal((await env.budgetState(v.waveRef))!.slots, 8 | 4);
     });
 
     it('refuse des données différentes de celles déjà attestées pour ce paiement', async () => {
@@ -34,7 +34,7 @@ describe('Budget de paiement', () => {
         await env.claim(env.voucher());
         const v = env.voucher(referral(1000n));
         await env.claim(v);
-        const r = await env.claim(env.voucher({ ...referral(900n, 2), waveRef: v.waveRef }));
+        const r = await env.claim(env.voucher({ kind: Kind.FIRST_PURCHASE, points: 900n, waveAmount: 1800n, amount: consom(500), waveRef: v.waveRef }));
         assert.equal(rejectReason(r), Reject.PAYMENT_MISMATCH, describeTxs(r));
     });
 
@@ -62,9 +62,9 @@ describe('Budget de paiement', () => {
     it('un refus passager du compte membre (plafond du jour) libère l\'emplacement : le bon repasse le lendemain', async () => {
         const env = await setup();
         await env.claim(env.voucher());
-        // 1 800 000 Points au niveau 1 = 45 000 ConsoM ; un 2e parrainage identique dépasserait 50 000
-        await env.claim(env.voucher(referral(1_800_000n)));
-        const second = env.voucher({ ...referral(1_800_000n), validUntil: T0 + 3 * DAY });
+        // 900 000 Points au niveau 1 (5 %) = 45 000 ConsoM ; un 2e parrainage identique dépasserait 50 000
+        await env.claim(env.voucher(referral(900_000n)));
+        const second = env.voucher({ ...referral(900_000n), validUntil: T0 + 3 * DAY });
         const r = await env.claim(second);
         assert.equal(rejectReason(r), Reject.DAILY_CAP, describeTxs(r));
         assert.equal((await env.budgetState(second.waveRef))!.slots, 0, 'emplacement libéré');
@@ -218,12 +218,12 @@ describe('Compte membre', () => {
     it('plafond de 50 000 ConsoM par membre et par 24 h (hors prévente)', async () => {
         const env = await setup();
         await env.claim(env.voucher());   // éligibilité (prévente, hors plafond)
-        await env.claim(env.voucher(referral(1_800_000n)));   // 45 000
-        const over = await env.claim(env.voucher(referral(240_000n)));   // 6 000 : 51 000 > 50 000
+        await env.claim(env.voucher(referral(900_000n)));   // 45 000
+        const over = await env.claim(env.voucher(referral(120_000n)));   // 6 000 : 51 000 > 50 000
         assert.equal(rejectReason(over), Reject.DAILY_CAP, describeTxs(over));
         assert.equal((await env.memberState(1n))!.dayReceived, consom(45_000));
         env.blockchain.now = T0 + DAY + 1;
-        const next = await env.claim(env.voucher(referral(240_000n)));
+        const next = await env.claim(env.voucher(referral(120_000n)));
         assert.ok(hasTx(next, { op: Op.MintApproved, success: true }), 'le lendemain : accepté');
         assert.equal(await env.balanceOf(env.member.address), consom(5000 + 45_000 + 6_000));
     });

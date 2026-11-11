@@ -36,7 +36,7 @@ const refusedForbidden = (r: any) => assert.equal(rejectReason(r), REJECT_FORBID
 describe('A16 : création vers une adresse interdite de réception', () => {
     it('bon de récompense (1er achat, mission, parrainage) vers le relais : refusé, rien de créé, réservation rendue', async () => {
         const { env, relay } = await withRelay();
-        const referral = { kind: Kind.REFERRAL, level: 1, points: 5000n, waveAmount: 10000n, amount: consom(125) };
+        const referral = { kind: Kind.REFERRAL, level: 1, points: 5000n, waveAmount: 10000n, amount: consom(250) };
         for (const o of [
             { kind: Kind.FIRST_PURCHASE, points: 0n, waveAmount: 1000n, amount: consom(500) },   // passe par le budget de paiement
             { kind: Kind.MISSION_TG, points: 0n, waveAmount: 0n, amount: consom(150) },          // directement au compte membre

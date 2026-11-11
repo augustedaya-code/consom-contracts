@@ -39,7 +39,7 @@ const CAT_EARLY    = 8
 // ---------- Section 5 : types de bon ----------
 const KIND_PRESALE         = 0   // pack de prévente                  -> budget de paiement
 const KIND_PURCHASE_RECORD = 1   // enregistre les Points d'un achat   -> budget de paiement (montant 0)
-const KIND_REFERRAL        = 2   // parrainage niveau 1 à 5            -> budget de paiement
+const KIND_REFERRAL        = 2   // parrainage, niveau 1 seulement     -> budget de paiement
 const KIND_FIRST_PURCHASE  = 3   // bonus de 1er achat                 -> budget de paiement
 const KIND_CONVERSION      = 4   // 5 % des Points convertis           -> compte membre
 const KIND_MISSION_TG      = 5   // mission Telegram                   -> compte membre
@@ -58,11 +58,11 @@ const MISSION_REWARD        = 150 * ONE_CONSOM
 const CONVERSION_RATE_BP    = 500    // 5 % des Points convertis
 const INVESTMENT_RATE_BP    = 400    // 0,04 ConsoM par CHIKA investi
 const INVESTMENT_LIMIT_BP   = 3000   // total des bonus d'investissement <= 30 % des Points attestés cumulés du membre
-const REFERRAL_L1_BP        = 250    // 2,5 %
-const REFERRAL_L2_BP        = 130    // 1,3 %
-const REFERRAL_L3_BP        = 70     // 0,7 %
-const REFERRAL_L4_BP        = 40     // 0,4 %
-const REFERRAL_L5_BP        = 10     // 0,1 %
+// Parrainage (décision du 11 novembre 2026, lot E13) : seul le parrain direct (niveau 1) est récompensé, 5 % des Points de son
+// invité ; les niveaux 2 à 5 ne reçoivent plus rien et un bon de niveau 2 à 5 est REFUSÉ (erreur 418), jamais payé à 0.
+// Avant : 2,5 / 1,3 / 0,7 / 0,4 / 0,1 %. L'achat ne change pas : 5 % (CONVERSION_RATE_BP).
+const REFERRAL_L1_BP        = 500    // 5 %
+const REFERRAL_MAX_LEVEL    = 1      // seul niveau de parrainage accepté
 const CHIKA_BONUS_BP        = 30     // 0,3 % du montant payé en CHIKA (3 ConsoM pour 1 000 FCFA)
 const BP_DENOMINATOR        = 10000
 
@@ -158,7 +158,7 @@ const SLOT_PURCHASE       = 2          // bit 1
 const SLOT_FIRST_PURCHASE = 4          // bit 2
 const SLOT_CHIKA_BONUS    = 256        // bit 8
 const SLOT_EARLY          = 512        // bit 9 : contribution du lancement anticipé (une fois par contribution)
-// parrainage niveau L : bit (2 + L), soit 8, 16, 32, 64, 128
+// parrainage niveau L : bit (2 + L), soit 8 pour le niveau 1 (16, 32, 64, 128 : anciens niveaux 2 à 5, plus jamais utilisés)
 
 // TON conservé par chaque budget de paiement et compte membre pour payer ses frais de stockage
 // (versé une seule fois, à la création du contrat, par le membre qui envoie le bon)
