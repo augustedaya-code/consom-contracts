@@ -132,13 +132,14 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   Pas de plafond de 5 %.
 - **Dépôts et retraits** (lot E14, décision du 11 novembre 2026) : aucun retrait avant T0 + 12 mois ; ensuite, retrait 24 h
   après le dernier dépôt, à la valeur actuelle des parts. Dépôts contre des parts : réseau principal, pendant les 30 jours
-  après le lancement (T0), puis fermés (un dépôt est rendu) jusqu'à T0 + 12 mois, puis ouverts ; réseau d'essai (phase de test),
-  ouverts dès T0 sans interruption. La durée de la première fenêtre est calculée par l'émetteur à partir du réseau gravé
-  (`bankDepositWindow`), entre dans l'adresse de la banque et est publiée par `get_bank_state`. Un contrat « parts » par déposant.
-- **Placements de la phase de test** (lot E14) : au réseau principal, les six totaux par réserve d'origine (liste publiée
-  avant le lancement) sont gravés (`get_test_placements`) ; la genèse les retire de leurs réserves et les met dans la banque
-  comme parts à recréer ; un bon signé 2 sur 3 type 13 attribue à chaque membre, une seule fois, autant de parts que la
-  valeur de son placement de test (rien n'est créé à ce moment).
+  après le lancement (T0), puis fermés (un dépôt est renvoyé) jusqu'à T0 + 12 mois, puis ouverts ; réseau d'essai (phase de
+  test), fermés aux membres jusqu'à T0 + 12 mois, comme avant. La durée de la première fenêtre est calculée par l'émetteur à
+  partir du réseau gravé (`bankDepositWindow` : 30 jours ou 0), entre dans l'adresse de la banque et est publiée par
+  `get_bank_state`. Un contrat « parts » par déposant.
+- **Recréation de la phase de test** (lot E14) : au réseau principal, les Anciens Contributeurs sont recréés par la genèse et
+  leur bon type 11, les contributeurs de la prévente du test par le bon type 12, et tous les autres ConsoM des portefeuilles
+  par le bon type 13 : quatre totaux par réserve d'origine (liste publiée avant le lancement) sont gravés (`get_test_carry`),
+  retirés de leurs réserves à la genèse, puis chaque membre reçoit sa ligne, une seule fois.
 - **Genèse** : les 3 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer. Sur ordre de l'émetteur
   seul (après un bon d'Ancien Contributeur), la banque en attribue à une adresse : les parts à attribuer diminuent, le
   contrat « parts » de l'adresse est crédité, le total des parts et le stock ne changent pas. Les retraits restent soumis aux

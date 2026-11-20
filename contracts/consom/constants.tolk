@@ -35,9 +35,9 @@ const CAT_FOUNDATION = 7
 // Contributions du lancement anticipé : même réserve que la prévente (CAT_PRESALE), mais suivie à part par l'émetteur
 // pour que la règle des invendus et la retenue gravée (earlyHold) s'y appliquent correctement
 const CAT_EARLY    = 8
-// Placements de la phase de test recréés au réseau principal (lot E14) : parts prises dans les « parts à recréer » créées à la
-// genèse (Caps.placementShares). Rien n'est créé au moment du bon : les ConsoM sont déjà dans la banque.
-const CAT_PLACEMENT = 9
+// ConsoM des portefeuilles de la phase de test recréés au réseau principal (lot E14) : pris dans la réserve « à recréer »
+// (Caps.carryPool), elle-même retirée à la genèse des réserves d'origine (achats, parrainage, 1er achat et missions, CHIKA).
+const CAT_TEST_CARRY = 9
 
 // ---------- Section 5 : types de bon ----------
 const KIND_PRESALE         = 0   // pack de prévente                  -> budget de paiement
@@ -53,7 +53,7 @@ const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive 
 const KIND_CHIKA_BONUS     = 10  // bonus de 0,3 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
 const KIND_FOUNDER_CLAIM   = 11  // réclamation d'un Ancien Contributeur -> compte membre, réserve Anciens Contributeurs
 const KIND_EARLY_CONTRIBUTION = 12  // contribution du lancement anticipé (réseau d'essai) -> budget (une fois par contribution), réserve de prévente
-const KIND_TEST_PLACEMENT  = 13  // placement de la phase de test recréé au réseau principal -> compte membre (une fois par membre), parts à recréer
+const KIND_TEST_CARRY      = 13  // ConsoM de portefeuille de la phase de test recréés au réseau principal -> compte membre (une fois par membre), réserve « à recréer »
 const KIND_MAX             = 13
 
 // ---------- Section 6 : montants des récompenses ----------
@@ -137,7 +137,6 @@ const EARLY_BANK_FWD_VALUE     = ton("0.1")    // dont transmis à la banque, qu
 const MIN_EARLY_CLAIM_VALUE    = ton("0.45")   // une contribution traverse budget et compte membre, puis crée deux montants
 const BANK_ASSIGN_VALUE        = ton("0.05")   // TON transmis à la banque pour attribuer les parts d'un Ancien Contributeur
 const MIN_FOUNDER_CLAIM_VALUE  = ton("0.35")   // réclamation d'un Ancien Contributeur : MIN_CLAIM_VALUE + BANK_ASSIGN_VALUE
-const PLACEMENTS_MINT_VALUE    = ton("0.1")    // genèse : TON joint à la création des placements recréés dans la banque (lot E14)
 
 // ---------- Compte membre (section 6) ----------
 const MEMBER_DAILY_CAP   = 50000 * ONE_CONSOM   // reçu par membre et par 24 h, hors prévente

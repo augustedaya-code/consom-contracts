@@ -88,7 +88,7 @@ fun BankInit.isOpen(self): bool {
 }
 
 // Dépôts (lot E14) : acceptés de T0 à T0 + depositWindow, puis de nouveau à partir de T0 + 12 mois.
-// Réseau principal : 30 jours après le lancement, fermés ensuite jusqu'à 12 mois. Réseau d'essai : toujours ouverts dès T0.
+// Réseau principal : 30 jours après le lancement, fermés ensuite jusqu'à 12 mois. Réseau d'essai : fenêtre nulle, fermés 12 mois.
 fun BankInit.depositsOpen(self): bool {
     val now = blockchain.now();
     return (now >= self.t0) && ((now < self.t0 + self.depositWindow) || self.isOpen());
@@ -429,7 +429,7 @@ struct BankStateReply {
     dayBurned: int
     isOpen: bool          // retraits possibles (T0 + 12 mois atteint)
     depositsOpen: bool    // dépôts acceptés maintenant (lot E14)
-    depositsUntil: int    // fin de la première fenêtre de dépôt (T0 + 30 jours sur le réseau principal, T0 + 12 mois sur le réseau d'essai)
+    depositsUntil: int    // fin de la première fenêtre de dépôt (T0 + 30 jours sur le réseau principal, T0 sur le réseau d'essai : aucune)
     withdrawalsFrom: int  // date à partir de laquelle les retraits (et les dépôts) sont ouverts pour toujours : T0 + 12 mois
 }
 

@@ -65,8 +65,8 @@ fun categoryOf(kind: int): int {
     if (kind == KIND_EARLY_CONTRIBUTION) {
         return CAT_EARLY;
     }
-    if (kind == KIND_TEST_PLACEMENT) {
-        return CAT_PLACEMENT;
+    if (kind == KIND_TEST_CARRY) {
+        return CAT_TEST_CARRY;
     }
     if (kind == KIND_INVESTMENT) {
         return CAT_PURCHASE;    // l'investissement est payé par la réserve Achats
@@ -154,9 +154,9 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
         }
         return requested;
     }
-    if (kind == KIND_TEST_PLACEMENT) {
-        // `requested` est la valeur (en ConsoM) du placement du membre dans la banque du réseau d'essai, telle que publiée dans
-        // la liste fixée avant le lancement ; elle devient autant de parts (1 part = 1 ConsoM à la genèse)
+    if (kind == KIND_TEST_CARRY) {
+        // `requested` est la ligne du membre dans la liste publiée avant le lancement : ses ConsoM de la phase de test à recréer
+        // 1 pour 1 dans son portefeuille (hors prévente et Anciens Contributeurs, recréés par les bons types 12 et 11)
         if ((requested <= 0) || (requested > MAX_SUPPLY)) {
             return -1;
         }
@@ -239,8 +239,8 @@ fun Caps.remainingOf(self, category: int): int {
     if (category == CAT_FOUNDATION) {
         return self.foundation;
     }
-    if (category == CAT_PLACEMENT) {
-        return self.placementShares;
+    if (category == CAT_TEST_CARRY) {
+        return self.carryPool;
     }
     return self.team;
 }
@@ -260,8 +260,8 @@ fun Caps.setRemaining(mutate self, category: int, value: coins) {
         self.chika = value;
     } else if (category == CAT_FOUNDATION) {
         self.foundation = value;
-    } else if (category == CAT_PLACEMENT) {
-        self.placementShares = value;
+    } else if (category == CAT_TEST_CARRY) {
+        self.carryPool = value;
     } else {
         self.team = value;
     }
@@ -395,7 +395,7 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
     var windowEnd = storage.t0 + REWARDS_WINDOW;
     if (voucher.kind == KIND_PRESALE) {
         windowEnd = storage.t0 + PRESALE_WINDOW;
-    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM) || (voucher.kind == KIND_EARLY_CONTRIBUTION) || (voucher.kind == KIND_TEST_PLACEMENT)) {
+    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM) || (voucher.kind == KIND_EARLY_CONTRIBUTION) || (voucher.kind == KIND_TEST_CARRY)) {
         windowEnd = MAX_UINT32;
     }
     if ((now < storage.t0) || (now >= windowEnd)) {
@@ -502,27 +502,23 @@ fun ConsoMStorage.assertDeploymentValid(self) {
     }
     assert (count <= MAX_FORBIDDEN_RECIPIENTS) throw ERR_DEPLOY_FORBIDDEN_LIST;
 
-    // lot E14 : chaque réserve doit pouvoir couvrir les placements de la phase de test qui en viennent (vérifié à la genèse sur
-    // les réserves réelles ; ici, sur les réserves de départ, pour qu'un déploiement impossible soit refusé tout de suite)
-    val placementsCell = self.extra.load().placements;
-    if (placementsCell != null) {
-        val p = placementsCell!.load();
-        assert ((p.presale <= CAP_PRESALE) && (p.purchase <= CAP_PURCHASE) && (p.referral <= CAP_REFERRAL)
-            && (p.missions <= CAP_MISSIONS) && (p.chika <= CAP_CHIKA) && (p.founders <= CAP_FOUNDERS - FOUNDERS_BANK_DEPOSIT)) throw ERR_DEPLOY_PLACEMENTS;
+    // lot E14 : chaque réserve doit pouvoir couvrir les ConsoM de la phase de test qui en viennent (vérifié à la genèse sur les
+    // réserves réelles ; ici, sur les réserves de départ, pour qu'un déploiement impossible soit refusé tout de suite)
+    val carryCell = self.extra.load().testCarry;
+    if (carryCell != null) {
+        val c = carryCell!.load();
+        assert ((c.purchase <= CAP_PURCHASE) && (c.referral <= CAP_REFERRAL) && (c.missions <= CAP_MISSIONS)
+            && (c.chika <= CAP_CHIKA)) throw ERR_DEPLOY_TEST_CARRY;
     }
 }
 
-fun TestPlacements.total(self): int {
-    return self.presale + self.purchase + self.referral + self.missions + self.chika + self.founders;
+fun TestCarry.total(self): int {
+    return self.purchase + self.referral + self.missions + self.chika;
 }
 
-// Retire `amount` de la réserve `category` (genèse, lot E14) ; la réserve de prévente garde la retenue du lancement anticipé
-fun Caps.takeForPlacements(mutate self, category: int, amount: int) {
-    if (amount == 0) {
-        return;
-    }
-    val available: int = (category == CAT_PRESALE) ? (self.presale - min(self.presale, self.earlyHold)) : self.remainingOf(category);
-    assert (available >= amount) throw ERR_DEPLOY_PLACEMENTS;
+// Retire `amount` de la réserve `category` pour la mettre dans la réserve « à recréer » (genèse, lot E14)
+fun Caps.takeForCarry(mutate self, category: int, amount: int) {
+    assert (self.remainingOf(category) >= amount) throw ERR_DEPLOY_TEST_CARRY;
     self.setRemaining(category, self.remainingOf(category) - amount);
 }
 
@@ -701,11 +697,9 @@ fun onInternalMessage(in: InMessage) {
             if (isEarly) {
                 assert (in.valueCoins >= MIN_EARLY_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;    // deux créations dont une dans la banque
             }
-            val isPlacement = voucher.kind == KIND_TEST_PLACEMENT;
-            if (isPlacement) {
-                // lot E14 : les parts à recréer n'existent qu'après la genèse ; la banque reçoit un message d'attribution
+            if (voucher.kind == KIND_TEST_CARRY) {
+                // lot E14 : la réserve « à recréer » n'est remplie qu'à la genèse
                 assert (storage.genesisDone) throw ERR_GENESIS_NOT_DONE;
-                assert (in.valueCoins >= MIN_FOUNDER_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;
             }
 
             // réservation sur le plafond de la catégorie et sur le plafond journalier global.
@@ -716,12 +710,7 @@ fun onInternalMessage(in: InMessage) {
             var caps = storage.caps.load();
             caps.settlePresaleIfDue(storage.t0);
             caps.rollDay();
-            if (isPlacement) {
-                // placement de la phase de test : rien n'est créé (les ConsoM sont dans la banque depuis la genèse) ; seules les
-                // parts à recréer sont réservées. Hors plafond du jour, comme les parts des Anciens Contributeurs.
-                assert (caps.placementShares >= reserved) throw ERR_NO_PLACEMENT_SHARES;
-                caps.placementShares -= reserved;
-            } else if (reserved > 0) {
+            if (reserved > 0) {
                 // un pack de prévente ne touche pas à la retenue des contributions du lancement anticipé
                 val available: int = (category == CAT_PRESALE) ? (caps.presale - min(caps.presale, caps.earlyHold)) : caps.remainingOf(category);
                 assert (available >= reserved) throw ERR_CATEGORY_CAP;
@@ -806,23 +795,6 @@ fun onInternalMessage(in: InMessage) {
             }
             if (msg.reserved == 0) {
                 sendExcesses(msg.payer, msg.queryId);
-                return;
-            }
-            if (msg.category == CAT_PLACEMENT) {
-                // lot E14 : la banque attribue au membre les parts de son placement de la phase de test (rien n'est créé ici :
-                // les ConsoM sont entrés dans la banque à la genèse) ; le reste des TON revient à celui qui a présenté le bon
-                createMessage({
-                    bounce: BounceMode.NoBounce,
-                    dest: storage.bankAddress(),
-                    value: BANK_ASSIGN_VALUE,
-                    body: AssignFounderShares { queryId: msg.queryId, shares: msg.reserved, to: msg.recipient }
-                }).send(SEND_MODE_REGULAR);
-                createMessage({
-                    bounce: BounceMode.NoBounce,
-                    dest: msg.payer,
-                    value: max(in.valueCoins - BANK_ASSIGN_VALUE - MINTER_GAS_MARGIN, 0) as coins,
-                    body: ReturnExcessesBack { queryId: msg.queryId }
-                }).send(SEND_MODE_IGNORE_ERRORS);
                 return;
             }
             storage.addSupply(msg.reserved);
@@ -1059,42 +1031,31 @@ fun onInternalMessage(in: InMessage) {
             caps.setRemaining(CAT_FOUNDERS, caps.founders - FOUNDERS_BANK_DEPOSIT);
             caps.founderShares = FOUNDERS_BANK_DEPOSIT;      // parts à attribuer aux Anciens Contributeurs, dans la banque
             caps.setRemaining(CAT_FOUNDATION, caps.foundation - FOUNDATION_RESERVE);   // réserve de la Fondation : vidée, créée ci-dessous
-            // lot E14 : placements de la phase de test (réseau principal seulement ; 0 sur le réseau d'essai). Chaque montant est
-            // retiré de SA réserve d'origine, le total entre dans la banque comme parts à recréer (comme les Anciens Contributeurs)
-            val placementsCell = storage.extra.load().placements;
-            var placementsTotal = 0;
-            if (placementsCell != null) {
-                val p = placementsCell!.load();
-                caps.takeForPlacements(CAT_PRESALE, p.presale);
-                caps.takeForPlacements(CAT_PURCHASE, p.purchase);
-                caps.takeForPlacements(CAT_REFERRAL, p.referral);
-                caps.takeForPlacements(CAT_MISSIONS, p.missions);
-                caps.takeForPlacements(CAT_CHIKA, p.chika);
-                caps.takeForPlacements(CAT_FOUNDERS, p.founders);
-                placementsTotal = p.total();
+            // lot E14 : ConsoM des portefeuilles de la phase de test (réseau principal seulement ; rien sur le réseau d'essai).
+            // Chaque montant est retiré de SA réserve d'origine et va dans la réserve « à recréer » ; rien n'est créé ici :
+            // chaque membre reçoit sa ligne par un bon type 13
+            val carryCell = storage.extra.load().testCarry;
+            if (carryCell != null) {
+                val c = carryCell!.load();
+                caps.takeForCarry(CAT_PURCHASE, c.purchase);
+                caps.takeForCarry(CAT_REFERRAL, c.referral);
+                caps.takeForCarry(CAT_MISSIONS, c.missions);
+                caps.takeForCarry(CAT_CHIKA, c.chika);
+                caps.carryPool = c.total() as coins;
             }
-            caps.placementShares = placementsTotal as coins;
-            val placementsValue: int = (placementsTotal > 0) ? PLACEMENTS_MINT_VALUE as int : 0;
-            assert (in.valueCoins >= MIN_GENESIS_VALUE + placementsValue) throw ERR_NOT_ENOUGH_TON;
+            assert (in.valueCoins >= MIN_GENESIS_VALUE) throw ERR_NOT_ENOUGH_TON;
             storage.caps = caps.toCell();
             storage.genesisDone = true;
             storage.addSupply(FOUNDERS_BANK_DEPOSIT);
             storage.addSupply(FOUNDATION_RESERVE);
-            storage.addSupply(placementsTotal as coins);
             storage.save();
             val bank = storage.bankAddress();
             // la réserve de la Fondation entre dans la banque, dans un stock à part (jamais mélangé à celui des déposants)
             sendMintFunded(storage.config.load().walletCode, bank, FOUNDATION_RESERVE, msg.queryId, in.senderAddress,
                            BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDATION_DEPOSIT_TAG), FOUNDATION_MINT_VALUE);
-            if (placementsTotal > 0) {
-                // même entrée que la genèse des Anciens Contributeurs : la banque les compte en parts à attribuer (1 part = 1 ConsoM) ;
-                // l'émetteur sait, lui, quelles parts vont aux placements (placementShares) et lesquelles aux Anciens Contributeurs
-                sendMintFunded(storage.config.load().walletCode, bank, placementsTotal as coins, msg.queryId, in.senderAddress,
-                               BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG), PLACEMENTS_MINT_VALUE);
-            }
             sendMintFunded(storage.config.load().walletCode, bank, FOUNDERS_BANK_DEPOSIT, msg.queryId, in.senderAddress,
                            BANK_NOTIFY_VALUE, taggedForwardPayload(OP_FOUNDERS_DEPOSIT_TAG),
-                           max(in.valueCoins - FOUNDATION_MINT_VALUE - placementsValue - MINTER_GAS_MARGIN, 0) as coins);
+                           max(in.valueCoins - FOUNDATION_MINT_VALUE - MINTER_GAS_MARGIN, 0) as coins);
         }
 
         // ---------- Part de l'équipe (A9) ----------
@@ -1271,10 +1232,10 @@ get fun get_witnesses(): Witnesses {
     return storage.witnesses.load();
 }
 
-// Lot E14 : placements de la phase de test gravés au déploiement, par réserve d'origine (cellule TestPlacements ; null = aucun)
-get fun get_test_placements(): Cell<TestPlacements>? {
+// Lot E14 : ConsoM de la phase de test à recréer, gravés au déploiement par réserve d'origine (cellule TestCarry ; null = aucun)
+get fun get_test_carry(): Cell<TestCarry>? {
     val storage = lazy ConsoMStorage.load();
-    return storage.extra.load().placements;
+    return storage.extra.load().testCarry;
 }
 
 get fun get_bank_address(): address {

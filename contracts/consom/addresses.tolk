@@ -51,10 +51,11 @@ fun calcChildAddress(code: cell, key: uint256): address {
 
 // Lot E14 (décision du 11 novembre 2026) : fenêtre de dépôt de la banque, déduite du réseau gravé (jamais un paramètre libre).
 //   - réseau principal : 30 jours après le lancement (T0), puis fermée jusqu'à T0 + 12 mois ;
-//   - réseau d'essai (phase de test) : 12 mois, c'est-à-dire ouverte aux dépôts dès T0 et sans interruption.
+//   - réseau d'essai (phase de test) : 0, c'est-à-dire fermée aux dépôts des membres jusqu'à T0 + 12 mois, comme avant
+//     (la banque n'y contient que les 70 % des Anciens Contributeurs, placés par la genèse, pas par un dépôt).
 // Dans les deux cas, aucun retrait avant T0 + 12 mois.
 fun bankDepositWindow(networkId: int): int {
-    return (networkId == NETWORK_MAINNET) ? BANK_MAINNET_DEPOSIT_WINDOW : BANK_CLOSED_PERIOD;
+    return (networkId == NETWORK_MAINNET) ? BANK_MAINNET_DEPOSIT_WINDOW : 0;
 }
 
 fun calcBankAddress(bankCode: cell, shareCode: cell, walletCode: cell, t0: int, networkId: int): address {
