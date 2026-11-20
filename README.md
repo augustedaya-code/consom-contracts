@@ -111,7 +111,8 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 - **Budget de paiement** (un par paiement Wave) : un emplacement par récompense (prévente, enregistrement d'achat, 1er achat,
   parrainage du parrain direct), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
   un paiement de prévente ne donne que son pack.
-- **Compte membre** (un par membre) : adresse liée à la première réclamation ; droit au parrainage ouvert par une prévente ;
+- **Compte membre** (un par membre) : adresse liée à la première réclamation qui crée ou rend des ConsoM (une conversion
+  par la banque n'en lie aucune, lot E14) ; droit au parrainage ouvert par une prévente ;
   Points attestés, convertibles 7 jours (au-delà, perdus), qui bornent la récompense de 5 % à la conversion ; total des
   Points, qui borne le bonus d'investissement (30 % des Points) ; bonus de
   1er achat et missions une seule fois, missions réservées aux membres ayant un paiement ; numéros de bon croissants pour
@@ -124,7 +125,8 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 - **Deux stocks** dans son wallet : celui des déposants (en parts, genèse comprise) et les jetons en attente d'une conversion
   avec ses propres ConsoM. Le stock n'est fait que de ConsoM déposés. Un envoi sans objet reconnu (ni dépôt, ni conversion,
   ni genèse) est refusé : les jetons retournent à l'expéditeur.
-- **Conversion via la banque** : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
+- **Conversion via la banque** (lot E14 : présentable par le relais du serveur pour un membre sans portefeuille ; le bon
+  est lié au membre par sa clé, son numéro et ses Points, son `recipient` n'est pas utilisé) : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
   déjà utilisé, la banque brûle sur le stock des déposants (les parts ne changent pas). Au plus 5 % de ce stock par 24 h ;
   au-delà, rien n'est brûlé.
 - **Conversion avec ses propres ConsoM** : le membre envoie ses ConsoM à la banque avec le bon signé ; l'émetteur vérifie,
@@ -216,7 +218,7 @@ n'affiche aucun secret autre que le wallet de déploiement, qui ne sort jamais d
 | Première réclamation (crée le compte membre, le budget et le wallet) | environ 0,028 TON |
 | Bon lié à un nouveau paiement (crée son budget) | environ 0,016 à 0,019 TON |
 | Récompense de conversion (5 %) | environ 0,007 TON |
-| Conversion via la banque | environ 0,007 TON |
+| Conversion via la banque | environ 0,009 TON (première du membre : 0,019, elle crée son compte) — payée par celui qui présente le bon, le relais pour un membre sans portefeuille |
 | Conversion avec ses propres ConsoM | environ 0,011 TON |
 | Premier dépôt dans la banque (crée les parts) | environ 0,015 TON |
 | Retrait | environ 0,004 TON |
