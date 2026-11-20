@@ -65,6 +65,9 @@ fun categoryOf(kind: int): int {
     if (kind == KIND_EARLY_CONTRIBUTION) {
         return CAT_EARLY;
     }
+    if (kind == KIND_TEST_CARRY) {
+        return CAT_TEST_CARRY;
+    }
     if (kind == KIND_INVESTMENT) {
         return CAT_PURCHASE;    // l'investissement est payé par la réserve Achats
     }
@@ -151,6 +154,14 @@ fun expectedAmount(kind: int, level: int, requested: int, payment: PaymentData):
         }
         return requested;
     }
+    if (kind == KIND_TEST_CARRY) {
+        // `requested` est la ligne du membre dans la liste publiée avant le lancement : ses ConsoM de la phase de test à recréer
+        // 1 pour 1 dans son portefeuille (hors prévente et Anciens Contributeurs, recréés par les bons types 12 et 11)
+        if ((requested <= 0) || (requested > MAX_SUPPLY)) {
+            return -1;
+        }
+        return requested;
+    }
     return -1;
 }
 
@@ -228,6 +239,9 @@ fun Caps.remainingOf(self, category: int): int {
     if (category == CAT_FOUNDATION) {
         return self.foundation;
     }
+    if (category == CAT_TEST_CARRY) {
+        return self.carryPool;
+    }
     return self.team;
 }
 
@@ -246,6 +260,8 @@ fun Caps.setRemaining(mutate self, category: int, value: coins) {
         self.chika = value;
     } else if (category == CAT_FOUNDATION) {
         self.foundation = value;
+    } else if (category == CAT_TEST_CARRY) {
+        self.carryPool = value;
     } else {
         self.team = value;
     }
@@ -379,7 +395,7 @@ fun checkVoucher(storage: ConsoMStorage, voucherCell: Cell<Voucher>, sigA: Cell<
     var windowEnd = storage.t0 + REWARDS_WINDOW;
     if (voucher.kind == KIND_PRESALE) {
         windowEnd = storage.t0 + PRESALE_WINDOW;
-    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM) || (voucher.kind == KIND_EARLY_CONTRIBUTION)) {
+    } else if (isConversionBurn(voucher.kind) || (voucher.kind == KIND_FOUNDER_CLAIM) || (voucher.kind == KIND_EARLY_CONTRIBUTION) || (voucher.kind == KIND_TEST_CARRY)) {
         windowEnd = MAX_UINT32;
     }
     if ((now < storage.t0) || (now >= windowEnd)) {
@@ -408,7 +424,7 @@ const MAX_UINT32 = 0xFFFFFFFF
 
 fun ConsoMStorage.bankAddress(self): address {
     val bankRef = self.extra.load().bank.load();
-    return calcBankAddress(bankRef.bankCode, bankRef.shareCode, self.config.load().walletCode, self.t0);
+    return calcBankAddress(bankRef.bankCode, bankRef.shareCode, self.config.load().walletCode, self.t0, self.networkId);
 }
 
 fun ConsoMStorage.currentHalvingSteps(self): int {
@@ -485,6 +501,25 @@ fun ConsoMStorage.assertDeploymentValid(self) {
         cell = chunk.next;
     }
     assert (count <= MAX_FORBIDDEN_RECIPIENTS) throw ERR_DEPLOY_FORBIDDEN_LIST;
+
+    // lot E14 : chaque réserve doit pouvoir couvrir les ConsoM de la phase de test qui en viennent (vérifié à la genèse sur les
+    // réserves réelles ; ici, sur les réserves de départ, pour qu'un déploiement impossible soit refusé tout de suite)
+    val carryCell = self.extra.load().testCarry;
+    if (carryCell != null) {
+        val c = carryCell!.load();
+        assert ((c.purchase <= CAP_PURCHASE) && (c.referral <= CAP_REFERRAL) && (c.missions <= CAP_MISSIONS)
+            && (c.chika <= CAP_CHIKA)) throw ERR_DEPLOY_TEST_CARRY;
+    }
+}
+
+fun TestCarry.total(self): int {
+    return self.purchase + self.referral + self.missions + self.chika;
+}
+
+// Retire `amount` de la réserve `category` pour la mettre dans la réserve « à recréer » (genèse, lot E14)
+fun Caps.takeForCarry(mutate self, category: int, amount: int) {
+    assert (self.remainingOf(category) >= amount) throw ERR_DEPLOY_TEST_CARRY;
+    self.setRemaining(category, self.remainingOf(category) - amount);
 }
 
 // A16 : destinataire interdit pour une création. L'émetteur et la banque le sont toujours (tous types de bon) ;
@@ -661,6 +696,10 @@ fun onInternalMessage(in: InMessage) {
             val isEarly = voucher.kind == KIND_EARLY_CONTRIBUTION;
             if (isEarly) {
                 assert (in.valueCoins >= MIN_EARLY_CLAIM_VALUE) throw ERR_NOT_ENOUGH_TON;    // deux créations dont une dans la banque
+            }
+            if (voucher.kind == KIND_TEST_CARRY) {
+                // lot E14 : la réserve « à recréer » n'est remplie qu'à la genèse
+                assert (storage.genesisDone) throw ERR_GENESIS_NOT_DONE;
             }
 
             // réservation sur le plafond de la catégorie et sur le plafond journalier global.
@@ -987,12 +1026,24 @@ fun onInternalMessage(in: InMessage) {
         GenesisFoundersDeposit => {
             var storage = lazy ConsoMStorage.load();
             assert (!storage.genesisDone) throw ERR_GENESIS_DONE;
-            assert (in.valueCoins >= MIN_GENESIS_VALUE) throw ERR_NOT_ENOUGH_TON;
             assert (!storage.isPaused()) throw ERR_PAUSED;
             var caps = storage.caps.load();
             caps.setRemaining(CAT_FOUNDERS, caps.founders - FOUNDERS_BANK_DEPOSIT);
             caps.founderShares = FOUNDERS_BANK_DEPOSIT;      // parts à attribuer aux Anciens Contributeurs, dans la banque
             caps.setRemaining(CAT_FOUNDATION, caps.foundation - FOUNDATION_RESERVE);   // réserve de la Fondation : vidée, créée ci-dessous
+            // lot E14 : ConsoM des portefeuilles de la phase de test (réseau principal seulement ; rien sur le réseau d'essai).
+            // Chaque montant est retiré de SA réserve d'origine et va dans la réserve « à recréer » ; rien n'est créé ici :
+            // chaque membre reçoit sa ligne par un bon type 13
+            val carryCell = storage.extra.load().testCarry;
+            if (carryCell != null) {
+                val c = carryCell!.load();
+                caps.takeForCarry(CAT_PURCHASE, c.purchase);
+                caps.takeForCarry(CAT_REFERRAL, c.referral);
+                caps.takeForCarry(CAT_MISSIONS, c.missions);
+                caps.takeForCarry(CAT_CHIKA, c.chika);
+                caps.carryPool = c.total() as coins;
+            }
+            assert (in.valueCoins >= MIN_GENESIS_VALUE) throw ERR_NOT_ENOUGH_TON;
             storage.caps = caps.toCell();
             storage.genesisDone = true;
             storage.addSupply(FOUNDERS_BANK_DEPOSIT);
@@ -1179,6 +1230,12 @@ get fun get_forbidden_recipients(): ForbiddenListReply {
 get fun get_witnesses(): Witnesses {
     val storage = lazy ConsoMStorage.load();
     return storage.witnesses.load();
+}
+
+// Lot E14 : ConsoM de la phase de test à recréer, gravés au déploiement par réserve d'origine (cellule TestCarry ; null = aucun)
+get fun get_test_carry(): Cell<TestCarry>? {
+    val storage = lazy ConsoMStorage.load();
+    return storage.extra.load().testCarry;
 }
 
 get fun get_bank_address(): address {

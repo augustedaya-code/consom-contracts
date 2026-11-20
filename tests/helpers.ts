@@ -57,7 +57,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
     const deploy = await minter.sendDeploy(deployer.getSender(), toNano('1'));
 
     // banque d'échange, déployée avec les données initiales que l'émetteur attend (BankInit)
-    const bankInit = { code: bankCode, data: bankInitData(minter.address, config.t0, walletCode, shareCode) };
+    const bankInit = { code: bankCode, data: bankInitData(minter.address, config.t0, config.networkId, walletCode, shareCode) };
     const bankAddress = await minter.getBankAddress();
     await deployer.send({ to: bankAddress, value: toNano('0.5'), init: bankInit, body: beginCell().endCell() });
     const bankDeployed = await blockchain.getContract(bankAddress);
@@ -133,6 +133,7 @@ export async function setup(overrides: Partial<MinterConfig> = {}) {
             depositorStock: s.readBigNumber(), totalShares: s.readBigNumber(),
             unassignedShares: s.readBigNumber(), escrow: s.readBigNumber(), dayCap: s.readBigNumber(),
             dayBurned: s.readBigNumber(), isOpen: s.readBoolean(),
+            depositsOpen: s.readBoolean(), depositsUntil: s.readNumber(), withdrawalsFrom: s.readNumber(),
         };
     };
     const foundationState = async () => {

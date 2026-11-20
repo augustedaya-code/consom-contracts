@@ -19,9 +19,11 @@ const FLAG_FIRST_PURCHASE = 1
 const FLAG_MISSION_TG     = 2
 const FLAG_MISSION_FB     = 4
 const FLAG_FOUNDER_CLAIM  = 8     // réclamation d'Ancien Contributeur déjà faite (une seule par identifiant)
+const FLAG_TEST_CARRY     = 16    // lot E14 : ConsoM de la phase de test déjà recréés (une seule ligne par membre)
 
 struct MemberState {
-    owner: address                  // adresse liée, fixée par la première réclamation
+    owner: address?                 // adresse liée, fixée par la première réclamation qui crée ou rend des ConsoM ; null tant que
+                                    // le membre n'a fait que des conversions par la banque (lot E14 : elles n'ont pas besoin d'adresse)
     referralEligible: bool          // a participé à la prévente (ou Ancien Contributeur) : condition de toute récompense (et du parrainage)
     hasPayment: bool                // au moins un paiement attesté (condition des missions)
     flags: uint8                    // FLAG_* : bonus de 1er achat et missions déjà reçus
@@ -140,7 +142,7 @@ fun onInternalMessage(in: InMessage) {
             val previous = storage.loadMemberState();
             var state: MemberState = (previous == null)
                 ? {
-                    owner: voucher.recipient,
+                    owner: null,
                     referralEligible: false,
                     hasPayment: false,
                     flags: 0,
@@ -160,9 +162,18 @@ fun onInternalMessage(in: InMessage) {
                 return;
             }
 
-            if (voucher.recipient != state.owner) {
-                reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_WRONG_OWNER, true);
-                return;
+            // Lot E14 : une conversion par la banque ne crée ni ne rend aucun ConsoM à personne (la banque brûle sur son stock) ;
+            // elle est liée au membre par sa clé (memberId, l'adresse de ce compte), son numéro de bon et ses Points, tous signés
+            // par 2 témoins. Elle n'a donc besoin d'aucune adresse : `recipient` n'y est ni vérifié ni lié, et le relais du serveur
+            // peut la présenter pour un membre sans portefeuille. Pour tous les autres bons, l'adresse liée est vérifiée (et liée
+            // à la première réclamation, comme avant).
+            if (kind != KIND_BANK_CONVERSION) {
+                if (state.owner == null) {
+                    state.owner = voucher.recipient;
+                } else if (voucher.recipient != state.owner!) {
+                    reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_WRONG_OWNER, true);
+                    return;
+                }
             }
 
             // ---------- règle d'équité : toute récompense en ConsoM demande une participation à la prévente ----------
@@ -200,6 +211,13 @@ fun onInternalMessage(in: InMessage) {
                 }
                 state.flags = state.flags | FLAG_FOUNDER_CLAIM;
                 state.referralEligible = true;
+            } else if (kind == KIND_TEST_CARRY) {
+                // lot E14 : la ligne du membre dans la liste publiée (ConsoM de la phase de test) n'est recréée qu'une fois
+                if ((state.flags & FLAG_TEST_CARRY) != 0) {
+                    reject(in.valueCoins, storage.minter, storage.key, msg, msg.payer, REJECT_ALREADY_DONE, false);
+                    return;
+                }
+                state.flags = state.flags | FLAG_TEST_CARRY;
             } else if (kind == KIND_EARLY_CONTRIBUTION) {
                 // contribution du lancement anticipé : compte comme une prévente (le budget a déjà vérifié l'unicité de la contribution)
                 state.referralEligible = true;
@@ -258,7 +276,7 @@ fun onInternalMessage(in: InMessage) {
             }
 
             // ---------- plafond de 50 000 par 24 h (hors prévente, Anciens Contributeurs et contributions du lancement anticipé) ; tout est versé tout de suite ----------
-            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM) && (kind != KIND_EARLY_CONTRIBUTION)) {
+            if ((kind != KIND_PRESALE) && (kind != KIND_FOUNDER_CLAIM) && (kind != KIND_EARLY_CONTRIBUTION) && (kind != KIND_TEST_CARRY)) {
                 state.rollDay();
                 if (state.dayReceived + msg.reserved > MEMBER_DAILY_CAP) {
                     // passager : le bon pourra être réclamé de nouveau s'il n'a pas expiré
@@ -281,7 +299,7 @@ fun onInternalMessage(in: InMessage) {
                     category: msg.category,
                     reserved: msg.reserved,
                     memberId: storage.key,
-                    recipient: state.owner,
+                    recipient: voucher.recipient,   // = l'adresse liée (vérifiée plus haut) ; non utilisé pour une conversion
                     burnOrder: msg.burnOrder,
                     payer: msg.payer,
                 }

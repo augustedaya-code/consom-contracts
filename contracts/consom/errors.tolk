@@ -44,4 +44,5 @@ const ERR_DEPLOY_GUARDIAN_SYSTEM = 483  // le gardien ne peut pas être l'émett
 const ERR_DEPLOY_TEAM_SYSTEM    = 484   // l'équipe ne peut pas être l'émetteur ni la banque
 const ERR_DEPLOY_TEAM_FORBIDDEN = 485   // l'adresse de l'équipe figure dans la liste des adresses interdites de réception
 const ERR_DEPLOY_FORBIDDEN_LIST = 486   // liste interdite : plus de 8 adresses, ou une adresse vide
+const ERR_DEPLOY_TEST_CARRY     = 487   // ConsoM de la phase de test à recréer : une réserve ne peut pas les couvrir (lot E14)
 const ERR_UNKNOWN_OP          = 0xFFFF

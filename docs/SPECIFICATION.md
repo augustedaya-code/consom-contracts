@@ -76,7 +76,7 @@ L'offre ne PEUT PAS dépasser 250 000 000 ConsoM. Un ConsoM brûlé par une conv
 
 **Anciens Contributeurs (A8, décisions du 30 octobre 2026).** À la genèse, 3 500 000 ConsoM (70 %) entrent dans la banque comme parts « à attribuer » ; les 1 500 000 restants (30 %) sont dans la réserve Anciens Contributeurs. Le bon « réclamation d'un Ancien Contributeur » (type 11), signé par 2 témoins sur 3, porte l'adresse de l'Ancien Contributeur, son identifiant unique (empreinte, jamais de nom ni de numéro en clair) et sa part totale T (champ `amount`). Le contrat recalcule et applique lui-même : 30 % de T créés pour l'adresse ; 70 % de T attribués en parts de la banque, pris dans les parts à attribuer (aucun ConsoM créé pour cette partie, puisqu'ils sont déjà dans la banque) ; le compte membre devient éligible (les Anciens Contributeurs comptent comme participants à la prévente). T doit être un multiple de 10 unités de base et au plus 5 000 000 : les deux parts sont alors exactes et la somme de toutes les réclamations ne peut pas dépasser 5 000 000. Une seule réclamation par identifiant ; refus si la réserve des 30 % ou les parts à attribuer ne suffisent pas, ou avant la genèse. Aucune limite de temps (ni 18 ni 24 mois), pas de plafond de 50 000 par membre ; seuls les 30 % créés comptent dans le plafond global de 2 000 000 par 24 h. Les retraits de parts restent soumis aux règles de la banque (fermée 12 mois, retrait 24 h après la dernière arrivée de parts du déposant, l'attribution comprise).
 
-**Phases de test** : aucun gain n'est repris. Le testnet n'a donné lieu à aucun achat réel ; seules les préventes réellement payées par Wave avant T0 entrent dans la genèse, dans le plafond de la prévente (section 11).
+**Phase de test (décision du 11 novembre 2026, lot E14)** : les ConsoM de la phase de test SONT repris au réseau principal, 1 pour 1 : ceux des portefeuilles comme ceux de la banque, chacun pris dans sa réserve d'origine, une seule fois par membre, sans aucun ConsoM en plus (section 11).
 
 ## 4. Principe d'émission
 
@@ -191,6 +191,7 @@ n = \min\left( \left\lfloor \frac{B}{15\,000\,000} \right\rfloor ,\; 16 \right)
 
 1. **Avec ses propres ConsoM** (ouvert à tous ; ici l'expéditeur doit être le bénéficiaire du bon, puisque les jetons partent de son wallet : sinon tous les jetons sont rendus) : le membre envoie à la banque au moins les ConsoM requis, accompagnés du bon de conversion signé par 2 témoins sur 3. La banque les garde en attente, l'émetteur vérifie le bon et calcule le brûlage au taux courant ; la banque brûle ce montant et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tous les jetons sont rendus. L'application crédite 100 % des Points en FECA.
 2. **Via la banque d'échange** : les témoins signent une attestation de conversion ; la banque brûle le montant requis sur son stock (section 9). L'application crédite 90 % en FECA ; les 10 % restants vont en FECA aux déposants, au prorata de leurs parts.
+   *Sans portefeuille (lot E14).* Une conversion via la banque ne crée et ne rend aucun ConsoM : elle n'a besoin d'aucune adresse. Le bon type 8 est lié au membre par sa clé (`member_id`, qui donne l'adresse de son compte membre), son numéro (strictement croissant, donc à usage unique) et ses Points, signés par 2 témoins sur 3 ; son champ `recipient` n'est ni vérifié ni lié au compte (le serveur y met l'adresse du relais). Le relais du serveur peut donc la présenter et payer les frais pour un membre qui n'a jamais rattaché de portefeuille ; il reçoit le résultat (`ConversionResult`) et l'excédent de TON, jamais de ConsoM (il reste interdit de réception, A16). Le compte membre ne se lie à une adresse qu'à la première réclamation qui crée des ConsoM ou à la première conversion avec ses propres ConsoM. La conversion avec ses propres ConsoM ne change pas : elle part du portefeuille du membre. Banque vide ou plafond de 5 % atteint : rien n'est brûlé, le résultat dit « refusée » et le serveur ne retire pas les Points ; le numéro du bon est consommé, un nouveau bon est émis.
 
 Dans les deux cas, la conversion donne droit à la récompense de 5 % (section 6).
 
@@ -221,8 +222,8 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 **Règles**
 
-1. De T0 à T0 + 12 mois : aucun dépôt, aucun retrait, y compris pour les Anciens Contributeurs. Seuls les brûlages de conversion sont possibles.
-2. Après T0 + 12 mois : tout détenteur peut déposer en transférant des ConsoM à la banque. Un retrait est possible 24 h après le dernier dépôt du même déposant.
+1. Retraits (décision du 11 novembre 2026, lot E14) : aucun retrait avant T0 + 12 mois, y compris pour les Anciens Contributeurs, sur le réseau d'essai comme sur le réseau principal. Ensuite, un retrait est possible 24 h après le dernier dépôt du même déposant.
+2. Dépôts (lot E14) : tout détenteur peut déposer en transférant des ConsoM à la banque, pendant une première fenêtre qui commence à T0, puis de nouveau pour toujours à partir de T0 + 12 mois. La première fenêtre est de **30 jours sur le réseau principal** (T0 = jour du lancement) : entre T0 + 30 jours et T0 + 12 mois, un dépôt est renvoyé. Sur le **réseau d'essai** (phase de test), elle est nulle : la banque est fermée aux dépôts des membres (comme avant le lot E14) et ne contient que les 70 % des Anciens Contributeurs, placés par la genèse. Cette durée n'est pas un paramètre libre : la banque la reçoit à sa création, calculée par l'émetteur à partir du réseau gravé (`network_id`), et elle fait partie de l'adresse de la banque ; `get_bank_state` la publie (`depositsOpen`, `depositsUntil`, `withdrawalsFrom`). Un dépôt donne des parts, qui comptent pour la part des frais dès leur arrivée.
 3. La banque ne brûle que sur ordre de l'émetteur, après un bon de conversion signé par 2 témoins sur 3. Chaque bon ne sert qu'une fois : le compte du membre refuse un numéro de bon déjà utilisé ou plus ancien.
 4. Le montant brûlé n'est jamais pris dans le bon : l'émetteur le calcule à partir des Points attestés et du taux courant (section 8), puis le transmet à la banque.
 5. La banque publie le nombre de parts de chaque déposant ; l'application s'en sert pour répartir les 10 % de frais en FECA.
@@ -230,7 +231,7 @@ La banque d'échange est un contrat qui détient des ConsoM pour le compte de se
 
 **Précisions de mise en œuvre**
 
-- Un dépôt doit être accompagné d'au moins 0,05 TON. Pendant les 12 premiers mois, les jetons d'un dépôt sont rendus.
+- Un dépôt doit être accompagné d'au moins 0,05 TON. Hors des fenêtres de dépôt (règle 2), les jetons d'un dépôt sont rendus.
 - Des ConsoM envoyés à la banque sans objet reconnu (ni dépôt, ni conversion avec ses propres ConsoM, ni genèse), ou sans assez de TON pour être traités, sont refusés : les jetons retournent à l'expéditeur et le stock de la banque ne change pas. Si le transfert ne portait pas assez de TON pour être rendu, les jetons restent dans le wallet de la banque sans entrer dans aucun stock.
 - Les 3 500 000 ConsoM des Anciens Contributeurs entrent dans la banque comme des parts « à attribuer » ; chaque Ancien Contributeur reçoit les siennes par sa réclamation (bon type 11, section 3), sur ordre de l'émetteur seul : le total des parts et le stock ne changent pas.
 - Chaque déposant a un petit contrat qui retient ses parts et la date de son dernier dépôt.
@@ -269,11 +270,11 @@ La pause est immédiate parce qu'un délai de 7 jours laisserait une faille ouve
 
 ## 11. Passage testnet → réseau principal
 
-Le testnet sert à prouver ce contrat exact, pas à créer des soldes : les jetons du testnet n'ont aucune valeur et ne sont jamais transférés sur le réseau principal. Les deux déploiements utilisent le même code, avec un `network_id` et des clés de témoins différents ; une clé de testnet n'est jamais réutilisée sur le réseau principal.
+Le testnet sert à prouver ce contrat exact. Les jetons du testnet ne sont pas transférés d'un réseau à l'autre ; ils sont RECRÉÉS 1 pour 1 au réseau principal selon la décision du 11 novembre 2026 (voir plus bas). Les deux déploiements utilisent le même code, avec un `network_id` et des clés de témoins différents ; une clé de testnet n'est jamais réutilisée sur le réseau principal.
 
 **Genèse.** Au déploiement sur le réseau principal, l'émetteur grave une racine de Merkle par liste de genèse : Anciens Contributeurs (part de 30 % réclamable) et préventes réellement payées avant T0. Chaque ligne contient l'identifiant de membre, la catégorie et le montant. Le membre réclame sa ligne avec sa preuve de Merkle ; un petit contrat « réclamation de genèse » par ligne empêche toute double réclamation. La part de 70 % des Anciens Contributeurs est déposée directement dans la banque au déploiement ; leur part de 30 % et l'attribution de leurs parts passent par le bon signé « Ancien Contributeur » (section 3), qui remplace la preuve de Merkle pour cette liste.
 
-**Aucune reprise des phases de test.** Ni les soldes du testnet, ni les 20 réclamations déjà créées sur l'ancien contrat ne sont repris : il n'y a eu aucun achat réel. Chaque prévente payée avant T0 est vérifiée paiement par paiement avant d'entrer dans la liste de genèse.
+**Reprise de la phase de test (lot E14).** Les ConsoM de la phase de test de 6 mois sont recréés 1 pour 1 au réseau principal (voir plus bas). Les 20 réclamations créées sur l'ancien contrat, avant cette phase de test, ne sont pas reprises. Chaque prévente payée avant T0 est vérifiée paiement par paiement avant d'entrer dans la liste de genèse.
 
 **Critères pour ouvrir le réseau principal**
 
@@ -284,6 +285,15 @@ Le testnet sert à prouver ce contrat exact, pas à créer des soldes : les jeto
 - [ ] Instantané de genèse publié et vérifiable par chaque membre
 - [ ] Revue juridique terminée pour la prévente
 - [ ] Clés des témoins et du gardien remises à des personnes distinctes
+
+**Phase de test et banque d'échange (décisions du 11 novembre 2026, lot E14).** Phase de test de 6 mois sur le réseau d'essai (avec la prévente), puis audit, puis réseau principal ; le même code sert aux deux.
+
+- *Phase de test.* La banque est FERMÉE aux dépôts des membres (un dépôt est renvoyé) et personne ne retire. Elle ne contient que les 70 % des Anciens Contributeurs : la genèse les y met dès le début du test et le serveur présente au même moment le bon type 11 de chacun (30 % dans son portefeuille, 70 % en parts).
+- *Lancement.* T0 du réseau principal est le jour du lancement, gravé. Dépôts ouverts à tous pendant 30 jours, puis fermés jusqu'à T0 + 12 mois ; aucun retrait avant T0 + 12 mois, Anciens Contributeurs compris (environ 18 mois au total pour eux). Rien d'autre ne change (taux, réserves, plafonds, paliers, témoins, gardien, Fondation, conversion).
+- *Recréation 1 pour 1 au réseau principal.* Tous les ConsoM de la phase de test sont recréés, une seule fois par membre, chacun dans sa réserve d'origine, sans aucun ConsoM en plus. Une liste est figée et publiée avant le lancement, vérifiable par chacun. Trois cas :
+  1. *Anciens Contributeurs* (banque et portefeuille) : la genèse recrée les 3 500 000 dans la banque ; le même bon type 11 (même part T, même identifiant) redonne 30 % dans le portefeuille et 70 % en parts. Réserve : Anciens Contributeurs.
+  2. *Prévente de la phase de test* : ses contributeurs ont le statut d'Ancien Contributeur (livre blanc). Le bon type 12 « lancement anticipé » (décision du 30 octobre, gardée) les recrée : 30 % dans le portefeuille, 70 % créés dans la banque avec autant de parts. Réserve : prévente ; le total est gravé (`earlyContributionsTotal`).
+  3. *Tous les autres ConsoM des portefeuilles* (récompenses d'achat, conversion 5 %, investissement, parrainage, 1er achat, missions, Bonus CHIKA) : une ligne par membre = ses ConsoM de test au moment du gel, moins ce que les cas 1 et 2 lui recréent déjà. La ligne est répartie entre les réserves d'origine en proportion de ce que le membre a reçu de chacune pendant le test. Les quatre totaux par réserve (achats, parrainage, 1er achat et missions, CHIKA) sont gravés au déploiement (`get_test_carry` ; contrôle 487 si une réserve ne peut pas les couvrir). À la genèse, chacun est retiré de SA réserve et va dans une réserve « à recréer » (rien n'est créé). Puis le bon signé 2 sur 3 type 13 (`recipient`, empreinte du membre, `amount` = sa ligne) crée la ligne dans son portefeuille : une seule fois par membre ; jamais au-delà de la réserve « à recréer » (erreur 412) ; pas avant la genèse (441) ; sans limite de temps ; hors plafond de 50 000 par membre ; compté dans le plafond global du jour ; destinataire interdit : refus 17, réserve rendue.
 
 ## 12. Décisions ouvertes et écarts
 
@@ -301,7 +311,7 @@ Les treize points sont tranchés ; la spécification est prête pour le dévelop
 | 8 | Unité du bonus d'investissement | Tranché (livre blanc v5.0) : 1 CHIKA investi = 0,04 ConsoM, payé par la réserve Achats |
 | 9 | Paliers après la 1re année | Sans objet depuis le livre blanc v5.0 : il n'y a plus de distinction entre la 1re année et la suite (section 8) |
 | 10 | « Pause renouvelable une fois par mois » | Tranché : une seule pause commencée par période de 30 jours |
-| 11 | 20 réclamations déjà créées sur l'ancien contrat | Tranché : non reprises. C'était le testnet, sans achat réel ; aucun gain de test n'est repris sur le réseau principal |
+| 11 | 20 réclamations déjà créées sur l'ancien contrat | Tranché : non reprises (avant la phase de test). Les ConsoM de la phase de test de 6 mois, eux, sont recréés 1 pour 1 (lot E14, section 11) |
 | 12 | Préventes payées avant T0 | Tranché : les préventes réellement payées avant T0 sont reprises dans la genèse, dans le plafond de la prévente |
 | 13 | Langage | Tranché : Tolk pour le code sur mesure, wallets Jetton 2.0 non modifiés ; le contrat actuel en Tact est abandonné |
 

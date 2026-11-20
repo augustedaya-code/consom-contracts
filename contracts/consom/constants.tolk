@@ -35,6 +35,9 @@ const CAT_FOUNDATION = 7
 // Contributions du lancement anticipé : même réserve que la prévente (CAT_PRESALE), mais suivie à part par l'émetteur
 // pour que la règle des invendus et la retenue gravée (earlyHold) s'y appliquent correctement
 const CAT_EARLY    = 8
+// ConsoM des portefeuilles de la phase de test recréés au réseau principal (lot E14) : pris dans la réserve « à recréer »
+// (Caps.carryPool), elle-même retirée à la genèse des réserves d'origine (achats, parrainage, 1er achat et missions, CHIKA).
+const CAT_TEST_CARRY = 9
 
 // ---------- Section 5 : types de bon ----------
 const KIND_PRESALE         = 0   // pack de prévente                  -> budget de paiement
@@ -50,7 +53,8 @@ const KIND_OWN_CONVERSION  = 9   // conversion avec ses propres ConsoM : arrive 
 const KIND_CHIKA_BONUS     = 10  // bonus de 0,3 % d'une commande payée en CHIKA -> budget de paiement, réserve CHIKA
 const KIND_FOUNDER_CLAIM   = 11  // réclamation d'un Ancien Contributeur -> compte membre, réserve Anciens Contributeurs
 const KIND_EARLY_CONTRIBUTION = 12  // contribution du lancement anticipé (réseau d'essai) -> budget (une fois par contribution), réserve de prévente
-const KIND_MAX             = 12
+const KIND_TEST_CARRY      = 13  // ConsoM de portefeuille de la phase de test recréés au réseau principal -> compte membre (une fois par membre), réserve « à recréer »
+const KIND_MAX             = 13
 
 // ---------- Section 6 : montants des récompenses ----------
 const FIRST_PURCHASE_REWARD = 500 * ONE_CONSOM
@@ -165,7 +169,9 @@ const SLOT_EARLY          = 512        // bit 9 : contribution du lancement anti
 const CHILD_STORAGE_RESERVE = ton("0.01")
 
 // ---------- Banque d'échange (section 9) ----------
-const BANK_CLOSED_PERIOD    = ONE_YEAR    // aucun dépôt ni retrait des membres pendant 12 mois
+const BANK_CLOSED_PERIOD    = ONE_YEAR    // aucun retrait avant T0 + 12 mois ; dépôts : voir bankDepositWindow (lot E14)
+const BANK_MAINNET_DEPOSIT_WINDOW = 30 * ONE_DAY   // réseau principal : dépôts acceptés 30 jours après le lancement (T0)
+const NETWORK_MAINNET       = -239
 const BANK_WITHDRAW_DELAY   = ONE_DAY     // retrait possible 24 h après le dernier dépôt
 const BANK_DAILY_BURN_BP    = 500         // 5 % du stock par période de 24 h (conversions via la banque)
 const BANK_OP_MIN_VALUE     = ton("0.05") // TON minimum joint à une opération qui doit renvoyer des jetons

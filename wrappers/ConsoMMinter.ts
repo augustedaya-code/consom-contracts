@@ -24,9 +24,10 @@ export const Kind = {
     CHIKA_BONUS: 10,
     FOUNDER_CLAIM: 11,
     EARLY_CONTRIBUTION: 12,
+    TEST_CARRY: 13,          // lot E14 : ConsoM de portefeuille de la phase de test recréés au réseau principal
 } as const;
 
-export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6, FOUNDATION: 7, EARLY: 8 } as const;
+export const Category = { PRESALE: 0, PURCHASE: 1, REFERRAL: 2, MISSIONS: 3, FOUNDERS: 4, TEAM: 5, CHIKA: 6, FOUNDATION: 7, EARLY: 8, TEST_CARRY: 9 } as const;
 
 export const Op = {
     ClaimVoucher: 0xc0150001,
@@ -64,7 +65,7 @@ export const Err = {
     NOT_CHILD: 430, NOT_WALLET: 431, GENESIS_DONE: 440, GENESIS_NOT_DONE: 441, NOTHING_TO_RELEASE: 442, NO_FOUNDER_SHARES: 443, EARLY_TOTAL: 444,
     // contrôles au déploiement (un contrat gravé avec des données interdites refuse tout message)
     DEPLOY_SAME_KEYS: 480, DEPLOY_NO_GUARDIAN: 481, DEPLOY_NO_TEAM: 482, DEPLOY_GUARDIAN_SYSTEM: 483,
-    DEPLOY_TEAM_SYSTEM: 484, DEPLOY_TEAM_FORBIDDEN: 485, DEPLOY_FORBIDDEN_LIST: 486,
+    DEPLOY_TEAM_SYSTEM: 484, DEPLOY_TEAM_FORBIDDEN: 485, DEPLOY_FORBIDDEN_LIST: 486, DEPLOY_TEST_CARRY: 487,
 } as const;
 
 // Raisons de refus lisibles par le serveur (ClaimRejected.reason) ajoutées par le lot E4 ; les autres sont dans la spécification
@@ -102,10 +103,24 @@ export type MinterConfig = {
     // Total (unités de base) des contributions du lancement anticipé à réclamer : gravé au déploiement, retenu dans la réserve
     // de prévente (la règle des invendus de T0 + 18 mois n'y touche pas). 0 = aucune contribution. Au plus 100 000 000 ConsoM.
     earlyContributionsTotal?: bigint;
+    // Lot E14 : ConsoM des portefeuilles de la phase de test à recréer au réseau principal, par réserve d'origine (unités de
+    // base), tirés de la liste publiée avant le lancement. Absent (ou tout à 0) sur le réseau d'essai.
+    testCarry?: TestCarry;
     // TESTS UNIQUEMENT : état de départ différent (plafonds, offre, brûlages) pour tester les limites
     testCaps?: Partial<typeof INITIAL_CAPS>;
     testState?: { totalSupply?: bigint; burnedByConversion?: bigint };
 };
+
+export type TestCarry = { purchase: bigint; referral: bigint; missions: bigint; chika: bigint };
+
+export const testCarryTotal = (c: TestCarry) => c.purchase + c.referral + c.missions + c.chika;
+
+// Lot E14 : fenêtre de dépôt de la banque après T0, déduite du réseau (même règle que bankDepositWindow dans addresses.tolk)
+export const BANK_MAINNET_DEPOSIT_WINDOW = 30 * 86_400;
+export const BANK_CLOSED_PERIOD = 365 * 86_400;
+// réseau d'essai : 0, la banque y reste fermée aux dépôts des membres jusqu'à T0 + 12 mois
+export const bankDepositWindow = (networkId: number) =>
+    networkId === NETWORK_MAINNET ? BANK_MAINNET_DEPOSIT_WINDOW : 0;
 
 const bigFromKey = (key: Buffer) => BigInt('0x' + key.toString('hex'));
 
@@ -147,6 +162,20 @@ export function assertValidMinterConfig(c: MinterConfig, minter: Address, bank: 
             fail('l\'adresse de l\'équipe figure dans la liste des adresses interdites de réception : la part de l\'équipe ne pourrait jamais lui être versée.');
         }
     }
+    const carry = c.testCarry;
+    if (carry) {
+        const parts = Object.entries(carry) as [keyof TestCarry, bigint][];
+        if (parts.some(([, v]) => v < 0n)) fail('un montant des ConsoM de la phase de test à recréer est négatif.');
+        for (const [k, v] of parts) {
+            if (v > INITIAL_CAPS[k]) fail(`les ConsoM de la phase de test venant de la réserve « ${k} » dépassent ce que cette réserve contient.`);
+        }
+    }
+}
+
+// ConsoM de la phase de test à recréer (TestCarry dans storage.tolk) ; null si aucun (réseau d'essai)
+export function testCarryToCell(c?: TestCarry): Cell | null {
+    if (!c || testCarryTotal(c) === 0n) return null;
+    return beginCell().storeCoins(c.purchase).storeCoins(c.referral).storeCoins(c.missions).storeCoins(c.chika).endCell();
 }
 
 export function minterConfigToCell(c: MinterConfig): Cell {
@@ -166,6 +195,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
         .storeCoins(0)          // dayMinted
         .storeCoins(0)          // founderShares (rempli par la genèse)
         .storeCoins(c.earlyContributionsTotal ?? 0n)   // earlyHold
+        .storeCoins(0)          // carryPool (rempli par la genèse, lot E14)
         .endCell();
     const witnesses = beginCell()
         .storeUint(bigFromKey(c.witnessKeys[0]), 256)
@@ -185,6 +215,7 @@ export function minterConfigToCell(c: MinterConfig): Cell {
     const extra = beginCell()
         .storeRef(c.content)
         .storeRef(beginCell().storeRef(c.bankCode).storeRef(c.shareCode).endCell())
+        .storeMaybeRef(testCarryToCell(c.testCarry))
         .endCell();
     return beginCell()
         .storeCoins(st.totalSupply ?? 0n)
@@ -274,7 +305,7 @@ export class ConsoMMinter implements Contract {
         const data = minterConfigToCell(config);
         const init = { code, data };
         const address = contractAddress(workchain, init);
-        const bank = contractAddress(workchain, { code: config.bankCode, data: bankInitData(address, config.t0, config.walletCode, config.shareCode) });
+        const bank = contractAddress(workchain, { code: config.bankCode, data: bankInitData(address, config.t0, config.networkId, config.walletCode, config.shareCode) });
         assertValidMinterConfig(config, address, bank);
         return new ConsoMMinter(address, init);
     }
@@ -379,7 +410,16 @@ export class ConsoMMinter implements Contract {
             dayMinted: s.readBigNumber(),
             founderShares: s.readBigNumber(),
             earlyHold: s.readBigNumber(),
+            carryPool: s.readBigNumber(),
         };
+    }
+
+    // Lot E14 : ConsoM de la phase de test à recréer, gravés au déploiement (null = aucun)
+    async getTestCarry(provider: ContractProvider): Promise<TestCarry | null> {
+        const c = (await provider.get('get_test_carry', [])).stack.readCellOpt();
+        if (!c) return null;
+        const r = c.beginParse();
+        return { purchase: r.loadCoins(), referral: r.loadCoins(), missions: r.loadCoins(), chika: r.loadCoins() };
     }
 
     async getTeamVesting(provider: ContractProvider) {
@@ -423,10 +463,11 @@ export class ConsoMMinter implements Contract {
 // ---------- Banque d'échange ----------
 
 // Données initiales de la banque (BankInit) : l'émetteur calcule l'adresse de la banque à partir d'elles
-export function bankInitData(minter: Address, t0: number, walletCode: Cell, shareCode: Cell): Cell {
+export function bankInitData(minter: Address, t0: number, networkId: number, walletCode: Cell, shareCode: Cell): Cell {
     return beginCell()
         .storeAddress(minter)
         .storeUint(t0, 32)
+        .storeUint(bankDepositWindow(networkId), 32)   // lot E14 : fenêtre de dépôt, déduite du réseau
         .storeRef(walletCode)
         .storeRef(shareCode)
         .storeMaybeRef(null)

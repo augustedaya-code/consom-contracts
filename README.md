@@ -111,7 +111,8 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 - **Budget de paiement** (un par paiement Wave) : un emplacement par récompense (prévente, enregistrement d'achat, 1er achat,
   parrainage du parrain direct), chacun versé une seule fois ; mêmes montant et Points pour tous les bons d'un paiement ;
   un paiement de prévente ne donne que son pack.
-- **Compte membre** (un par membre) : adresse liée à la première réclamation ; droit au parrainage ouvert par une prévente ;
+- **Compte membre** (un par membre) : adresse liée à la première réclamation qui crée ou rend des ConsoM (une conversion
+  par la banque n'en lie aucune, lot E14) ; droit au parrainage ouvert par une prévente ;
   Points attestés, convertibles 7 jours (au-delà, perdus), qui bornent la récompense de 5 % à la conversion ; total des
   Points, qui borne le bonus d'investissement (30 % des Points) ; bonus de
   1er achat et missions une seule fois, missions réservées aux membres ayant un paiement ; numéros de bon croissants pour
@@ -124,14 +125,23 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
 - **Deux stocks** dans son wallet : celui des déposants (en parts, genèse comprise) et les jetons en attente d'une conversion
   avec ses propres ConsoM. Le stock n'est fait que de ConsoM déposés. Un envoi sans objet reconnu (ni dépôt, ni conversion,
   ni genèse) est refusé : les jetons retournent à l'expéditeur.
-- **Conversion via la banque** : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
+- **Conversion via la banque** (lot E14 : présentable par le relais du serveur pour un membre sans portefeuille ; le bon
+  est lié au membre par sa clé, son numéro et ses Points, son `recipient` n'est pas utilisé) : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
   déjà utilisé, la banque brûle sur le stock des déposants (les parts ne changent pas). Au plus 5 % de ce stock par 24 h ;
   au-delà, rien n'est brûlé.
 - **Conversion avec ses propres ConsoM** : le membre envoie ses ConsoM à la banque avec le bon signé ; l'émetteur vérifie,
   la banque brûle le montant requis et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tout est rendu.
   Pas de plafond de 5 %.
-- **Dépôts et retraits** : fermés 12 mois (un dépôt est rendu) ; ensuite, dépôt contre des parts, retrait 24 h après
-  le dernier dépôt, à la valeur actuelle des parts. Un contrat « parts » par déposant.
+- **Dépôts et retraits** (lot E14, décision du 11 novembre 2026) : aucun retrait avant T0 + 12 mois ; ensuite, retrait 24 h
+  après le dernier dépôt, à la valeur actuelle des parts. Dépôts contre des parts : réseau principal, pendant les 30 jours
+  après le lancement (T0), puis fermés (un dépôt est renvoyé) jusqu'à T0 + 12 mois, puis ouverts ; réseau d'essai (phase de
+  test), fermés aux membres jusqu'à T0 + 12 mois, comme avant. La durée de la première fenêtre est calculée par l'émetteur à
+  partir du réseau gravé (`bankDepositWindow` : 30 jours ou 0), entre dans l'adresse de la banque et est publiée par
+  `get_bank_state`. Un contrat « parts » par déposant.
+- **Recréation de la phase de test** (lot E14) : au réseau principal, les Anciens Contributeurs sont recréés par la genèse et
+  leur bon type 11, les contributeurs de la prévente du test par le bon type 12, et tous les autres ConsoM des portefeuilles
+  par le bon type 13 : quatre totaux par réserve d'origine (liste publiée avant le lancement) sont gravés (`get_test_carry`),
+  retirés de leurs réserves à la genèse, puis chaque membre reçoit sa ligne, une seule fois.
 - **Genèse** : les 3 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer. Sur ordre de l'émetteur
   seul (après un bon d'Ancien Contributeur), la banque en attribue à une adresse : les parts à attribuer diminuent, le
   contrat « parts » de l'adresse est crédité, le total des parts et le stock ne changent pas. Les retraits restent soumis aux
@@ -208,7 +218,7 @@ n'affiche aucun secret autre que le wallet de déploiement, qui ne sort jamais d
 | Première réclamation (crée le compte membre, le budget et le wallet) | environ 0,028 TON |
 | Bon lié à un nouveau paiement (crée son budget) | environ 0,016 à 0,019 TON |
 | Récompense de conversion (5 %) | environ 0,007 TON |
-| Conversion via la banque | environ 0,007 TON |
+| Conversion via la banque | environ 0,009 TON (première du membre : 0,019, elle crée son compte) — payée par celui qui présente le bon, le relais pour un membre sans portefeuille |
 | Conversion avec ses propres ConsoM | environ 0,011 TON |
 | Premier dépôt dans la banque (crée les parts) | environ 0,015 TON |
 | Retrait | environ 0,004 TON |

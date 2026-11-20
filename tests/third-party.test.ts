@@ -138,7 +138,8 @@ describe('Réclamation par un tiers', () => {
         assert.equal(await env.balanceOf(env.member.address), 0n);
         assert.equal(tonReceived(r, env.member.address), 0n);
         assert.ok(tonReceived(r, server.address) > toNano('0.5'), 'les frais non utilisés reviennent au tiers');
-        assert.equal((await env.memberState(1n))!.owner!.toString(), env.member.address.toString());
+        // lot E14 : une conversion par la banque ne lie plus aucune adresse au compte du membre (elle n'en a pas besoin)
+        assert.equal((await env.memberState(1n))!.owner, null);
         // le bon est consommé : le représenter est refusé
         const again = await env.claim(v, { from: env.member });
         assert.equal(rejectReason(again), 15, describeTxs(again));
