@@ -8,9 +8,9 @@ import { setup, hasTx, describeTxs, rejectReason, T0, DAY } from './helpers.ts';
 import type { Env } from './helpers.ts';
 import { consom, Kind, Op, Err } from '../wrappers/ConsoMMinter.ts';
 
-const GENESIS = consom(3_500_000);       // parts à attribuer au départ
+const GENESIS = consom(10_500_000);       // parts à attribuer au départ
 const FOUNDATION = consom(100_000);      // réserve de la Fondation, créée à la genèse dans un stock à part
-const DIRECT_RESERVE = consom(1_500_000); // réserve des 30 %
+const DIRECT_RESERVE = consom(4_500_000); // réserve des 30 % (15 000 000 - 10 500 000)
 const REJECT_WRONG_OWNER = 10;
 const REJECT_NOT_ELIGIBLE = 11;
 const REJECT_ALREADY_DONE = 13;
@@ -171,7 +171,7 @@ describe('Anciens Contributeurs : réclamation', () => {
     it('refusée avant la genèse : les parts à attribuer n\'existent pas encore', async () => {
         const env = await setup();
         refusedWith(await env.claim(founderVoucher(env, consom(100_000), 777n)), env.minter.address, Err.GENESIS_NOT_DONE);
-        assert.equal((await env.minter.getCaps()).founders, consom(5_000_000));
+        assert.equal((await env.minter.getCaps()).founders, consom(15_000_000));
     });
 
     it('refuse un envoi avec trop peu de TON pour traverser les contrats et la banque', async () => {
@@ -208,49 +208,78 @@ describe('Anciens Contributeurs : frais', () => {
 describe('Anciens Contributeurs : montants et réserves', () => {
     it('refuse une part totale nulle, trop grande, ou qui ne tombe pas juste (multiple de 10 unités)', async () => {
         const env = await withGenesis();
-        for (const T of [0n, consom(5_000_000) + 10n, consom(100) + 1n, 5n]) {
+        for (const T of [0n, consom(15_000_000) + 10n, consom(100) + 1n, 5n]) {
             refusedWith(await env.claim(founderVoucher(env, T, 777n)), env.minter.address, Err.WRONG_AMOUNT);
         }
         assert.equal(await env.memberState(777n), null);
     });
 
-    it('les 5 000 000 se partagent exactement : 1 500 000 créés + 3 500 000 en parts, puis plus rien', async () => {
+    it('les 15 000 000 se partagent exactement : 4 500 000 créés + 10 500 000 en parts, puis plus rien', async () => {
+        // 30 % créés comptent dans le plafond global de 2 000 000 par 24 h : au plus 6 666 660 de part totale par jour
         const env = await withGenesis();
         const a = await env.blockchain.treasury('a');
         const b = await env.blockchain.treasury('b');
-        assert.ok(approved(await env.claim(founderVoucher(env, consom(3_333_333) + 10n, 1n, a.address))));
-        assert.ok(approved(await env.claim(founderVoucher(env, consom(5_000_000) - consom(3_333_333) - 10n, 2n, b.address))));
+        const c = await env.blockchain.treasury('c');
+        const big = consom(6_666_660);                                          // 1 999 998 créés
+        assert.ok(approved(await env.claim(founderVoucher(env, big, 1n, a.address))));
+        env.blockchain.now = T0 + DAY;
+        assert.ok(approved(await env.claim(founderVoucher(env, big, 2n, b.address))));
+        env.blockchain.now = T0 + 2 * DAY;
+        assert.ok(approved(await env.claim(founderVoucher(env, consom(15_000_000) - 2n * big, 3n, c.address))));
         const caps = await env.minter.getCaps();
         assert.equal(caps.founders, 0n, 'réserve des 30 % vide');
         assert.equal(caps.founderShares, 0n);
         assert.equal((await env.bankState()).unassignedShares, 0n, 'toutes les parts de la genèse sont attribuées');
-        assert.equal((await env.minter.getJettonData()).totalSupply, GENESIS + FOUNDATION + DIRECT_RESERVE, 'jamais plus que 5 000 000 au total');
-        assert.equal((await env.shareState(a.address))!.shares + (await env.shareState(b.address))!.shares, GENESIS);
-        assert.equal((await env.balanceOf(a.address)) + (await env.balanceOf(b.address)), DIRECT_RESERVE);
+        assert.equal((await env.minter.getJettonData()).totalSupply, GENESIS + FOUNDATION + DIRECT_RESERVE, 'jamais plus que 15 000 000 au total');
+        let shares = 0n, direct = 0n;
+        for (const t of [a, b, c]) {
+            shares += (await env.shareState(t.address))!.shares;
+            direct += await env.balanceOf(t.address);
+        }
+        assert.equal(shares, GENESIS);
+        assert.equal(direct, DIRECT_RESERVE);
         // plus rien à réclamer
-        refusedWith(await env.claim(founderVoucher(env, 10n, 3n)), env.minter.address, Err.CATEGORY_CAP);
-        assert.equal(await env.memberState(3n), null);
+        env.blockchain.now = T0 + 3 * DAY;
+        refusedWith(await env.claim(founderVoucher(env, 10n, 4n)), env.minter.address, Err.CATEGORY_CAP);
+        assert.equal(await env.memberState(4n), null);
+    });
+
+    it('un seul bon de 15 000 000 respecte la règle du montant mais dépasse le plafond global du jour (4 500 000 créés > 2 000 000)', async () => {
+        const env = await withGenesis();
+        const before = await env.minter.getCaps();
+        refusedWith(await env.claim(founderVoucher(env, consom(15_000_000), 1n)), env.minter.address, Err.DAILY_CAP);
+        assert.deepEqual(await env.minter.getCaps(), before, 'rien de réservé');
+        // la plus grande part totale possible en un seul bon : 6 666 660 (1 999 998 créés)
+        assert.ok(approved(await env.claim(founderVoucher(env, consom(6_666_660), 1n))));
+        assert.equal(await env.balanceOf(env.member.address), consom(1_999_998));
     });
 
     it('refuse si la réserve des 30 % ne suffit pas, sans rien marquer', async () => {
         const env = await withGenesis();
-        await env.claim(founderVoucher(env, consom(4_000_000), 1n));                 // 1 200 000 créés, il reste 300 000
+        await env.claim(founderVoucher(env, consom(6_666_660), 1n));            // 1 999 998 créés
+        env.blockchain.now = T0 + DAY;
+        await env.claim(founderVoucher(env, consom(6_666_660), 2n));            // 1 999 998 créés, il reste 500 004
+        env.blockchain.now = T0 + 2 * DAY;
         const before = await env.minter.getCaps();
-        refusedWith(await env.claim(founderVoucher(env, consom(1_000_010), 2n)), env.minter.address, Err.CATEGORY_CAP);
+        assert.equal(before.founders, consom(500_004));
+        refusedWith(await env.claim(founderVoucher(env, consom(1_666_690), 3n)), env.minter.address, Err.CATEGORY_CAP);
         assert.deepEqual(await env.minter.getCaps(), before);
-        assert.equal(await env.memberState(2n), null);
-        assert.ok(approved(await env.claim(founderVoucher(env, consom(1_000_000), 2n))), 'ce qui reste est réclamable');
+        assert.equal(await env.memberState(3n), null);
+        assert.ok(approved(await env.claim(founderVoucher(env, consom(1_666_680), 3n))), 'ce qui reste est réclamable');
     });
 
     it('refuse si les parts à attribuer ne suffisent pas, même quand la réserve des 30 % est large', async () => {
-        // réserve des 30 % artificiellement grande (test uniquement) : seules les parts à attribuer (3 500 000) limitent
-        const env = await withGenesis({ testCaps: { founders: consom(20_000_000) } });
-        await env.claim(founderVoucher(env, consom(4_000_000), 1n));                 // 2 800 000 parts attribuées
+        // réserve des 30 % artificiellement grande (test uniquement) : seules les parts à attribuer (10 500 000) limitent
+        const env = await withGenesis({ testCaps: { founders: consom(30_000_000) } });
+        await env.claim(founderVoucher(env, consom(6_666_660), 1n));            // 4 666 662 parts attribuées
+        env.blockchain.now = T0 + DAY;
+        await env.claim(founderVoucher(env, consom(6_666_660), 2n));            // 9 333 324 parts attribuées, il en reste 1 166 676
+        env.blockchain.now = T0 + 2 * DAY;
         const before = await env.minter.getCaps();
-        refusedWith(await env.claim(founderVoucher(env, consom(2_000_000), 2n)), env.minter.address, Err.NO_FOUNDER_SHARES);
+        refusedWith(await env.claim(founderVoucher(env, consom(2_000_000), 3n)), env.minter.address, Err.NO_FOUNDER_SHARES);
         assert.deepEqual(await env.minter.getCaps(), before, 'plafonds inchangés');
-        assert.equal(await env.memberState(2n), null);
-        assert.equal((await env.bankState()).unassignedShares, GENESIS - consom(2_800_000));
+        assert.equal(await env.memberState(3n), null);
+        assert.equal((await env.bankState()).unassignedShares, GENESIS - consom(9_333_324));
     });
 });
 

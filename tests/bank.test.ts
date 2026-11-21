@@ -20,13 +20,13 @@ async function withGenesis() {
 }
 
 describe('Genèse de la banque', () => {
-    it('les 3 500 000 ConsoM des Anciens Contributeurs deviennent des parts à attribuer', async () => {
+    it('les 10 500 000 ConsoM des Anciens Contributeurs deviennent des parts à attribuer', async () => {
         const env = await withGenesis();
         const st = await env.bankState();
-        assert.equal(st.depositorStock, consom(3_500_000));
-        assert.equal(st.totalShares, consom(3_500_000));
-        assert.equal(st.unassignedShares, consom(3_500_000));
-        assert.equal(await env.balanceOf(env.bankAddress), consom(3_600_000), 'le wallet de la banque ne contient que la genèse (stock des déposants + réserve de la Fondation)');
+        assert.equal(st.depositorStock, consom(10_500_000));
+        assert.equal(st.totalShares, consom(10_500_000));
+        assert.equal(st.unassignedShares, consom(10_500_000));
+        assert.equal(await env.balanceOf(env.bankAddress), consom(10_600_000), 'le wallet de la banque ne contient que la genèse (stock des déposants + réserve de la Fondation)');
         assert.equal(st.isOpen, false, 'fermée pendant 12 mois');
     });
 });
@@ -38,11 +38,11 @@ describe('Conversion via la banque', () => {
         const r = await bankConversion(env, 1_000_000n);                    // 100 000 ConsoM à brûler
         assert.ok(hasTx(r, { to: env.minter.address, op: BURN_NOTIFICATION, success: true }), describeTxs(r));
         const st = await env.bankState();
-        assert.equal(st.depositorStock, consom(3_500_000 - 100_000));
-        assert.equal(st.totalShares, consom(3_500_000), 'les parts ne changent pas');
+        assert.equal(st.depositorStock, consom(10_500_000 - 100_000));
+        assert.equal(st.totalShares, consom(10_500_000), 'les parts ne changent pas');
         const ms = await env.minter.getState();
         assert.equal(ms.burnedByConversion, consom(100_000), 'le compteur des paliers monte');
-        assert.equal(ms.totalSupply, consom(5_000 + 3_600_000 - 100_000), 'l\'offre baisse');
+        assert.equal(ms.totalSupply, consom(5_000 + 10_600_000 - 100_000), 'l\'offre baisse');
     });
 
     it('un bon de conversion ne sert qu\'une fois', async () => {
@@ -56,11 +56,11 @@ describe('Conversion via la banque', () => {
 
     it('plafond de 5 % du stock par 24 h ; au-delà, rien n\'est brûlé', async () => {
         const env = await withGenesis();
-        await bankConversion(env, 1_750_000n);                              // 175 000 = 5 % de 3 500 000
+        await bankConversion(env, 5_250_000n);                              // 525 000 = 5 % de 10 500 000
         const r = await bankConversion(env, 10n);
         assert.ok(!hasTx(r, { op: BURN_NOTIFICATION }), 'aucun brûlage au-delà du plafond');
         assert.ok(hasTx(r, { to: env.bankAddress, op: Op.BankBurn, success: true }), describeTxs(r));
-        assert.equal((await env.minter.getState()).burnedByConversion, consom(175_000));
+        assert.equal((await env.minter.getState()).burnedByConversion, consom(525_000));
         env.blockchain.now = T0 + DAY;
         const next = await bankConversion(env, 10n);
         assert.ok(hasTx(next, { op: BURN_NOTIFICATION, success: true }), 'nouvelle période de 24 h');
@@ -70,11 +70,11 @@ describe('Conversion via la banque', () => {
         const env = await withGenesis();
         await env.claim(env.voucher());
         env.blockchain.now = T0 + 365 * DAY;
-        await env.deposit(env.member, consom(1000));                        // stock des déposants = 3 501 000
+        await env.deposit(env.member, consom(1000));                        // stock des déposants = 10 501 000
         await bankConversion(env, 10n);                                     // ouvre la période de 24 h
         const st = await env.bankState();
-        assert.equal(st.depositorStock, consom(3_501_000 - 1));
-        assert.equal(st.dayCap, (consom(3_501_000) * 500n) / 10_000n, '5 % du stock au début de la période');
+        assert.equal(st.depositorStock, consom(10_501_000 - 1));
+        assert.equal(st.dayCap, (consom(10_501_000) * 500n) / 10_000n, '5 % du stock au début de la période');
     });
 
     it('la banque garde ses propres TON : le membre ne récupère que ce qu\'il a envoyé', async () => {
@@ -145,10 +145,10 @@ describe('Conversion avec ses propres ConsoM', () => {
     it('n\'est pas soumise au plafond de 5 % et compte pour le halving', async () => {
         const env = await withGenesis();
         await env.claim(env.voucher({ amount: consom(50000), waveAmount: 38000n }));   // 50 000 ConsoM
-        await bankConversion(env, 1_750_000n);                                          // plafond de la banque atteint
+        await bankConversion(env, 5_250_000n);                                          // plafond de la banque atteint
         const r = await env.ownConversion(ownVoucher(env, 400_000n), consom(40_000));
         assert.ok(hasTx(r, { op: BURN_NOTIFICATION, success: true }), describeTxs(r));
-        assert.equal((await env.minter.getState()).burnedByConversion, consom(215_000));
+        assert.equal((await env.minter.getState()).burnedByConversion, consom(565_000), "525 000 (5 % de 10 500 000) + 40 000");
     });
 
     it('reste possible pendant une pause (contrairement à la conversion via la banque)', async () => {
@@ -168,10 +168,10 @@ describe('Dépôts et retraits', () => {
         await env.claim(env.voucher());
         await env.sendToBank(env.member, consom(100));
         assert.equal(await env.balanceOf(env.member.address), consom(5000), 'jetons rendus');
-        assert.equal(await env.balanceOf(env.bankAddress), consom(3_600_000), 'rien de plus dans la banque');
+        assert.equal(await env.balanceOf(env.bankAddress), consom(10_600_000), 'rien de plus dans la banque');
         const st = await env.bankState();
-        assert.equal(st.depositorStock, consom(3_500_000));
-        assert.equal(st.totalShares, consom(3_500_000));
+        assert.equal(st.depositorStock, consom(10_500_000));
+        assert.equal(st.totalShares, consom(10_500_000));
         assert.equal(st.escrow, 0n);
     });
 
@@ -180,7 +180,7 @@ describe('Dépôts et retraits', () => {
         await env.claim(env.voucher());
         await env.deposit(env.member, consom(1000));
         assert.equal(await env.balanceOf(env.member.address), consom(5000));
-        assert.equal((await env.bankState()).depositorStock, consom(3_500_000));
+        assert.equal((await env.bankState()).depositorStock, consom(10_500_000));
     });
 
     it('après 12 mois : dépôt en parts, retrait 24 h plus tard à la valeur des parts', async () => {
@@ -200,7 +200,7 @@ describe('Dépôts et retraits', () => {
         env.blockchain.now = T0 + 366 * DAY;
         const r = await env.withdraw(env.member);
         assert.ok(hasTx(r, { to: env.bankAddress, op: Op.WithdrawShares, success: true }), describeTxs(r));
-        const expected = (consom(1000) * (consom(3_501_000) - consom(100_000))) / consom(3_501_000);
+        const expected = (consom(1000) * (consom(10_501_000) - consom(100_000))) / consom(10_501_000);
         assert.equal(await env.balanceOf(env.member.address), consom(4000) + expected);
         assert.equal((await env.shareState(env.member.address))!.shares, 0n);
     });
@@ -221,7 +221,7 @@ describe('Dépôts et retraits', () => {
         const fake = beginCell().storeUint(Op.BankBurn, 32).storeUint(0, 64).storeCoins(consom(1000)).storeAddress(env.stranger.address).endCell();
         const r = await env.stranger.send({ to: env.bankAddress, value: toNano('0.2'), body: fake });
         assert.ok(hasTx(r, { to: env.bankAddress, success: false, exitCode: 460 }), describeTxs(r));
-        assert.equal((await env.bankState()).depositorStock, consom(3_500_000));
+        assert.equal((await env.bankState()).depositorStock, consom(10_500_000));
     });
 });
 

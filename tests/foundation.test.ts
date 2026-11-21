@@ -10,7 +10,7 @@ import { consom, Kind, Op, Err, decodeConversionResult, jettonTransferBody } fro
 
 const BURN_NOTIFICATION = 0x7bdd97de;
 const FOUNDATION = consom(100_000);
-const DEPOSITORS = consom(3_500_000);
+const DEPOSITORS = consom(10_500_000);
 const T24 = 24 * 30 * DAY;      // T0 + 24 mois
 
 async function withGenesis() {
@@ -34,11 +34,21 @@ function resultOf(r: { transactions: any[] }) {
 const convert = (env: Env, points: bigint) =>
     env.claim(env.voucher({ kind: Kind.BANK_CONVERSION, points, waveAmount: 0n, amount: 0n }));
 
-// Banque vidée par les retraits : un Ancien Contributeur (le membre) réclame les 5 000 000, puis retire tout le stock des
+// Le membre reçoit TOUTES les parts de la genèse : trois bons d'Ancien Contributeur de 5 000 000 (identifiants 777, 778, 779),
+// un par jour (les 30 % créés, 1 500 000, comptent dans le plafond global de 2 000 000 par 24 h).
+async function claimAllFounderShares(env: Env) {
+    for (let i = 0; i < 3; i++) {
+        env.blockchain.now = T0 + i * DAY;
+        await env.claim(env.voucher({ kind: Kind.FOUNDER_CLAIM, amount: consom(5_000_000), waveRef: 0n, waveAmount: 0n, points: 0n, memberId: 777n + BigInt(i) }));
+    }
+    assert.equal((await env.bankState()).unassignedShares, 0n, 'toutes les parts de la genèse sont au membre');
+}
+
+// Banque vidée par les retraits : le membre reçoit les 15 000 000 des Anciens Contributeurs, puis retire tout le stock des
 // déposants à T0 + `emptyAtDays`. La réserve de la Fondation reste intacte dans le wallet de la banque.
 async function emptiedBank(emptyAtDays: number) {
     const env = await withGenesis();
-    await env.claim(env.voucher({ kind: Kind.FOUNDER_CLAIM, amount: consom(5_000_000), waveRef: 0n, waveAmount: 0n, points: 0n, memberId: 777n }));
+    await claimAllFounderShares(env);
     env.blockchain.now = T0 + emptyAtDays * DAY;
     await env.withdraw(env.member);
     const bank = await env.bankState();
@@ -47,11 +57,11 @@ async function emptiedBank(emptyAtDays: number) {
     return env;
 }
 
-// Banque dont il ne reste que `left` unités de base de stock des déposants : un Ancien Contributeur (le membre) réclame les
-// 5 000 000, puis retire presque tout à T0 + `atDays`.
+// Banque dont il ne reste que `left` unités de base de stock des déposants : le membre reçoit les 15 000 000 des Anciens
+// Contributeurs, puis retire presque tout à T0 + `atDays`.
 async function bankWithStockLeft(left: bigint, atDays: number) {
     const env = await withGenesis();
-    await env.claim(env.voucher({ kind: Kind.FOUNDER_CLAIM, amount: consom(5_000_000), waveRef: 0n, waveAmount: 0n, points: 0n, memberId: 777n }));
+    await claimAllFounderShares(env);
     env.blockchain.now = T0 + atDays * DAY;
     await env.withdraw(env.member, DEPOSITORS - left);
     assert.equal((await env.bankState()).depositorStock, left);
@@ -300,7 +310,7 @@ describe('Résultat de chaque conversion via la banque', () => {
 
     it('conversion refusée (plafond de 5 % atteint, réserve fermée) : le résultat dit « refusée »', async () => {
         const env = await withGenesis();
-        await convert(env, 1_750_000n);                       // 175 000 = 5 % du stock
+        await convert(env, 5_250_000n);                       // 525 000 = 5 % du stock
         const r = await convert(env, 10n);
         const res = resultOf(r)!;
         assert.equal(res.accepted, false, describeTxs(r));

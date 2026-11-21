@@ -190,7 +190,7 @@ async function main() {
     if (!teamText) throw new Error('TEAM_ADDRESS manquant (adresse du portefeuille Multisig de l\'équipe, gravée au déploiement).');
     // total des contributions du lancement anticipé, en ConsoM entiers : somme de la liste du serveur (0 = aucune)
     const earlyText = (process.env.EARLY_CONTRIBUTIONS_TOTAL ?? '').trim();
-    if (!/^\d+$/.test(earlyText) || BigInt(earlyText) > 100_000_000n) throw new Error('EARLY_CONTRIBUTIONS_TOTAL manquant ou invalide (nombre entier de ConsoM, 0 à 100000000).');
+    if (!/^\d+$/.test(earlyText) || BigInt(earlyText) > 90_000_000n) throw new Error('EARLY_CONTRIBUTIONS_TOTAL manquant ou invalide (nombre entier de ConsoM, 0 à 90000000).');
     // A16 : adresses interdites de réception (facultatif sur le testnet)
     const forbiddenRecipients = (process.env.FORBIDDEN_RECIPIENTS ?? '').split(/[\s,;]+/).map((t) => t.trim()).filter(Boolean).map((t) => Address.parse(t));
     if (forbiddenRecipients.length > 8) throw new Error('FORBIDDEN_RECIPIENTS : 8 adresses au plus.');

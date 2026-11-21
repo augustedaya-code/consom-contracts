@@ -18,7 +18,7 @@ import type { Env } from './helpers.ts';
 import { consom, Kind, Op, Err, NETWORK_MAINNET, ConsoMMinter, INITIAL_CAPS } from '../wrappers/ConsoMMinter.ts';
 import type { TestCarry } from '../wrappers/ConsoMMinter.ts';
 
-const GENESIS = consom(3_500_000);
+const GENESIS = consom(10_500_000);
 const FOUNDATION = consom(100_000);
 const YEAR = 365 * DAY;
 const REJECT_ALREADY_DONE = 13;
