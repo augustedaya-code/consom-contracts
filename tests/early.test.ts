@@ -9,7 +9,7 @@ import type { Env } from './helpers.ts';
 import { consom, Kind, Op, Err, INITIAL_CAPS } from '../wrappers/ConsoMMinter.ts';
 
 const TOTAL = consom(1_000_000);        // total gravé des contributions (somme de la liste du serveur)
-const GENESIS = consom(3_500_000);
+const GENESIS = consom(10_500_000);
 const REJECT_SLOT_USED = 1;
 const REJECT_WRONG_OWNER = 10;
 
@@ -39,7 +39,7 @@ describe('Contribution du lancement anticipé : 30 % sur l\'adresse, 70 % en par
         assert.ok(approved(r), describeTxs(r));
 
         assert.equal(await env.balanceOf(env.member.address), consom(6_000), '30 % sur l\'adresse');
-        assert.equal(await env.balanceOf(env.bankAddress), consom(3_600_000 + 14_000), '70 % créés dans la banque');
+        assert.equal(await env.balanceOf(env.bankAddress), consom(10_600_000 + 14_000), '70 % créés dans la banque');
         assert.equal((await env.shareState(env.member.address))!.shares, consom(14_000), 'parts nouvelles à cette adresse');
 
         const bank = await env.bankState();

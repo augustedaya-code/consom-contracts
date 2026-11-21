@@ -4,22 +4,22 @@
 const ONE_CONSOM = 1000000000
 
 // ---------- Section 3 : plafonds par catégorie (gravés au déploiement) ----------
-const CAP_PRESALE  = 100000000 * ONE_CONSOM
+const CAP_PRESALE  = 90000000 * ONE_CONSOM     // 100 000 000 avant le lot E14a-2 : 10 000 000 donnés aux Anciens Contributeurs
 const CAP_PURCHASE = 55000000 * ONE_CONSOM
 const CAP_REFERRAL = 45000000 * ONE_CONSOM
 const CAP_MISSIONS = 19900000 * ONE_CONSOM    // premier achat et missions
-const CAP_FOUNDERS = 5000000 * ONE_CONSOM     // Anciens Contributeurs
+const CAP_FOUNDERS = 15000000 * ONE_CONSOM    // Anciens Contributeurs (lot E14a-2 : 5 000 000 -> 15 000 000, pris sur la prévente)
 const CAP_TEAM     = 5000000 * ONE_CONSOM
 const CAP_CHIKA    = 20000000 * ONE_CONSOM    // réserve à part du Bonus CHIKA
 const CAP_FOUNDATION = 100000 * ONE_CONSOM    // réserve de la Fondation (A13) : créée à la genèse dans un stock à part de la banque
 const MAX_SUPPLY   = 250000000 * ONE_CONSOM
 
-// Part des Anciens Contributeurs déposée dans la banque à la genèse : 70 % de 5 M
-const FOUNDERS_BANK_DEPOSIT = 3500000 * ONE_CONSOM
+// Part des Anciens Contributeurs déposée dans la banque à la genèse : 70 % de 15 M
+const FOUNDERS_BANK_DEPOSIT = 10500000 * ONE_CONSOM
 
 // Anciens Contributeurs (A8) : 30 % de leur part sont créés pour eux, 70 % leur sont attribués en parts de la banque.
 // La part totale T d'un bon doit être un multiple de 10 unités de base : les deux morceaux sont alors exacts
-// et la somme de toutes les réclamations ne peut pas dépasser 5 000 000 (1 500 000 créés + 3 500 000 de parts).
+// et la somme de toutes les réclamations ne peut pas dépasser 15 000 000 (4 500 000 créés + 10 500 000 de parts).
 const FOUNDER_DIRECT_BP = 3000     // 30 % de T créés directement
 const FOUNDER_UNIT      = 10       // T est un multiple de 10 unités de base
 

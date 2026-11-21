@@ -24,16 +24,39 @@ La référence est [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) : chaque rè
 Le compilateur Tolk est figé à la version **1.4.2** (`package.json` + `package-lock.json`) : c'est celle qui reproduit à l'identique
 les empreintes du déploiement du 14 octobre 2026. Ne pas la changer sans refaire toute la vérification des empreintes.
 
-Empreintes après le lot C1 (réclamation par un tiers : le serveur de TonMarché présente les bons et paie les frais) :
+Empreintes après le lot E14a-2 (Anciens Contributeurs 15 000 000, prévente 90 000 000) — seul l'émetteur change :
 
-| Contrat | Empreinte | Changée ? |
+| Contrat | Empreinte | Changée depuis le déploiement du 21/11 au matin ? |
 | --- | --- | --- |
-| Émetteur (`minterCode`) | `b8c562b1af18a5f62f2ae6afb638a47fc1342fbbe64da53678a0bb6f22637f49` | oui |
-| Budget de paiement (`budgetCode`) | `337bccdadf220f17d416342c156db31ed9cb548203867f8df45e900d102c6204` | oui |
+| Émetteur (`minterCode`) | `5c678134fbb3df224559917a8ac3d73a547cea09de4db33b0b6af95dc815676e` | oui (avant : `e302aa83…770bcaba`) |
+| Budget de paiement (`budgetCode`) | `57a5db85990f7eb219f1c08a9f6439ae6ddb73914bf6516ff7f634538948185c` | non |
 | Wallet (`walletCode`) | `7bfa53bce90ce26cd368ec2989eba2bd15d286104742f0e04659f485a03012ba` | non |
-| Compte membre (`memberCode`) | `3f38c81f11872c32a92ed936271b7af909ac34c72cfafa2e41961a049bb46a62` | oui |
-| Banque (`bankCode`) | `7ca5bc4d2250b411b8e6224c5f6eceb975caeebc53eb3d69f011b4fabd9d2b02` | non |
+| Compte membre (`memberCode`) | `1630da939be53fa0c545069fa2e38c683984fbd39fa21306cfae5b601bc9da11` | non |
+| Banque (`bankCode`) | `88f997bbce93017d7e8630cf0b2e6e2dceeff078c004f3f246290cb17e77fa14` | non |
 | Parts (`shareCode`) | `d1d858f0931c3b6782bd80507019147fd74f07b36763690643e9a7b330d07138` | non |
+
+Comme l'émetteur change, son adresse change aussi, et donc celles de la banque et de tous les contrats qui en dépendent :
+il faut un nouveau déploiement.
+
+## Réserves gravées (offre maximale 250 000 000)
+
+Dans `contracts/consom/constants.tolk` (et `INITIAL_CAPS` dans `wrappers/ConsoMMinter.ts`, qui doit être identique) :
+
+| Réserve | ConsoM | Constante |
+| --- | --- | --- |
+| Prévente (lancement anticipé compris) | 90 000 000 (100 000 000 avant le lot E14a-2) | `CAP_PRESALE` |
+| Récompenses d'achat | 55 000 000 | `CAP_PURCHASE` |
+| Parrainage | 45 000 000 | `CAP_REFERRAL` |
+| Premier achat et missions | 19 900 000 | `CAP_MISSIONS` |
+| Anciens Contributeurs | 15 000 000 (5 000 000 avant le lot E14a-2) | `CAP_FOUNDERS` |
+| Équipe | 5 000 000 | `CAP_TEAM` |
+| Bonus CHIKA | 20 000 000 | `CAP_CHIKA` |
+| Fondation | 100 000 | `CAP_FOUNDATION` |
+| **Total** | **250 000 000** | `MAX_SUPPLY` |
+
+Dépôt de la genèse dans la banque : `FOUNDERS_BANK_DEPOSIT` = 10 500 000 (70 % de 15 000 000 ; 3 500 000 avant). La liste
+réelle des Anciens Contributeurs totalise 13 456 000 ; le reste (1 544 000) est une réserve pour d'éventuelles réclamations,
+attribuable plus tard par le même bon type 11. La liste nominative n'est pas dans ce dépôt.
 
 ## Lancer les tests
 
@@ -84,7 +107,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   `get_burn_for_points(points)` donne le brûlage à payer, arrondi au supérieur.
 - **Gardien** (Multisig v2) : pause immédiate de 14 jours au plus (une par 30 jours), levée immédiate, remplacement d'un témoin
   après 7 jours (un par 30 jours), annulable. Aucun autre pouvoir.
-- **Genèse** : dépôt unique dans la banque de 3 500 000 ConsoM (Anciens Contributeurs) et de 100 000 ConsoM (réserve de la
+- **Genèse** : dépôt unique dans la banque de 10 500 000 ConsoM (Anciens Contributeurs, 70 % de 15 000 000) et de 100 000 ConsoM (réserve de la
   Fondation, stock à part).
 - **Part de l'équipe** (règle A9, 5 000 000) : l'adresse qui la reçoit est gravée au déploiement (`teamAddress`, un
   portefeuille Multisig) et ne peut jamais changer. Rien avant T0 + 12 mois, puis 1/24 par période de 30 jours terminée
@@ -99,12 +122,13 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   contribution, sans limite de temps, hors plafond de 50 000 par membre, T compte dans le plafond global du jour. Le total
   de toutes les contributions est gravé au déploiement (`earlyContributionsTotal`) et retenu dans la réserve de prévente, pour que
   la règle des invendus de T0 + 18 mois ne l'efface pas.
-- **Anciens Contributeurs** (règle A8, 5 000 000) : bon signé 2 sur 3 « réclamation d'un Ancien Contributeur » (adresse,
+- **Anciens Contributeurs** (règle A8, 15 000 000 depuis le lot E14a-2 : 13 456 000 pour la liste réelle + 1 544 000 de réserve, pris sur la prévente) : bon signé 2 sur 3 « réclamation d'un Ancien Contributeur » (adresse,
   empreinte de l'identifiant, part totale T). Le contrat en crée 30 % pour l'adresse (réserve Anciens Contributeurs) et lui
   attribue 70 % en parts de la banque, prises dans les parts à attribuer de la genèse (rien n'est créé pour cette partie) ;
   le compte devient éligible (participant à la prévente). Une seule réclamation par identifiant, sans limite de temps, hors
   plafond de 50 000 par membre, comptée dans le plafond global du jour pour les 30 % créés. T est un multiple de 10 unités
-  de base, pour que les deux parts soient exactes et que le total ne dépasse jamais 5 000 000.
+  de base, pour que les deux parts soient exactes et que le total ne dépasse jamais 15 000 000 (4 500 000 créés + 10 500 000
+  en parts). Les 30 % comptent dans le plafond global de 2 000 000 par 24 h : au plus T = 6 666 660 par jour, tous bons confondus.
 
 ## Ce que font le budget de paiement et le compte membre
 
@@ -127,7 +151,8 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   ni genèse) est refusé : les jetons retournent à l'expéditeur.
 - **Conversion via la banque** (lot E14 : présentable par le relais du serveur pour un membre sans portefeuille ; le bon
   est lié au membre par sa clé, son numéro et ses Points, son `recipient` n'est pas utilisé) : bon signé, l'émetteur calcule le brûlage au taux courant, le compte membre refuse un bon
-  déjà utilisé, la banque brûle sur le stock des déposants (les parts ne changent pas). Au plus 5 % de ce stock par 24 h ;
+  déjà utilisé, la banque brûle sur le stock des déposants (les parts ne changent pas). Au plus 5 % de ce stock par 24 h
+  (au départ 525 000 ConsoM : 5 % de 10 500 000) ;
   au-delà, rien n'est brûlé.
 - **Conversion avec ses propres ConsoM** : le membre envoie ses ConsoM à la banque avec le bon signé ; l'émetteur vérifie,
   la banque brûle le montant requis et rend l'excédent. Bon invalide, déjà utilisé ou montant insuffisant : tout est rendu.
@@ -142,7 +167,7 @@ un budget ou un compte membre qu'en recalculant son adresse à partir de son cod
   leur bon type 11, les contributeurs de la prévente du test par le bon type 12, et tous les autres ConsoM des portefeuilles
   par le bon type 13 : quatre totaux par réserve d'origine (liste publiée avant le lancement) sont gravés (`get_test_carry`),
   retirés de leurs réserves à la genèse, puis chaque membre reçoit sa ligne, une seule fois.
-- **Genèse** : les 3 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer. Sur ordre de l'émetteur
+- **Genèse** : les 10 500 000 ConsoM des Anciens Contributeurs y entrent comme parts à attribuer. Sur ordre de l'émetteur
   seul (après un bon d'Ancien Contributeur), la banque en attribue à une adresse : les parts à attribuer diminuent, le
   contrat « parts » de l'adresse est crédité, le total des parts et le stock ne changent pas. Les retraits restent soumis aux
   règles de la banque (fermée 12 mois, puis 24 h après la dernière arrivée de parts du déposant, attribution comprise).
@@ -200,7 +225,7 @@ et ne peut pas être corrigé, il faut alors en déployer un autre.
 | **Liste des adresses interdites de réception** (0 à 8 adresses) | L'équipe technique : wallet relais du serveur, autres wallets du serveur ou de l'équipe technique | Gravée : la garantie « le serveur ne reçoit jamais de ConsoM créés » (A16) ne doit dépendre de personne. Une liste vide est acceptée par le contrat mais le script de déploiement affiche un avertissement : sur le réseau principal, le relais doit y figurer |
 | **T0** (ouverture du réseau, secondes Unix) | L'équipe technique, au moment du déploiement (variable `T0`, par défaut maintenant) | Toutes les fenêtres (prévente 18 mois, récompenses 24 mois, équipe 12 à 36 mois, Fondation 24 mois) se comptent depuis T0 : le déplacer changerait les droits de chacun |
 | **Réseau** (`networkId` : -239 réseau principal, -3 testnet) | Le script (`testnet` ou `mainnet`) | Un bon signé pour un réseau n'est jamais valable sur l'autre ; le changer permettrait de rejouer des bons |
-| **Total du lancement anticipé** (`earlyContributionsTotal`, en ConsoM entiers, 0 à 100 000 000) | Le serveur de TonMarché : somme de la liste des contributions du réseau d'essai (variable `EARLY_CONTRIBUTIONS_TOTAL`, 0 sur le testnet) | Retenu dans la réserve de prévente pour que la règle des invendus de T0 + 18 mois ne l'efface pas : s'il pouvait changer, on pourrait retenir ou libérer des ConsoM à volonté |
+| **Total du lancement anticipé** (`earlyContributionsTotal`, en ConsoM entiers, 0 à 90 000 000) | Le serveur de TonMarché : somme de la liste des contributions du réseau d'essai (variable `EARLY_CONTRIBUTIONS_TOTAL`, 0 sur le testnet) | Retenu dans la réserve de prévente pour que la règle des invendus de T0 + 18 mois ne l'efface pas : s'il pouvait changer, on pourrait retenir ou libérer des ConsoM à volonté |
 
 Sont aussi gravés par le déploiement, sans que personne n'ait de choix à faire : les codes compilés du wallet Jetton, du budget de
 paiement, du compte membre, de la banque et des parts d'un déposant, ainsi que le lien des métadonnées du Jetton (empreintes

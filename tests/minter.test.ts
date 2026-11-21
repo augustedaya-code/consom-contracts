@@ -28,12 +28,12 @@ describe('Déploiement et lecture', () => {
     it('les 8 réserves sont celles du livre blanc v5.0 et font exactement 250 000 000', async () => {
         const env = await setup();
         const caps = await env.minter.getCaps();
-        assert.equal(caps.presale, consom(100_000_000));
+        assert.equal(caps.presale, consom(90_000_000), 'lot E14a-2 : 100 000 000 - 10 000 000 donnés aux Anciens Contributeurs');
         assert.equal(caps.purchase, consom(55_000_000));
         assert.equal(caps.referral, consom(45_000_000));
         assert.equal(caps.chika, consom(20_000_000));
         assert.equal(caps.missions, consom(19_900_000), 'premier achat et missions');
-        assert.equal(caps.founders, consom(5_000_000));
+        assert.equal(caps.founders, consom(15_000_000), 'lot E14a-2 : Anciens Contributeurs (13 456 000 attribués + réserve)');
         assert.equal(caps.team, consom(5_000_000));
         assert.equal(caps.foundation, consom(100_000));
         const total = caps.presale + caps.purchase + caps.referral + caps.chika + caps.missions + caps.founders + caps.team + caps.foundation;
@@ -546,12 +546,12 @@ async function bankBurn(env: any, points: bigint) {
 }
 
 describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
-    it('dépose une seule fois 3 500 000 ConsoM des Anciens Contributeurs dans la banque', async () => {
+    it('dépose une seule fois 10 500 000 ConsoM des Anciens Contributeurs dans la banque', async () => {
         const env = await setup();
         await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3'));
         const bank = await env.minter.getBankAddress();
-        assert.equal(await env.balanceOf(bank), consom(3_600_000), '3 500 000 (déposants) + 100 000 (Fondation)');
-        assert.equal((await env.minter.getCaps()).founders, consom(1_500_000));
+        assert.equal(await env.balanceOf(bank), consom(10_600_000), '10 500 000 (déposants) + 100 000 (Fondation)');
+        assert.equal((await env.minter.getCaps()).founders, consom(4_500_000), 'réserve des 30 % : 15 000 000 - 10 500 000');
         assert.equal((await env.minter.getState()).genesisDone, true);
         expectRejected(await env.minter.sendGenesis(env.deployer.getSender(), toNano('0.3')), env.minter.address, Err.GENESIS_DONE);
     });
@@ -566,7 +566,7 @@ describe('Genèse, brûlages et halving (sections 8, 9 et 11)', () => {
             assert.ok(hasTx(r, { to: env.minter.address, op: 0x7bdd97de, success: true }), `jour ${day}\n${describeTxs(r)}`);
         }
         const st = await env.minter.getState();
-        assert.equal(st.totalSupply, consom(3_600_000 - 840_000));
+        assert.equal(st.totalSupply, consom(10_600_000 - 840_000));
         assert.equal(st.burnedByConversion, consom(840_000));
         assert.equal(st.halvingSteps, 0, 'le premier palier n\'est qu\'à 15 000 000');
         assert.equal(await env.minter.getBurnForPoints(100n), consom(10), 'V = 100 : 100 Points demandent 10 ConsoM');

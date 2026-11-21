@@ -75,11 +75,11 @@ export const MAX_FORBIDDEN_RECIPIENTS = 8;
 
 // Plafonds initiaux (section 3)
 export const INITIAL_CAPS = {
-    presale: consom(100_000_000),
+    presale: consom(90_000_000),
     purchase: consom(55_000_000),
     referral: consom(45_000_000),
     missions: consom(19_900_000),
-    founders: consom(5_000_000),
+    founders: consom(15_000_000),
     team: consom(5_000_000),
     chika: consom(20_000_000),
     foundation: consom(100_000),
@@ -101,7 +101,7 @@ export type MinterConfig = {
     // technique. Gravées au déploiement, jamais modifiables. L'adresse de l'équipe ne peut pas y figurer.
     forbiddenRecipients: Address[];
     // Total (unités de base) des contributions du lancement anticipé à réclamer : gravé au déploiement, retenu dans la réserve
-    // de prévente (la règle des invendus de T0 + 18 mois n'y touche pas). 0 = aucune contribution. Au plus 100 000 000 ConsoM.
+    // de prévente (la règle des invendus de T0 + 18 mois n'y touche pas). 0 = aucune contribution. Au plus 90 000 000 ConsoM.
     earlyContributionsTotal?: bigint;
     // Lot E14 : ConsoM des portefeuilles de la phase de test à recréer au réseau principal, par réserve d'origine (unités de
     // base), tirés de la liste publiée avant le lancement. Absent (ou tout à 0) sur le réseau d'essai.
@@ -161,6 +161,10 @@ export function assertValidMinterConfig(c: MinterConfig, minter: Address, bank: 
         if (a.equals(c.teamAddress)) {
             fail('l\'adresse de l\'équipe figure dans la liste des adresses interdites de réception : la part de l\'équipe ne pourrait jamais lui être versée.');
         }
+    }
+    const early = c.earlyContributionsTotal ?? 0n;
+    if (early < 0n || early > INITIAL_CAPS.presale) {
+        fail('le total des contributions du lancement anticipé doit être entre 0 et la réserve de prévente (90 000 000 ConsoM).');
     }
     const carry = c.testCarry;
     if (carry) {

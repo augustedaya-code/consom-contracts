@@ -52,7 +52,7 @@ describe('Lot E14 — conversion par la banque envoyée par le relais (membre sa
         const r = await env.claim(bankVoucher(env, relay.address, 1000n), { from: relay });
         assert.ok(hasTx(r, { to: env.minter.address, op: BURN_NOTIFICATION, success: true }), describeTxs(r));
         assert.equal((await env.minter.getState()).burnedByConversion, consom(100), '1 000 Points = 100 ConsoM brûlés (V = 100)');
-        assert.equal((await env.bankState()).depositorStock, consom(3_500_000 - 100), 'pris sur le stock des Anciens Contributeurs');
+        assert.equal((await env.bankState()).depositorStock, consom(10_500_000 - 100), 'pris sur le stock des Anciens Contributeurs');
         assert.deepEqual(resultFor(r, relay.address), { queryId: 0n, accepted: true, required: consom(100), burned: consom(100), coveredByFoundation: 0n });
         const m = await env.memberState(NO_WALLET_MEMBER);
         assert.equal(m!.owner, null, 'le compte du membre n\'est lié à aucune adresse (ni au relais)');

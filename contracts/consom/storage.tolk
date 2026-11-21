@@ -16,7 +16,7 @@ struct Caps {
     presaleSettled: bool     // règle des invendus de prévente appliquée (une seule fois, après T0 + 18 mois)
     dayStart: uint32         // début de la période de 24 h en cours
     dayMinted: coins         // émis (ou réservé) depuis dayStart
-    founderShares: coins     // parts de la banque encore à attribuer aux Anciens Contributeurs (3 500 000 après la genèse)
+    founderShares: coins     // parts de la banque encore à attribuer aux Anciens Contributeurs (10 500 000 après la genèse)
     earlyHold: coins         // total gravé des contributions du lancement anticipé encore à réclamer : retenu dans la réserve de prévente
     carryPool: coins         // lot E14 : ConsoM de la phase de test encore à recréer dans les portefeuilles (rempli par la genèse)
 }
