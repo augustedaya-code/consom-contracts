@@ -1,9 +1,9 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-11-11T18:57:46.985Z",
-  "t0": 1794423404,
-  "minter": "kQC1mldrWFq0hAD-oUwm0hr0QoLq-GMNJ4Jqwzfo7XHUUIyy",
-  "bank": "kQAixcw7Y4NOgAxP8jhPYvih0Y4bCtGRTjp8qtBb64DxEQkB",
+  "deployedAt": "2026-11-21T07:32:44.388Z",
+  "t0": 1795246299,
+  "minter": "kQC4ctZmr9kJStqRvs5Zd3BeHKvPdTNvFohPJVZ_1mTr9_Qd",
+  "bank": "kQD08LFwMxEEJE47ckb5J3PqZAO0pBpm0MTEazHuZEQDtjg0",
   "guardian": "0QDNWpl9uJ_EiIGRuh-ZcJd9fAaBlP7y888AgdgpjITBT1FT",
   "teamAddress": "0QBjGtDkdgJY1XCy8g-I2dwFxH25_jhtv8epEtPDNfGfMBsc",
   "earlyContributionsTotal": "0",
@@ -16,11 +16,11 @@
     "9fd6e71b40a751b56d0e255c2bf8d649dfffaba7245904ca995037d93228c66a"
   ],
   "codeHashes": {
-    "minterCode": "2ecdcd585b7ab875eb79ebb7f3f4770d7dd2d95e90a1b90e461d40b23e30ca85",
+    "minterCode": "e302aa8386af886b9234c5410bd73d07d2cc4a8bb60a3636f5ebfd50770bcaba",
     "walletCode": "7bfa53bce90ce26cd368ec2989eba2bd15d286104742f0e04659f485a03012ba",
     "budgetCode": "57a5db85990f7eb219f1c08a9f6439ae6ddb73914bf6516ff7f634538948185c",
-    "memberCode": "a206df31bff3fc8a58bffc5be5fb6d9c99f632de948b6c17e68afaeff7d94c35",
-    "bankCode": "e0daeb5bbd2f6c33efc79613aac71aac27293388e3d63a22657a682801a500d0",
+    "memberCode": "1630da939be53fa0c545069fa2e38c683984fbd39fa21306cfae5b601bc9da11",
+    "bankCode": "88f997bbce93017d7e8630cf0b2e6e2dceeff078c004f3f246290cb17e77fa14",
     "shareCode": "d1d858f0931c3b6782bd80507019147fd74f07b36763690643e9a7b330d07138"
   }
 }
