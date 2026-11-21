@@ -1,9 +1,9 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-11-21T07:32:44.388Z",
-  "t0": 1795246299,
-  "minter": "kQC4ctZmr9kJStqRvs5Zd3BeHKvPdTNvFohPJVZ_1mTr9_Qd",
-  "bank": "kQD08LFwMxEEJE47ckb5J3PqZAO0pBpm0MTEazHuZEQDtjg0",
+  "deployedAt": "2026-11-21T09:03:44.953Z",
+  "t0": 1795251762,
+  "minter": "kQDjrNtGGJQojh3CxJi_YRyagKLOZJ8gYIZ5q_ng-zxSgF_S",
+  "bank": "kQDNJ4_PPZxGjfJvDJKgpCeMMazTqdLWf6uaPFFyOoDP2RZC",
   "guardian": "0QDNWpl9uJ_EiIGRuh-ZcJd9fAaBlP7y888AgdgpjITBT1FT",
   "teamAddress": "0QBjGtDkdgJY1XCy8g-I2dwFxH25_jhtv8epEtPDNfGfMBsc",
   "earlyContributionsTotal": "0",
